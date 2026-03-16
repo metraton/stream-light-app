@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>Stream Light</title>
+    <link rel="stylesheet" href="panel.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body {
+            width: 100%; height: 100%;
+            background: #000;
+            overflow: hidden;
+        }
+        body.hide-cursor { cursor: none; }
+        #app {
+            width: 100%; height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        #app canvas {
+            max-width: 100%;
+            max-height: 100%;
+        }
+        #hud {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            color: #fff;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 11px;
+            background: rgba(0,0,0,0.75);
+            padding: 8px 12px;
+            border-radius: 6px;
+            z-index: 1000;
+            pointer-events: none;
+            transition: opacity 0.3s;
+            line-height: 1.6;
+        }
+        #hud.hidden { opacity: 0; }
+        #hud .label { color: #888; }
+        #hud .value { color: #FFD700; font-weight: bold; }
+        #hud .keys { color: #555; font-size: 10px; margin-top: 6px; border-top: 1px solid #333; padding-top: 6px; }
+        #hud .keys kbd { color: #aaa; background: #222; padding: 1px 4px; border-radius: 2px; }
+
+        #startup {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: #000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 3000;
+            color: #fff;
+            font-family: 'Segoe UI', sans-serif;
+        }
+        #startup.hidden { display: none; }
+        #startup h1 { font-size: 36px; color: #FFD700; margin-bottom: 20px; letter-spacing: 4px; }
+        #startup .subtitle { color: #888; margin-bottom: 30px; }
+        #startup select {
+            width: 300px;
+            padding: 10px;
+            font-size: 14px;
+            background: #111;
+            color: #fff;
+            border: 1px solid #333;
+            border-radius: 4px;
+            margin-bottom: 15px;
+        }
+        #startup button {
+            width: 300px;
+            padding: 12px;
+            font-size: 16px;
+            cursor: pointer;
+            background: #FFD700;
+            color: #000;
+            border: none;
+            border-radius: 4px;
+            font-weight: bold;
+            letter-spacing: 2px;
+        }
+        #startup button:hover { background: #FFC000; }
+        #startup .error { color: #ff4444; margin-top: 15px; font-size: 13px; }
+    </style>
+</head>
+<body>
+    <div id="startup">
+        <h1>STREAM LIGHT</h1>
+        <div class="subtitle">Select your camera to start</div>
+        <select id="camera-select">
+            <option value="">Loading cameras...</option>
+        </select>
+        <button id="start-btn" onclick="startApp()">START</button>
+        <button id="demo-btn" onclick="startDemo()" style="margin-top:8px; background:#555; color:#fff;">DEMO MODE (no camera)</button>
+        <div id="startup-error" class="error" style="display:none"></div>
+    </div>
+
+    <div id="app"></div>
+
+    <div id="hud">
+        <div><span class="label">Color:</span> <span class="value" id="hud-color">RAINBOW</span></div>
+        <div><span class="label">Effect:</span> <span class="value" id="hud-effect">NONE</span></div>
+        <div><span class="label">FPS:</span> <span class="value" id="hud-fps">0</span></div>
+        <div class="keys">
+            <kbd>0-5</kbd> Colores &middot; <kbd>6</kbd> Rainbow &middot; <kbd>Bksp</kbd> Clear<br>
+            <kbd>QWERT</kbd> Patron &middot; <kbd>ASDFG</kbd> Movimiento<br>
+            <kbd>ZXCVB</kbd> Glow &middot; <kbd>Shift+ZXCVB</kbd> Moods<br>
+            <kbd>Space</kbd> Play/Stop &middot; <kbd>+/-</kbd> BPM<br>
+            <kbd>F</kbd> Fullscreen &middot; <kbd>H</kbd> HUD &middot; <kbd>P</kbd> Panel
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/pixi.js@8/dist/pixi.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/pixi-filters@6.1.5/dist/pixi-filters.js"></script>
+    <script type="module" src="js/main.js"></script>
+</body>
+</html>
