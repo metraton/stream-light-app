@@ -9,9 +9,11 @@ export const CONFIG = {
     columns: {
         count: 5,
         gap: 20,
-        margin: 20,
+        margin: 40,  // headroom > peak Y movement (~15-20px) so Wave/Broken clear the edge
         cornerRadius: 15,
-        rotate90: true,
+        // Single orientation control: 0=0°, 1=90°, 2=180°, 3=270° (clockwise).
+        // Default 3 (270°) = old default rotate90(90°) + 180° flip → upright out of the box.
+        rotationSteps: 3,
         zoom: 1.0,
         spread: 1.0,
     },

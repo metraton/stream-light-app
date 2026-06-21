@@ -12,10 +12,10 @@ export const EFFECTS = {
             BOTTOM: [14, 8, 0, 7, 14],
         },
         sequence: ['UP', 'PEAK', 'UP', 'MAIN', 'DOWN', 'BOTTOM', 'DOWN', 'MAIN'],
-        phaseDuration: 800,
-        speedRange: [10, 1500],
+        phaseDuration: 500,            // default speed (uniform 500ms)
+        speedRange: [100, 1200],
         axis: 'y',
-        easing: 'easeInOutSine',
+        easing: 'linear',              // default easing = "Suave" (= linear)
         looping: true,
     },
     expand: {
@@ -26,10 +26,10 @@ export const EFFECTS = {
             E2:   [-15, -7, 0, 7, 15],
         },
         sequence: ['E1', 'MAIN', 'E2', 'MAIN'],
-        phaseDuration: 700,
-        speedRange: [10, 1500],
+        phaseDuration: 500,            // default speed (uniform 500ms)
+        speedRange: [100, 1200],
         axis: 'x',
-        easing: 'easeInOutSine',
+        easing: 'linear',              // default easing = "Suave" (= linear)
         looping: true,
     },
     broken: {
@@ -41,27 +41,34 @@ export const EFFECTS = {
             STAIR_LEFT:  [12, 6, 0, -6, -12],     // left down, right up (ascending stairs)
         },
         sequence: ['STAIR_RIGHT', 'MAIN', 'STAIR_LEFT', 'MAIN'],
-        phaseDuration: 350,
-        speedRange: [10, 1500],
+        phaseDuration: 500,            // default speed (uniform 500ms)
+        speedRange: [100, 1000],
         axis: 'y',
-        easing: 'easeInOutCubic',
+        easing: 'linear',              // default easing = "Suave" (= linear)
         looping: true,
     },
     equalizer: {
         label: 'Equalizer',
-        // Columns scale vertically like audio bars — asymmetric, organic
+        // Smooth equalizer GRADIENT (not jumpy bars). Two fixes vs the old
+        // ±0.065 alternating-sign version that felt brusque:
+        //  (1) peak magnitude reduced to ±0.04 (gentler grow/shrink), and
+        //  (2) adjacent columns differ by only ~0.02 and share sign, so the
+        //      profile reads as a soft travelling hump rather than neighbours
+        //      lurching opposite directions. A travelling gradient across the
+        //      5 columns gives an organic, smooth equalizer feel.
         phases: {
             MAIN: [0, 0, 0, 0, 0],
-            A1:   [-0.12, 0.08, -0.05, 0.10, -0.08],
-            A2:   [0.10, -0.10, 0.12, -0.06, 0.05],
-            A3:   [-0.06, 0.12, -0.10, 0.05, 0.10],
-            A4:   [0.08, -0.05, 0.06, -0.12, -0.06],
+            G1:   [0.04, 0.02, 0.00, -0.02, -0.04],
+            G2:   [0.02, 0.04, 0.02, 0.00, -0.02],
+            G3:   [0.00, 0.02, 0.04, 0.02, 0.00],
+            G4:   [-0.02, 0.00, 0.02, 0.04, 0.02],
+            G5:   [-0.04, -0.02, 0.00, 0.02, 0.04],
         },
-        sequence: ['A1', 'A2', 'MAIN', 'A3', 'A4', 'MAIN', 'A2', 'A1'],
-        phaseDuration: 300,
+        sequence: ['G1', 'G2', 'G3', 'G4', 'G5', 'G4', 'G3', 'G2'],
+        phaseDuration: 500,            // default speed (uniform 500ms)
         speedRange: [50, 800],
         axis: 'scaleY',
-        easing: 'easeInOutSine',
+        easing: 'linear',              // default easing = "Suave" (= linear)
         looping: true,
     },
     shake: {
@@ -75,8 +82,8 @@ export const EFFECTS = {
             S4:   { x: [-1, 2, 0, -2, 1],   y: [2, -1, 2, -2, 1] },
         },
         sequence: ['S1', 'S2', 'S3', 'S4', 'S2', 'S1', 'S4', 'S3'],
-        phaseDuration: 80,
-        speedRange: [10, 300],
+        phaseDuration: 500,            // default speed (uniform 500ms; drag down for a fast tremor)
+        speedRange: [10, 600],         // extended from 300 so the 500ms default is in range
         axis: 'xy',
         easing: 'linear',
         looping: true,

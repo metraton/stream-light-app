@@ -73,7 +73,7 @@ export function createGlowControls(sectionEl, app) {
     // === Sequences ===
     const seqHeader = document.createElement('div');
     seqHeader.className = 'effect-name';
-    seqHeader.textContent = 'Sequences';
+    seqHeader.textContent = 'Glow — Secuencia animada';
     seqHeader.style.marginTop = '10px';
     sectionEl.appendChild(seqHeader);
 
@@ -117,7 +117,8 @@ export function createGlowControls(sectionEl, app) {
         const [min, max] = def.speedRange || [30, 500];
         speedSlider.min = min;
         speedSlider.max = max;
-        speedSlider.step = min < 50 ? 5 : 10;
+        // Coarser, comfortable step (~20 stops across the range).
+        speedSlider.step = (max - min) <= 200 ? 10 : 20;
         speedSlider.value = def.phaseDuration;
         speedVal.textContent = def.phaseDuration + 'ms';
     }
@@ -147,14 +148,20 @@ export function createGlowControls(sectionEl, app) {
     easingRow.className = 'effect-row';
 
     const easingLabel = document.createElement('label');
-    easingLabel.textContent = 'Easing';
+    easingLabel.textContent = 'Suavizado';
 
     const easingSelect = document.createElement('select');
-    const easings = ['linear', 'easeInOutSine', 'easeInOutCubic'];
-    for (const e of easings) {
+    // Labels match perceived behavior: 'Suave' = linear (continuous, smoothest);
+    // the ease-in-out curves read as a pulse at these durations.
+    const easings = [
+        { value: 'linear',         label: 'Suave' },
+        { value: 'easeInOutSine',  label: 'Pulsada' },
+        { value: 'easeInOutCubic', label: 'Pulsada fuerte' },
+    ];
+    for (const { value, label } of easings) {
         const opt = document.createElement('option');
-        opt.value = e;
-        opt.textContent = e;
+        opt.value = value;
+        opt.textContent = label;
         easingSelect.appendChild(opt);
     }
     // Set initial easing from selected sequence

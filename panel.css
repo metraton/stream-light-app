@@ -3,12 +3,12 @@
     position: fixed;
     top: 0;
     left: 0;
-    width: 300px;
+    width: 360px;
     height: 100%;
     background: rgba(10, 10, 10, 0.94);
     color: #ccc;
     font-family: 'Consolas', 'Monaco', monospace;
-    font-size: 12px;
+    font-size: 14px;
     z-index: 2000;
     overflow-y: auto;
     transform: translateX(0);
@@ -47,7 +47,7 @@
 }
 
 .panel-header h2 {
-    font-size: 13px;
+    font-size: 15px;
     color: #FFD700;
     letter-spacing: 2px;
     margin: 0;
@@ -74,8 +74,8 @@
 }
 
 .section-header {
-    padding: 10px 14px;
-    font-size: 10px;
+    padding: 11px 16px;
+    font-size: 12px;
     color: #888;
     letter-spacing: 2px;
     text-transform: uppercase;
@@ -188,7 +188,8 @@
     background: #FFD700;
 }
 
-/* Pattern preview */
+/* Pattern preview — shows all generated combination rows (max 5) at once.
+   No fixed max-height clip and no horizontal scroll; rows size to fit. */
 .pattern-preview {
     background: #1a1a1a;
     border: 1px solid #2a2a2a;
@@ -196,15 +197,24 @@
     padding: 6px 8px;
     font-size: 11px;
     min-height: 24px;
-    max-height: 80px;
-    overflow-y: auto;
+    overflow: hidden;          /* no horizontal or vertical scrollbar */
     text-align: center;
     color: #555;
-    line-height: 1.6;
+    line-height: 1.5;
     margin-bottom: 8px;
 }
 
-.pattern-preview .step-line { color: #444; }
+/* Each combination row: 5 squares centered, never wrapping or overflowing.
+   The emoji are shrunk and letter-spaced so all 5 fit the panel width. */
+.pattern-preview .step-line {
+    color: #444;
+    display: flex;
+    justify-content: center;
+    gap: 4px;
+    font-size: 18px;
+    line-height: 1.35;
+    white-space: nowrap;
+}
 .pattern-preview .step-line.current { color: #fff; font-weight: bold; }
 
 /* Color row */
@@ -527,3 +537,64 @@
     opacity: 0;
     pointer-events: none;
 }
+
+/* --- Readability bump (~20% larger control text) --- */
+.control-panel .effect-name { font-size: 13px; }
+.control-panel .effect-row label,
+.control-panel .effect-row .range-value,
+.control-panel .effect-row select,
+.control-panel .effect-buttons button,
+.control-panel .layout-row label,
+.control-panel .layout-row .range-value,
+.control-panel .filter-tab,
+.control-panel .preset-row button,
+.control-panel .preset-row select,
+.control-panel .preset-row input[type="text"] { font-size: 12px; }
+.control-panel .color-row label { font-size: 13px; }
+.control-panel .color-row .hex-value { font-size: 12px; }
+.control-panel .layer-tag { font-size: 11px; }
+.control-panel .pattern-preview { font-size: 13px; }
+.control-panel .effect-row label,
+.control-panel .layout-row label { width: 56px; }
+.control-panel .layout-row .range-value { width: 42px; }
+
+/* Rotate cycle button (replaces the old Rotate/Flip checkboxes) */
+.control-panel .rotate-btn {
+    flex: 1;
+    padding: 5px 10px;
+    font-size: 12px;
+    font-family: monospace;
+    border: 1px solid #444;
+    border-radius: 3px;
+    cursor: pointer;
+    background: #222;
+    color: #FFD700;
+    letter-spacing: 1px;
+}
+.control-panel .rotate-btn:hover { background: #333; }
+
+/* --- Unified two-line button layout: KEY glyph on top, WORD below ---
+   Applied to every grouped button (colors, pattern, movement, glow, moods)
+   via keyLabel() so all groups render identically. */
+.control-panel .effect-buttons button {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1px;
+    line-height: 1.1;
+    padding: 4px 6px;
+    min-width: 48px;
+}
+.control-panel .effect-buttons button .btn-key {
+    font-size: 13px;
+    font-weight: bold;
+    letter-spacing: 1px;
+}
+.control-panel .effect-buttons button .btn-word {
+    font-size: 10px;
+    opacity: 0.85;
+}
+
+/* Pattern-preview squares as flex items so they space evenly and never overflow */
+.control-panel .pattern-preview .step-line .sq { display: inline-block; }

@@ -8,41 +8,85 @@ import { CONFIG } from './config.js';
 const COLOR_NAMES = ['YELLOW', 'BLUE', 'RED', 'GREEN', 'PURPLE'];
 
 export class ColorSequencer {
+    // Maximum number of colors that can accumulate into the combination list.
+    static MAX_COMBINATIONS = 5;
+
     constructor() {
         this.selectedColors = [];   // ordered array of color indices (-1, 0-4)
-        this.pattern = null;        // 'solid','alternate','chase','carousel','pingpong'
+        this.pattern = 'solid';     // default at startup so 'Q Solid' shows active;
+                                    // 'solid','alternate','chase','carousel','pingpong'
         this.frames = [];           // generated frames: each is [c0,c1,c2,c3,c4]
         this.currentStep = 0;
         this.bpm = 120;
         this.isPlaying = false;
         this._lastStepTime = 0;
         this._onFrameChange = null; // callback(frame, stepIndex)
+
+        // --- DJ cue/staging model ---
+        // While `staging` is true, color/pattern presses build a PENDING combo
+        // in the background; the LIVE selectedColors/frames keep rotating
+        // untouched. Play (commit) copies pending -> live and restarts from 0.
+        this.staging = false;
+        this.pendingColors = [];
+        this.pendingPattern = 'solid';
+        this.pendingFullReset = false;
     }
 
     // --- Color Selection ---
 
+    /** The list color presses accumulate into: pending while staging, else live. */
+    get _editTarget() {
+        return this.staging ? this.pendingColors : this.selectedColors;
+    }
+
     toggleColor(colorIdx) {
-        const pos = this.selectedColors.indexOf(colorIdx);
+        const list = this._editTarget;
+        const pos = list.indexOf(colorIdx);
         if (pos !== -1) {
-            this.selectedColors.splice(pos, 1);
+            list.splice(pos, 1);
         } else {
-            this.selectedColors.push(colorIdx);
+            // Cap at MAX_COMBINATIONS: ignore presses beyond the cap.
+            if (list.length >= ColorSequencer.MAX_COMBINATIONS) return;
+            list.push(colorIdx);
         }
-        this._regenerate();
+        // While staging, only the pending buffer changes — live keeps rotating.
+        if (!this.staging) this._regenerate();
     }
 
     selectOnly(colorIdx) {
+        if (this.staging) {
+            this.pendingColors = [colorIdx];
+            return;
+        }
         this.selectedColors = [colorIdx];
         this._regenerate();
     }
 
+    /** REAL rainbow: all 5 colors AND the carousel pattern, which generates the
+     *  cyclic-shift frames [0,1,2,3,4] -> [1,2,3,4,0] -> ... so every column shows
+     *  a DISTINCT color and the rainbow marches across columns on Play.
+     *  (Reuses _genCarousel — no dedicated generator needed.)
+     *  Toggle: if rainbow is already active (all 5 + carousel), clear it. */
     selectRainbow() {
-        // Toggle: if all 5 selected, clear; otherwise select all
-        if (this.selectedColors.length === 5 &&
-            [0,1,2,3,4].every(c => this.selectedColors.includes(c))) {
+        if (this.staging) {
+            // Stage the marching rainbow (all 5 + carousel) for the next combo.
+            const allFive = this.pendingColors.length === 5 &&
+                [0, 1, 2, 3, 4].every(c => this.pendingColors.includes(c));
+            if (allFive && this.pendingPattern === 'carousel') {
+                this.pendingColors = [];
+            } else {
+                this.pendingColors = [0, 1, 2, 3, 4];
+                this.pendingPattern = 'carousel';
+            }
+            return;
+        }
+        const allFive = this.selectedColors.length === 5 &&
+            [0, 1, 2, 3, 4].every(c => this.selectedColors.includes(c));
+        if (allFive && this.pattern === 'carousel') {
             this.selectedColors = [];
         } else {
             this.selectedColors = [0, 1, 2, 3, 4];
+            this.pattern = 'carousel'; // marching rainbow, not all-same-color cycling
         }
         this._regenerate();
     }
@@ -50,12 +94,48 @@ export class ColorSequencer {
     clearColors() {
         this.selectedColors = [];
         this.isPlaying = false;
+        this.staging = false;    // empty reset (Escape) exits staging too
+        this.pendingColors = [];
         this._regenerate();
+    }
+
+    // --- Staging (DJ cue) ---
+
+    /** Begin staging a NEW combo in the background. The LIVE rotation is left
+     *  untouched and keeps playing. Color/pattern presses now build pending.
+     *  @param {string|null} pattern - the pending pattern to start from. */
+    startStaging(pattern = 'solid', fullReset = false) {
+        this.staging = true;
+        this.pendingColors = [];
+        this.pendingPattern = pattern;
+        // When true (Cue total), commit also resets movement/glow/mood to
+        // baseline. The sequencer can't touch those layers itself, so it just
+        // flags the intent; the app reads it via commitStaged()'s return.
+        this.pendingFullReset = fullReset;
+    }
+
+    /** COMMIT the staged combo: pending -> live, regenerate, play from frame 0.
+     *  @returns {object|false} false if not staging; else
+     *    { fullReset } so the caller can also reset movement/glow/mood. */
+    commitStaged() {
+        if (!this.staging) return false;
+        const fullReset = this.pendingFullReset;
+        this.selectedColors = [...this.pendingColors];
+        this.pattern = this.pendingPattern;
+        this.staging = false;
+        this.pendingFullReset = false;
+        this._regenerate();   // build frames from the committed combo
+        this.play(true);      // (re)start the new combo from frame 0
+        return { fullReset };
     }
 
     // --- Pattern Selection ---
 
     setPattern(pat) {
+        if (this.staging) {
+            this.pendingPattern = pat; // stage the pattern for the next combo
+            return;
+        }
         this.pattern = pat;
         this._regenerate();
     }
@@ -68,10 +148,11 @@ export class ColorSequencer {
 
     // --- Playback ---
 
-    play() {
+    /** Start playback. reset=true restarts at frame 0; reset=false resumes. */
+    play(reset = true) {
         if (this.frames.length === 0) return;
         this.isPlaying = true;
-        this.currentStep = 0;
+        if (reset) this.currentStep = 0;
         this._lastStepTime = performance.now();
         this._applyCurrentFrame();
     }
@@ -81,11 +162,18 @@ export class ColorSequencer {
         this.currentStep = 0;
     }
 
+    /** Space / Play. In the DJ cue model:
+     *  - If a combo is being STAGED, commit it (pending -> live, play from 0).
+     *  - Else toggle the live rotation play/stop. */
     togglePlay() {
+        if (this.staging) {
+            this.commitStaged();
+            return;
+        }
         if (this.isPlaying) {
             this.stop();
         } else {
-            this.play();
+            this.play(true);
         }
     }
 
@@ -150,7 +238,8 @@ export class ColorSequencer {
 
         this._applyCurrentFrame();
 
-        // Auto-play if we have frames and a pattern
+        // Auto-play if we have frames and a pattern (startup / live edits).
+        // Staging never calls _regenerate, so this only fires for live changes.
         if (this.frames.length > 1 && this.pattern && !this.isPlaying) {
             this.play();
         }

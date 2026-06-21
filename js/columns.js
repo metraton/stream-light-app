@@ -29,10 +29,13 @@ export class ColumnManager {
 
         const videoW = this.videoElement.videoWidth;
         const videoH = this.videoElement.videoHeight;
-        const shouldRotate = CONFIG.columns.rotate90;
+        // rotationSteps: 0=0°, 1=90°, 2=180°, 3=270° (clockwise).
+        // Odd steps (90°/270°) swap the feed's effective width/height.
+        const rotationSteps = ((CONFIG.columns.rotationSteps % 4) + 4) % 4;
+        const swapDims = rotationSteps === 1 || rotationSteps === 3;
 
-        const effectiveW = shouldRotate ? videoH : videoW;
-        const effectiveH = shouldRotate ? videoW : videoH;
+        const effectiveW = swapDims ? videoH : videoW;
+        const effectiveH = swapDims ? videoW : videoH;
 
         const zoom = CONFIG.columns.zoom;
         const baseScale = columnHeight / effectiveH;
@@ -64,9 +67,8 @@ export class ColumnManager {
             const sprite = new PIXI.Sprite(this.videoTexture);
             sprite.anchor.set(0.5, 0.5);
 
-            if (shouldRotate) {
-                sprite.rotation = Math.PI / 2;
-            }
+            // Orientation: rotationSteps * 90° clockwise (0/90/180/270).
+            sprite.rotation = rotationSteps * (Math.PI / 2);
 
             sprite.scale.set(scale);
 
@@ -268,12 +270,32 @@ export class ColumnManager {
     }
 
     // --- Offsets (from effect engine) ---
+    // Edge-clamping: every movement is bounded so a column never clips the
+    // screen edges. The column rect is [baseX..baseX+width] × [baseY..baseY+height];
+    // the screen is [0..screenW] × [0..screenH]. We keep the rect inside the
+    // screen minus SAFETY px on each side, for translation (x/y) and for
+    // vertical scaling (scaleY, used by Equalizer — which scales from center).
     applyOffsets(offsets) {
         if (!offsets) return;
+        const SAFETY = 2; // px margin kept from each screen edge
+        const screenW = this.pixiApp.screen.width;
+        const screenH = this.pixiApp.screen.height;
+
         for (let i = 0; i < this.columns.length; i++) {
             const col = this.columns[i];
-            const ox = offsets.offsetX[i] || 0;
-            const oy = offsets.offsetY[i] || 0;
+
+            // --- Clamp X translation to the screen's horizontal bounds ---
+            let ox = offsets.offsetX[i] || 0;
+            const minOx = (SAFETY) - col.baseX;                       // left edge
+            const maxOx = (screenW - SAFETY) - (col.baseX + col.width); // right edge
+            ox = Math.max(minOx, Math.min(maxOx, ox));
+
+            // --- Clamp Y translation to the screen's vertical bounds ---
+            let oy = offsets.offsetY[i] || 0;
+            const minOy = (SAFETY) - col.baseY;                        // top edge
+            const maxOy = (screenH - SAFETY) - (col.baseY + col.height); // bottom edge
+            oy = Math.max(minOy, Math.min(maxOy, oy));
+
             col.container.x = col.baseX + ox;
             col.container.y = col.baseY + oy;
             if (col.glowContainer) {
@@ -282,8 +304,16 @@ export class ColumnManager {
             }
 
             // Scale Y: scale from center
-            const sy = offsets.scaleY?.[i] || 0;
+            let sy = offsets.scaleY?.[i] || 0;
             if (sy !== 0) {
+                // Scaling from the vertical center grows the column by
+                // height*(scale-1)/2 beyond EACH end. Cap the scale so neither
+                // end (already offset by oy) crosses the safety bound.
+                const topRoom = (col.baseY + oy) - SAFETY;                       // px above
+                const botRoom = (screenH - SAFETY) - (col.baseY + oy + col.height); // px below
+                const room = Math.max(0, Math.min(topRoom, botRoom));
+                const maxGrow = col.height > 0 ? (2 * room) / col.height : 0;     // max (scale-1)
+                if (sy > maxGrow) sy = maxGrow; // only positive growth can clip
                 const scale = 1 + sy;
                 col.container.pivot.y = col.height / 2;
                 col.container.y = col.baseY + oy + col.height / 2;
@@ -313,6 +343,11 @@ export class ColumnManager {
             col.container.pivot.y = 0;
             col.container.scale.y = 1;
             if (col.glowContainer) {
+                // Reset glow position too (not just pivot/scale) — otherwise a
+                // glow left on after a movement stops stays at its last-moved
+                // spot and looks misaligned / "half" relative to the column.
+                col.glowContainer.x = col.baseX;
+                col.glowContainer.y = col.baseY;
                 col.glowContainer.pivot.y = 0;
                 col.glowContainer.scale.y = 1;
             }

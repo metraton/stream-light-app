@@ -47,13 +47,8 @@ export class ControlPanel {
         this._buildSections();
 
         document.body.appendChild(this.element);
-
-        // Side tab
-        this.tab = document.createElement('div');
-        this.tab.className = 'panel-tab';
-        this.tab.textContent = '\u25B6';
-        this.tab.addEventListener('click', () => this.toggle());
-        document.body.appendChild(this.tab);
+        // No side toggle tab: the closed state shows only the HUD over the
+        // visuals. The panel opens/closes with the "P" key (see HUD hint).
     }
 
     _buildSections() {
@@ -159,31 +154,30 @@ export class ControlPanel {
             sectionEl.appendChild(row);
         }
 
-        // Rotate toggle
+        // Rotate: single button cycling 0°/90°/180°/270°, displaying current angle.
         const rotRow = document.createElement('div');
         rotRow.className = 'layout-row';
 
         const rotLabel = document.createElement('label');
         rotLabel.textContent = 'Rotate';
 
-        const rotCheck = document.createElement('input');
-        rotCheck.type = 'checkbox';
-        rotCheck.checked = CONFIG.columns.rotate90;
-        rotCheck.addEventListener('change', () => {
-            CONFIG.columns.rotate90 = rotCheck.checked;
-            this.app.columnManager.rebuild();
-            if (this.app.overlay) this.app.overlay.moveToTop();
+        const rotBtn = document.createElement('button');
+        rotBtn.className = 'rotate-btn';
+        const angleText = () => `⟳ ${(((CONFIG.columns.rotationSteps % 4) + 4) % 4) * 90}°`;
+        rotBtn.textContent = angleText();
+        rotBtn.addEventListener('click', () => {
+            this.app.cycleRotation();
+            rotBtn.textContent = angleText();
         });
 
         rotRow.appendChild(rotLabel);
-        rotRow.appendChild(rotCheck);
+        rotRow.appendChild(rotBtn);
         sectionEl.appendChild(rotRow);
     }
 
     toggle() {
         this.visible = !this.visible;
         this.element.classList.toggle('hidden', !this.visible);
-        this.tab.classList.toggle('hidden', this.visible);
     }
 
     /** Called from app.updateHUD() to refresh sequencer visual state */

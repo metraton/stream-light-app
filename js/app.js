@@ -24,7 +24,11 @@ export class StreamLightApp {
         this.overlay = null;
         this.hud = null;
         this.panel = null;
+        // Persistent active-state, single source of truth for the panel's
+        // highlight sync. Mirrors currentGlowMode so movement/glow are symmetric.
         this.currentGlowMode = 'none';
+        this.currentMovement = 'none';
+        this.currentMood = null;
     }
 
     async init(deviceId) {
@@ -140,18 +144,23 @@ export class StreamLightApp {
         const def = EFFECTS[effectName];
         if (!def) return;
         this.effectEngine.play(effectName, def);
+        this.currentMovement = effectName; // persistent active-state (lowercase key)
+        this.currentMood = null;           // manual change drops the mood highlight
         this.updateHUD();
     }
 
     stopEffect() {
         this.effectEngine.stop();
         this.columnManager.resetOffsets();
+        this.currentMovement = 'none';
+        this.currentMood = null;
         this.updateHUD();
     }
 
     /** Set glow mode from sequencer keyboard */
     setGlowMode(mode) {
         this.currentGlowMode = mode;
+        this.currentMood = null; // manual change drops the mood highlight
         if (mode === 'none') {
             this.stopGlowEffect();
         } else if (mode === 'static') {
@@ -164,6 +173,7 @@ export class StreamLightApp {
                 breathe: 'breathe',
                 pulse: 'pulse',
                 strobe: 'strobe',
+                sweep: 'sweep-right',        // 'sweep' alias -> the sweep-right sequence
                 'sweep-right': 'sweep-right',
             };
             const seqName = glowMap[mode] || mode;
@@ -187,10 +197,16 @@ export class StreamLightApp {
         this.glowEngine.stop();
         this.columnManager.setAllGlow(0);
         this.currentGlowMode = 'none';
+        this.currentMood = null;
     }
 
-    /** Apply a mood preset (sets colors + pattern + movement + glow + bpm) */
-    applyMood(mood) {
+    /** Apply a mood preset (sets colors + pattern + movement + glow + bpm).
+     *  @param {object} mood - mood definition
+     *  @param {string|null} moodKey - mood name, for the active-state highlight */
+    applyMood(mood, moodKey = null) {
+        // Moods apply LIVE immediately — exit any staging so setPattern writes
+        // the live combo (not the pending cue buffer).
+        this.sequencer.staging = false;
         this.sequencer.selectedColors = [...mood.colors];
         this.sequencer.setBPM(mood.bpm);
         this.sequencer.setPattern(mood.pattern);
@@ -208,6 +224,61 @@ export class StreamLightApp {
         } else {
             this.stopGlowEffect();
         }
+
+        // Set mood AFTER the layer calls (they clear currentMood) so the mood
+        // button highlights; the full refresh below re-syncs every button bank.
+        this.currentMood = moodKey;
+        this.updateHUD();
+    }
+
+    /** Mood "None": clear only the active-mood highlight (no preset selected).
+     *  Consistent with the cue model — does NOT revert the live colors/pattern/
+     *  movement/glow, which the user can change via their own None buttons. */
+    clearMood() {
+        this.currentMood = null;
+        this.updateHUD();
+    }
+
+    /** CUE (Backspace): start STAGING a new combo in the background. The LIVE
+     *  rotation keeps playing untouched; subsequent color/pattern presses build
+     *  the pending combo. Movement/Glow/Mood are NOT staged — they stay live.
+     *  Press Space to commit (pending -> live, restart from 0). */
+    cueReset() {
+        this.sequencer.startStaging(null);  // pending pattern null until the user picks one
+        this.updateHUD();                   // refresh UI (preview shows the pending combo)
+    }
+
+    /** TOTAL CUE (Shift+Backspace / panel button): stages a FULL baseline. Live
+     *  rotation keeps playing; movement/glow/mood stay live UNTIL commit. On Play
+     *  (commitCue) the live state becomes: cued colors, Pattern=Solid, Movement
+     *  None, Glow None, Mood None. */
+    totalReset() {
+        this.sequencer.startStaging('solid', true); // fullReset=true: reset layers on commit
+        this.updateHUD();
+    }
+
+    /** Commit a cue (Space while staging). pending -> live + play from 0; if it
+     *  was a Cue total, also reset movement/glow/mood to baseline now. */
+    commitCue() {
+        const res = this.sequencer.commitStaged();
+        if (res && res.fullReset) {
+            this.stopEffect();          // Movement -> None
+            this.setGlowMode('none');   // Glow -> None
+            this.currentMood = null;    // Mood -> None
+        }
+        this.updateHUD();               // re-sync highlights (Solid gold, A None, Z None, no mood)
+    }
+
+    /** EMPTY RESET (Escape): hard wipe to EMPTY (not a cue). Colors -> empty
+     *  (visible neutral), Pattern=null, Movement=None, Glow=None, Mood=None,
+     *  playback stopped, staging cancelled. Fresh start. */
+    emptyReset() {
+        this.sequencer.clearColors();            // empty: columns neutral, stops playback, exits staging
+        this.sequencer.setPattern(null);         // Pattern OFF (no gold)
+        this.stopEffect();                       // Movement -> None
+        this.setGlowMode('none');                // Glow -> None
+        this.currentMood = null;                 // Mood -> None
+        this.updateHUD();                        // re-sync highlights
     }
 
     setAllColors(colorName) {
@@ -238,10 +309,12 @@ export class StreamLightApp {
         if (this.overlay) this.overlay.toggle();
     }
 
-    toggleRotation() {
-        CONFIG.columns.rotate90 = !CONFIG.columns.rotate90;
+    /** Cycle orientation 0°→90°→180°→270°→0°. Returns the new step (0-3). */
+    cycleRotation() {
+        CONFIG.columns.rotationSteps = (((CONFIG.columns.rotationSteps || 0) + 1) % 4);
         this.columnManager.rebuild();
         if (this.overlay) this.overlay.moveToTop();
+        return CONFIG.columns.rotationSteps;
     }
 
     togglePanel() {

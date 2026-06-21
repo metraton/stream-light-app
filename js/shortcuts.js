@@ -11,16 +11,16 @@
 // F: fullscreen, H: HUD, P: panel
 
 const PATTERN_KEYS = { q: 'solid', w: 'alternate', e: 'chase', r: 'carousel', t: 'pingpong' };
-const MOVEMENT_KEYS = { a: 'none', s: 'wave', d: 'expand', f: 'broken', g: 'shake' };
+const MOVEMENT_KEYS = { a: 'none', s: 'wave', d: 'expand', f: 'broken', g: 'shake', h: 'equalizer' };
 const GLOW_KEYS = { z: 'none', x: 'static', c: 'breathe', v: 'pulse', b: 'strobe' };
 const MOOD_KEYS = { z: 'calm', x: 'build', c: 'tension', v: 'peak', b: 'mystic' };
 
 const MOODS = {
-    calm:    { colors: [1],    pattern: 'solid',     movement: 'wave',   glow: 'breathe', bpm: 80 },
-    build:   { colors: [3, 1], pattern: 'alternate',  movement: 'expand', glow: 'cascade', bpm: 110 },
-    tension: { colors: [2, 4], pattern: 'chase',      movement: 'shake',  glow: 'pulse',   bpm: 150 },
-    peak:    { colors: [0,1,2,3,4], pattern: 'carousel', movement: 'wave', glow: 'strobe', bpm: 180 },
-    mystic:  { colors: [4, -1],pattern: 'pingpong',   movement: 'broken', glow: 'breathe', bpm: 90 },
+    calm:    { colors: [1],         pattern: 'solid',    movement: 'wave',      glow: 'breathe',   bpm: 80 },
+    build:   { colors: [2, 0],      pattern: 'carousel', movement: 'none',      glow: 'cascade',   bpm: 110 },
+    tension: { colors: [2],         pattern: 'solid',    movement: 'expand',    glow: 'strobe',    bpm: 150 },
+    peak:    { colors: [0,1,2,3,4], pattern: 'carousel', movement: 'wave',      glow: 'alternate', bpm: 180 },
+    mystic:  { colors: [4],         pattern: 'solid',    movement: 'equalizer', glow: 'sweep',     bpm: 90 },
 };
 
 export function setupShortcuts(app) {
@@ -34,8 +34,16 @@ export function setupShortcuts(app) {
         // Skip if typing in input/textarea
         if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
 
-        // --- Pipe/backslash or 0 = empty color ---
-        if ((key === '|' || key === '\\') && !ctrl && !alt) {
+        // --- "<" key = Mood NONE (clears the active mood) ---
+        // On ES layout "<" is e.key '<' / e.code 'IntlBackslash'; match both.
+        if ((key === '<' || e.code === 'IntlBackslash') && !ctrl && !alt) {
+            e.preventDefault();
+            app.clearMood();
+            return;
+        }
+
+        // --- Pipe "|" or 0 = empty color (empty stays reachable) ---
+        if (key === '|' && !ctrl && !alt) {
             e.preventDefault();
             if (shift) {
                 app.sequencer.selectOnly(-1);
@@ -76,16 +84,11 @@ export function setupShortcuts(app) {
                 return;
             }
 
-            // 6 = rainbow (all 5)
+            // 6 = REAL rainbow (all 5 colors + carousel = marching rainbow).
+            // Shift is treated the same: there is no distinct "only rainbow" mode.
             if (num === 6) {
                 e.preventDefault();
-                if (shift) {
-                    app.sequencer.selectOnly(0);
-                    app.sequencer.selectedColors = [0, 1, 2, 3, 4];
-                    app.sequencer._regenerate();
-                } else {
-                    app.sequencer.selectRainbow();
-                }
+                app.sequencer.selectRainbow();
                 app.updateHUD();
                 return;
             }
@@ -122,7 +125,7 @@ export function setupShortcuts(app) {
                 const moodName = MOOD_KEYS[keyLower];
                 const mood = MOODS[moodName];
                 if (mood) {
-                    app.applyMood(mood);
+                    app.applyMood(mood, moodName);
                     app.updateHUD();
                 }
             } else {
@@ -134,53 +137,65 @@ export function setupShortcuts(app) {
             return;
         }
 
-        // --- Backspace: Clear color selection ---
+        // --- Backspace = CUE; Shift+Backspace = TOTAL CUE (DJ staging model) ---
+        // Neither pauses: the LIVE rotation keeps playing while a NEW combo is
+        // staged in the background. Plain: pending pattern null. Shift: Solid.
+        // Press Space to commit the staged combo (it then plays from frame 0).
         if (key === 'Backspace') {
             e.preventDefault();
-            app.sequencer.clearColors();
-            app.updateHUD();
+            if (shift) {
+                app.totalReset();   // start staging with Solid baseline
+            } else {
+                app.cueReset();     // start staging (pattern null)
+            }
             return;
         }
 
-        // --- Space: Play/Stop sequencer ---
+        // --- Space: commit a staged cue, else Play/Stop the live sequencer ---
         if (key === ' ') {
             e.preventDefault();
-            app.sequencer.togglePlay();
-            app.updateHUD();
+            if (app.sequencer.staging) {
+                app.commitCue();          // commit cue (+ baseline reset if Cue total)
+            } else {
+                app.sequencer.togglePlay();
+                app.updateHUD();
+            }
             return;
         }
 
-        // --- Escape: Full reset ---
+        // --- Escape: EMPTY RESET (todo a empty) ---
+        // Visibly wipes colors to neutral, Pattern=null, Movement/Glow/Mood None,
+        // stopped. Distinct from totalReset (Solid baseline). Not user-paused.
         if (key === 'Escape') {
             e.preventDefault();
-            app.sequencer.clearColors();
-            app.sequencer.setPattern(null);
-            app.stopEffect();
-            app.stopGlowEffect();
-            app.updateHUD();
+            app.emptyReset();
             return;
         }
 
-        // --- +/- : BPM ---
-        if (key === '+' || key === '=') {
+        // --- BPM increase: "+" key ---
+        if (key === '+') {
             e.preventDefault();
             app.sequencer.setBPM(app.sequencer.bpm + 10);
             app.updateHUD();
             return;
         }
-        if (key === '-') {
+        // --- BPM decrease: "´" acute-accent key (Spanish layout) ---
+        // It is a DEAD KEY, so the keydown may arrive as e.key === 'Dead' rather
+        // than '´'. Match both, plus the physical e.code 'BracketRight' (the key
+        // right of P on ES-QWERTY) as a layout-independent fallback.
+        if ((key === '´' || key === 'Dead' || e.code === 'BracketRight') && !ctrl && !alt) {
             e.preventDefault();
             app.sequencer.setBPM(app.sequencer.bpm - 10);
             app.updateHUD();
             return;
         }
 
+        // Fullscreen is the browser's native F11 — intentionally NOT bound here
+        // (no preventDefault), so F11 fullscreens and F12 opens DevTools normally.
+
         // --- Utility keys ---
         switch (keyLower) {
-            case 'f':
-                if (!ctrl) { e.preventDefault(); app.toggleFullscreen(); }
-                break;
-            case 'h':
+            case 'j':
                 e.preventDefault(); app.toggleHUD();
                 break;
             case 'p':
