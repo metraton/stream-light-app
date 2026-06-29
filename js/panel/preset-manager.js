@@ -112,7 +112,7 @@ export function createPresetControls(sectionEl, app) {
     resetBtn.addEventListener('click', () => {
         resetToDefaults();
         app.columnManager.rebuild();
-        app.columnManager.refreshColors();
+        app.reapplyColors();
         if (app.overlay) app.overlay.moveToTop();
         if (app.panel) app.panel.refresh();
     });
@@ -155,7 +155,7 @@ export function createPresetControls(sectionEl, app) {
         if (!name) return;
         if (loadPreset(name)) {
             app.columnManager.rebuild();
-            app.columnManager.refreshColors();
+            app.reapplyColors();
             if (app.overlay) app.overlay.moveToTop();
             // Refresh panel controls to reflect new values
             if (app.panel) app.panel.refresh();

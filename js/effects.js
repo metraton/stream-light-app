@@ -12,10 +12,10 @@ export const EFFECTS = {
             BOTTOM: [14, 8, 0, 7, 14],
         },
         sequence: ['UP', 'PEAK', 'UP', 'MAIN', 'DOWN', 'BOTTOM', 'DOWN', 'MAIN'],
-        phaseDuration: 500,            // default speed (uniform 500ms)
+        phaseDuration: 550,            // per-phase ms (smoothing = linear/"Suave")
         speedRange: [100, 1200],
         axis: 'y',
-        easing: 'linear',              // default easing = "Suave" (= linear)
+        easing: 'linear',              // smoothing = "Suave" (= linear)
         looping: true,
     },
     expand: {
@@ -26,10 +26,10 @@ export const EFFECTS = {
             E2:   [-15, -7, 0, 7, 15],
         },
         sequence: ['E1', 'MAIN', 'E2', 'MAIN'],
-        phaseDuration: 500,            // default speed (uniform 500ms)
+        phaseDuration: 700,            // per-phase ms (smoothing = linear/"Suave")
         speedRange: [100, 1200],
         axis: 'x',
-        easing: 'linear',              // default easing = "Suave" (= linear)
+        easing: 'linear',              // smoothing = "Suave" (= linear)
         looping: true,
     },
     broken: {
@@ -41,10 +41,10 @@ export const EFFECTS = {
             STAIR_LEFT:  [12, 6, 0, -6, -12],     // left down, right up (ascending stairs)
         },
         sequence: ['STAIR_RIGHT', 'MAIN', 'STAIR_LEFT', 'MAIN'],
-        phaseDuration: 500,            // default speed (uniform 500ms)
+        phaseDuration: 700,            // per-phase ms (smoothing = linear/"Suave")
         speedRange: [100, 1000],
         axis: 'y',
-        easing: 'linear',              // default easing = "Suave" (= linear)
+        easing: 'linear',              // smoothing = "Suave" (= linear)
         looping: true,
     },
     equalizer: {
@@ -65,10 +65,10 @@ export const EFFECTS = {
             G5:   [-0.04, -0.02, 0.00, 0.02, 0.04],
         },
         sequence: ['G1', 'G2', 'G3', 'G4', 'G5', 'G4', 'G3', 'G2'],
-        phaseDuration: 500,            // default speed (uniform 500ms)
+        phaseDuration: 500,            // per-phase ms (smoothing = linear/"Suave")
         speedRange: [50, 800],
         axis: 'scaleY',
-        easing: 'linear',              // default easing = "Suave" (= linear)
+        easing: 'linear',              // smoothing = "Suave" (= linear)
         looping: true,
     },
     shake: {
@@ -82,10 +82,10 @@ export const EFFECTS = {
             S4:   { x: [-1, 2, 0, -2, 1],   y: [2, -1, 2, -2, 1] },
         },
         sequence: ['S1', 'S2', 'S3', 'S4', 'S2', 'S1', 'S4', 'S3'],
-        phaseDuration: 500,            // default speed (uniform 500ms; drag down for a fast tremor)
-        speedRange: [10, 600],         // extended from 300 so the 500ms default is in range
+        phaseDuration: 460,            // per-phase ms (smoothing = linear/"Suave")
+        speedRange: [10, 600],         //460 default is within range
         axis: 'xy',
-        easing: 'linear',
+        easing: 'linear',              // smoothing = "Suave" (= linear)
         looping: true,
     },
 };

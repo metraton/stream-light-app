@@ -1,18 +1,23 @@
 // --- Keyboard Shortcuts (Sequencer layout) ---
 // Numbers 0-6: toggle color selection
-// Shift+N: select only that color
+// Shift+number: select only that color
 // QWERT: pattern (solid/alternate/chase/carousel/pingpong)
 // ASDFG: movement (none/wave/expand/broken/shake)
-// ZXCVB: glow (none/static/breathe/pulse/strobe)
+// Z X C V B N M , : glow (off/sweep/breathe/pulse/strobe/bounce/cascade/alternate)
+//   (single source of truth: js/glow-map.js)
 // Shift+ZXCVB: moods (calm/build/tension/peak/mystic)
 // Backspace: clear color selection
 // Space: play/stop sequencer
 // +/-: BPM speed
 // F: fullscreen, H: HUD, P: panel
 
+import { GLOW_KEY_TO_MODE } from './glow-map.js';
+
 const PATTERN_KEYS = { q: 'solid', w: 'alternate', e: 'chase', r: 'carousel', t: 'pingpong' };
 const MOVEMENT_KEYS = { a: 'none', s: 'wave', d: 'expand', f: 'broken', g: 'shake', h: 'equalizer' };
-const GLOW_KEYS = { z: 'none', x: 'static', c: 'breathe', v: 'pulse', b: 'strobe' };
+// Glow quick keys come from the shared map (js/glow-map.js). Moods stay here:
+// Shift+ZXCVB. The glow block below uses GLOW_KEY_TO_MODE for the no-shift case
+// and MOOD_KEYS for the shift case.
 const MOOD_KEYS = { z: 'calm', x: 'build', c: 'tension', v: 'peak', b: 'mystic' };
 
 const MOODS = {
@@ -116,21 +121,24 @@ export function setupShortcuts(app) {
             return;
         }
 
-        // --- ZXCVB: Glow (no shift) or Moods (shift) ---
-        if (GLOW_KEYS[keyLower] !== undefined && !ctrl && !alt) {
+        // --- Glow (no shift): Z X C V B N M , ---  and  Moods (shift): ZXCVB ---
+        // The two cases are gated SEPARATELY so Shift only fires on real mood
+        // keys (ZXCVB) and never swallows Shift+N/M/comma (which have no glow on
+        // shift). No-shift fires only on the shared glow map.
+        const glowMode = !shift ? GLOW_KEY_TO_MODE[keyLower] : undefined;
+        const moodName = shift ? MOOD_KEYS[keyLower] : undefined;
+        if ((glowMode !== undefined || moodName !== undefined) && !ctrl && !alt) {
             e.preventDefault();
 
-            if (shift) {
-                // Moods
-                const moodName = MOOD_KEYS[keyLower];
+            if (moodName !== undefined) {
+                // Moods (Shift+ZXCVB)
                 const mood = MOODS[moodName];
                 if (mood) {
                     app.applyMood(mood, moodName);
                     app.updateHUD();
                 }
             } else {
-                // Glow
-                const glowMode = GLOW_KEYS[keyLower];
+                // Glow (no-shift quick key)
                 app.setGlowMode(glowMode);
                 app.updateHUD();
             }

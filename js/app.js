@@ -51,7 +51,6 @@ export class StreamLightApp {
         this.columnManager = new ColumnManager(this.pixiApp);
         this.columnManager.setVideo(this.videoElement, this.videoTexture);
         this.columnManager.create();
-        this.columnManager.setRainbow();
 
         this.overlay = new Overlay(this.pixiApp);
         this.overlay.create();
@@ -66,6 +65,11 @@ export class StreamLightApp {
         this.sequencer.onFrameChange((frame, stepIndex) => {
             this._applyColorFrame(frame);
         });
+
+        // Paint the initial colors from the sequencer's current frame (neutral
+        // at startup, since no colors are selected yet). Replaces the legacy
+        // setRainbow() startup call — colors are sequencer-driven now.
+        this.reapplyColors();
 
         setupShortcuts(this);
 
@@ -89,6 +93,12 @@ export class StreamLightApp {
                 if (this.columnManager && this.columnManager.count > 0) {
                     this.columnManager.rebuild();
                     if (this.overlay) this.overlay.moveToTop();
+                    // Re-apply the ColorSequencer's current frame synchronously,
+                    // in the SAME tick as rebuild(), so the live combo (e.g.
+                    // calm = solid blue) is restored with NO rainbow flash.
+                    // rebuild() leaves sprites white; this overwrites them before
+                    // the next render, so no intermediate colors are ever shown.
+                    this.reapplyColors();
                 }
             }, 100);
         });
@@ -204,8 +214,11 @@ export class StreamLightApp {
      *  @param {object} mood - mood definition
      *  @param {string|null} moodKey - mood name, for the active-state highlight */
     applyMood(mood, moodKey = null) {
-        // Moods apply LIVE immediately — exit any staging so setPattern writes
-        // the live combo (not the pending cue buffer).
+        // Moods set up the combo LIVE but do NOT auto-cycle ("nothing auto-plays"
+        // model): selectedColors/pattern are set and the static frame is painted,
+        // but the color rotation only starts when the user presses SPACE. There is
+        // intentionally NO sequencer.play() call here. (Movement/Glow are separate
+        // continuous layers and still start, matching their own quick-key behavior.)
         this.sequencer.staging = false;
         this.sequencer.selectedColors = [...mood.colors];
         this.sequencer.setBPM(mood.bpm);
@@ -242,10 +255,14 @@ export class StreamLightApp {
     /** CUE (Backspace): start STAGING a new combo in the background. The LIVE
      *  rotation keeps playing untouched; subsequent color/pattern presses build
      *  the pending combo. Movement/Glow/Mood are NOT staged — they stay live.
-     *  Press Space to commit (pending -> live, restart from 0). */
+     *  Press Space to commit (pending -> live, play from 0).
+     *  The normal cue PRESERVES the current live pattern (not null): on commit
+     *  the new colors play with the SAME pattern/movement/glow as before. This
+     *  removes the old pattern=null "limbo" so the HUD always shows a real
+     *  active pattern, consistent with the total cue. */
     cueReset() {
-        this.sequencer.startStaging(null);  // pending pattern null until the user picks one
-        this.updateHUD();                   // refresh UI (preview shows the pending combo)
+        this.sequencer.startStaging(this.sequencer.pattern); // preserve live pattern
+        this.updateHUD();                                    // refresh UI (preview shows pending combo)
     }
 
     /** TOTAL CUE (Shift+Backspace / panel button): stages a FULL baseline. Live
@@ -269,26 +286,29 @@ export class StreamLightApp {
         this.updateHUD();               // re-sync highlights (Solid gold, A None, Z None, no mood)
     }
 
-    /** EMPTY RESET (Escape): hard wipe to EMPTY (not a cue). Colors -> empty
-     *  (visible neutral), Pattern=null, Movement=None, Glow=None, Mood=None,
-     *  playback stopped, staging cancelled. Fresh start. */
+    /** EMPTY RESET (Escape): brutal clean slate. Colors -> empty (visible
+     *  neutral), Movement=None, Glow=None, Mood=None, playback STOPPED, staging
+     *  cancelled. Pattern resets to the 'solid' baseline (not null) so the
+     *  resulting "listening" state shows a real active pattern (Q highlighted,
+     *  HUD consistent) — matching the total-cue baseline and avoiding the old
+     *  pattern=null limbo. After Escape the user builds a fresh combo and
+     *  presses SPACE to play (nothing auto-plays). */
     emptyReset() {
         this.sequencer.clearColors();            // empty: columns neutral, stops playback, exits staging
-        this.sequencer.setPattern(null);         // Pattern OFF (no gold)
+        this.sequencer.setPattern('solid');      // Pattern -> Solid baseline (clean listening state)
         this.stopEffect();                       // Movement -> None
         this.setGlowMode('none');                // Glow -> None
         this.currentMood = null;                 // Mood -> None
         this.updateHUD();                        // re-sync highlights
     }
 
-    setAllColors(colorName) {
-        this.columnManager.setAllColors(colorName);
-        this.updateHUD();
-    }
-
-    setRainbow() {
-        this.columnManager.setRainbow();
-        this.updateHUD();
+    /** Re-render columns from the ColorSequencer's current frame. Single source
+     *  of truth for column colors — used at startup, after a rebuild (resize /
+     *  layout change), and after a color-value or preset change. Replaces the
+     *  legacy setRainbow()/setAllColors()/refreshColors() path that snapped
+     *  back to a stale "color mode" (the cause of the resize rainbow flash). */
+    reapplyColors() {
+        if (this.sequencer) this.sequencer._applyCurrentFrame();
     }
 
     toggleFullscreen() {
@@ -313,6 +333,7 @@ export class StreamLightApp {
     cycleRotation() {
         CONFIG.columns.rotationSteps = (((CONFIG.columns.rotationSteps || 0) + 1) % 4);
         this.columnManager.rebuild();
+        this.reapplyColors();
         if (this.overlay) this.overlay.moveToTop();
         return CONFIG.columns.rotationSteps;
     }

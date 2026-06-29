@@ -238,11 +238,12 @@ export class ColorSequencer {
 
         this._applyCurrentFrame();
 
-        // Auto-play if we have frames and a pattern (startup / live edits).
-        // Staging never calls _regenerate, so this only fires for live changes.
-        if (this.frames.length > 1 && this.pattern && !this.isPlaying) {
-            this.play();
-        }
+        // "Nothing auto-plays" model: _regenerate ONLY rebuilds frames and paints
+        // the current static frame. It never starts playback. The user starts
+        // cycling explicitly with SPACE (togglePlay), and a cue commit plays via
+        // commitStaged's explicit play(true). If already playing when colors are
+        // edited live, isPlaying stays true so the ticker keeps cycling the new
+        // frames (currentStep was reset to 0 above).
     }
 
     _applyCurrentFrame() {

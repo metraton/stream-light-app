@@ -2,11 +2,15 @@
 
 export class HUD {
     constructor() {
-        this.visible = true;
+        // Default OFF: the HUD starts hidden; the "J" key toggles it on/off.
+        this.visible = false;
         this.colorEl = document.getElementById('hud-color');
         this.effectEl = document.getElementById('hud-effect');
         this.fpsEl = document.getElementById('hud-fps');
         this.hudEl = document.getElementById('hud');
+        // Apply the initial hidden state to the DOM so it actually starts off
+        // (the #hud element has no 'hidden' class in index.html by default).
+        if (this.hudEl) this.hudEl.classList.toggle('hidden', !this.visible);
     }
 
     update(colorMode, effectName, glowName, bpm) {

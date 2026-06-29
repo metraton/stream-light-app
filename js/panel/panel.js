@@ -143,6 +143,7 @@ export class ControlPanel {
                 CONFIG.columns[key] = v;
                 val.textContent = Number.isInteger(v) ? v : v.toFixed(2);
                 this.app.columnManager.rebuild();
+                this.app.reapplyColors();
                 if (this.app.overlay) this.app.overlay.moveToTop();
             });
 

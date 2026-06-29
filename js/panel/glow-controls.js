@@ -20,11 +20,13 @@ export function createGlowControls(sectionEl, app) {
     addSlider(sectionEl, 'Distance', 2, 25, 1, g.distance, v => {
         g.distance = v;
         cm.rebuild();
+        app.reapplyColors();
     });
 
     addSlider(sectionEl, 'Quality', 0.05, 0.5, 0.05, g.quality, v => {
         g.quality = v;
         cm.rebuild();
+        app.reapplyColors();
     });
 
     // --- Color Mode ---

@@ -9,7 +9,7 @@ export const CONFIG = {
     columns: {
         count: 5,
         gap: 20,
-        margin: 40,  // headroom > peak Y movement (~15-20px) so Wave/Broken clear the edge
+        margin: 20,  // matches default gap; movement clamps keep Wave/Broken/Equalizer inside the edge at any margin
         cornerRadius: 15,
         // Single orientation control: 0=0°, 1=90°, 2=180°, 3=270° (clockwise).
         // Default 3 (270°) = old default rotate90(90°) + 180° flip → upright out of the box.
@@ -40,11 +40,11 @@ export const CONFIG = {
         temperature: 0,
     },
     glow: {
-        distance: 8,           // how far glow extends (px)
-        outerStrength: 3,      // outer glow intensity (0-10)
+        distance: 8,           // UI "Distance" — how far glow extends (px); range 2-25
+        outerStrength: 2,      // UI "Strength" — outer glow intensity; range 0-10
         innerStrength: 0,      // inner glow intensity (0-10)
-        quality: 0.15,         // render quality (0.05-1, higher = smoother)
-        colorMode: 'column',   // 'column' = match tint, 'white', 'custom'
+        quality: 0.50,         // UI "Quality" — render quality; range 0.05-0.5
+        colorMode: 'column',   // UI "Color" — 'column' = match tint, 'white', 'custom'
         customColor: 0xffffff,
         intensity: 0,          // master alpha (0-1)
     },

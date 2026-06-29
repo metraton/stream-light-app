@@ -1,13 +1,45 @@
 // --- Column Manager (layout, creation, color management) ---
 import { CONFIG } from './config.js';
 
+// ============================================================================
+// UNIFIED MOVEMENT MARGIN RULE  (single source of truth — tune here)
+// ----------------------------------------------------------------------------
+// Every movement (Wave, Broken, Shake, Expand, Equalizer) is clamped so a
+// column's visual edge never comes closer to the screen edge than a RESERVE,
+// leaving consistent breathing room at top/bottom (and left/right) at ANY
+// margin value and ANY screen size.
+//
+// The reserve is a PERCENTAGE OF THE LAYOUT MARGIN, not a fixed pixel count
+// and not a percentage of the screen. Rationale:
+//   * It respects the user's actual margin setting — a bigger margin yields a
+//     proportionally bigger reserve, so the feel is consistent as the margin
+//     changes (the explicit requirement).
+//   * It is screen-size independent: the margin is the chosen reference, so a
+//     larger viewport does not let movements creep toward the edge.
+//   * It is derived from the well-behaved movements: at margin=20, Wave's
+//     ±15px extreme leaves ~5px (25% of the margin) of breathing room and
+//     "reaches almost the end" — exactly the reference feel the user named.
+// A 2px absolute floor guards the hard screen edge when margin is near 0.
+const EDGE_RESERVE_FRACTION = 0.25; // keep 25% of the margin as breathing room
+const EDGE_RESERVE_FLOOR = 2;       // px hard floor at the screen edge (margin≈0)
+
+/** The px gap to keep between any column edge and the screen edge, derived
+ *  from the current layout margin. One rule, used by translation AND scale. */
+function edgeReserve() {
+    return Math.max(EDGE_RESERVE_FLOOR, CONFIG.columns.margin * EDGE_RESERVE_FRACTION);
+}
+
 export class ColumnManager {
     constructor(pixiApp) {
         this.pixiApp = pixiApp;
         this.videoElement = null;
         this.videoTexture = null;
         this.columns = [];
-        this.currentColorMode = 'RAINBOW';
+        // Per-column logical color (name or 'NEUTRAL'), the source of truth for
+        // glow color + neutral-filter selection. Colors are driven entirely by
+        // the ColorSequencer (app._applyColorFrame writes here); there is no
+        // separate "color mode" — that legacy concept caused rebuild() to snap
+        // back to RAINBOW and is removed.
         this.columnColors = [...CONFIG.colorOrder];
     }
 
@@ -141,8 +173,12 @@ export class ColumnManager {
         }
         this.columns = [];
         this.create();
-        this.refreshColors();
         this.applyFilters();
+        // NOTE: rebuild() no longer re-applies colors itself. The caller must
+        // re-apply the ColorSequencer's current frame (app.reapplyColors())
+        // right after, so the live combo (e.g. calm = solid blue) is restored
+        // with NO intermediate rainbow flash. create() leaves sprites at their
+        // default white tint, which is overwritten synchronously by the frame.
     }
 
     // --- Filters (per-column: brightness, contrast, saturation, hue, temperature) ---
@@ -178,44 +214,6 @@ export class ColumnManager {
                     0, 0, 0, 1, 0,
                 ], chained);
             }
-        }
-    }
-
-    // --- Color Management ---
-    setAllColors(colorName) {
-        const tint = CONFIG.colors[colorName];
-        if (tint === undefined) return;
-        this.currentColorMode = colorName;
-        for (let i = 0; i < this.columns.length; i++) {
-            this.columns[i].sprite.tint = tint;
-            this.columnColors[i] = colorName;
-        }
-        this.updateGlowColors();
-    }
-
-    setRainbow() {
-        this.currentColorMode = 'RAINBOW';
-        for (let i = 0; i < this.columns.length; i++) {
-            const colorName = CONFIG.colorOrder[i];
-            const tint = CONFIG.colors[colorName];
-            this.columns[i].sprite.tint = tint;
-            this.columnColors[i] = colorName;
-        }
-        this.updateGlowColors();
-    }
-
-    setColumnColor(index, colorName) {
-        const tint = CONFIG.colors[colorName];
-        if (tint === undefined || !this.columns[index]) return;
-        this.columns[index].sprite.tint = tint;
-        this.columnColors[index] = colorName;
-    }
-
-    refreshColors() {
-        if (this.currentColorMode === 'RAINBOW') {
-            this.setRainbow();
-        } else {
-            this.setAllColors(this.currentColorMode);
         }
     }
 
@@ -270,14 +268,17 @@ export class ColumnManager {
     }
 
     // --- Offsets (from effect engine) ---
-    // Edge-clamping: every movement is bounded so a column never clips the
-    // screen edges. The column rect is [baseX..baseX+width] × [baseY..baseY+height];
-    // the screen is [0..screenW] × [0..screenH]. We keep the rect inside the
-    // screen minus SAFETY px on each side, for translation (x/y) and for
-    // vertical scaling (scaleY, used by Equalizer — which scales from center).
+    // Edge-clamping: every movement is bounded by ONE shared rule (edgeReserve)
+    // so a column's edge never comes closer to the screen edge than a reserve
+    // proportional to the layout margin. The column rect is
+    // [baseX..baseX+width] × [baseY..baseY+height]; the screen is
+    // [0..screenW] × [0..screenH]. The same reserve governs translation (x/y,
+    // used by Wave/Broken/Shake/Expand) AND vertical scaling (scaleY, used by
+    // Equalizer — which grows from center), so every movement leaves the same
+    // consistent breathing room.
     applyOffsets(offsets) {
         if (!offsets) return;
-        const SAFETY = 2; // px margin kept from each screen edge
+        const reserve = edgeReserve(); // ONE rule for all movements (px from edge)
         const screenW = this.pixiApp.screen.width;
         const screenH = this.pixiApp.screen.height;
 
@@ -286,14 +287,14 @@ export class ColumnManager {
 
             // --- Clamp X translation to the screen's horizontal bounds ---
             let ox = offsets.offsetX[i] || 0;
-            const minOx = (SAFETY) - col.baseX;                       // left edge
-            const maxOx = (screenW - SAFETY) - (col.baseX + col.width); // right edge
+            const minOx = (reserve) - col.baseX;                       // left edge
+            const maxOx = (screenW - reserve) - (col.baseX + col.width); // right edge
             ox = Math.max(minOx, Math.min(maxOx, ox));
 
             // --- Clamp Y translation to the screen's vertical bounds ---
             let oy = offsets.offsetY[i] || 0;
-            const minOy = (SAFETY) - col.baseY;                        // top edge
-            const maxOy = (screenH - SAFETY) - (col.baseY + col.height); // bottom edge
+            const minOy = (reserve) - col.baseY;                        // top edge
+            const maxOy = (screenH - reserve) - (col.baseY + col.height); // bottom edge
             oy = Math.max(minOy, Math.min(maxOy, oy));
 
             col.container.x = col.baseX + ox;
@@ -307,10 +308,14 @@ export class ColumnManager {
             let sy = offsets.scaleY?.[i] || 0;
             if (sy !== 0) {
                 // Scaling from the vertical center grows the column by
-                // height*(scale-1)/2 beyond EACH end. Cap the scale so neither
-                // end (already offset by oy) crosses the safety bound.
-                const topRoom = (col.baseY + oy) - SAFETY;                       // px above
-                const botRoom = (screenH - SAFETY) - (col.baseY + oy + col.height); // px below
+                // height*(scale-1)/2 beyond EACH end. It uses the SAME edge
+                // reserve as translation: the grown edge may breathe toward the
+                // screen edge but must stop `reserve` px short of it. Because
+                // the reserve is a fraction of the margin, Equalizer now leaves
+                // the same proportional breathing room as Wave/Broken at ANY
+                // margin value — it can no longer slam the top/bottom edges.
+                const topRoom = (col.baseY + oy) - reserve;                       // px above to reserve line
+                const botRoom = (screenH - reserve) - (col.baseY + oy + col.height); // px below to reserve line
                 const room = Math.max(0, Math.min(topRoom, botRoom));
                 const maxGrow = col.height > 0 ? (2 * room) / col.height : 0;     // max (scale-1)
                 if (sy > maxGrow) sy = maxGrow; // only positive growth can clip

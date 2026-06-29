@@ -28,7 +28,9 @@ export function createColorControls(sectionEl, app) {
         picker.addEventListener('input', () => {
             CONFIG.colors[name] = intFromHex(picker.value);
             hexDisplay.textContent = picker.value;
-            app.columnManager.refreshColors();
+            // Re-render from the sequencer's current frame so the new hex is
+            // picked up for whatever colors are live (was refreshColors()).
+            app.reapplyColors();
         });
 
         row.appendChild(label);

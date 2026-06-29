@@ -1,6 +1,7 @@
 // --- Sequencer Controls (visual panel + color selection, pattern, movement, glow) ---
 import { CONFIG } from '../config.js';
 import { ColorSequencer } from '../color-sequencer.js';
+import { GLOW_QUICK } from '../glow-map.js';
 
 // Every button group uses the same two-line "KEY over WORD" layout via keyLabel().
 const COLOR_INDICES = [-1, 0, 1, 2, 3, 4, 99];
@@ -17,9 +18,10 @@ const MOVEMENTS = ['none', 'wave', 'expand', 'broken', 'shake', 'equalizer'];
 const MOVEMENT_KEYS = ['A', 'S', 'D', 'F', 'G', 'H'];
 const MOVEMENT_WORDS = ['None', 'Wave', 'Expand', 'Broken', 'Shake', 'Equalizer'];
 
-const GLOW_MODES = ['none', 'static', 'breathe', 'pulse', 'strobe', 'sweep-right'];
-const GLOW_KEYS = ['Z', 'X', 'C', 'V', 'B', '\u25B6'];
-const GLOW_WORDS = ['None', 'Static', 'Breathe', 'Pulse', 'Strobe', 'Sweep'];
+// Glow quick buttons derive from the shared single source of truth
+// (js/glow-map.js): GLOW_QUICK is the ONE ordered list of {key, mode, label}
+// for both the panel buttons and the keyboard handler, so glyph/label/mode can
+// never drift. Keys are shown uppercase on the buttons.
 
 /** Build the uniform two-line button content: key glyph on top, word below. */
 function keyLabel(btn, key, word) {
@@ -213,7 +215,7 @@ export function createSequencerControls(sectionEl, app) {
     // === Glow Mode ===
     const glowHeader = document.createElement('div');
     glowHeader.className = 'effect-name';
-    glowHeader.textContent = 'Glow — Modo rápido (ZXCVB)';
+    glowHeader.textContent = 'Glow — Modo rápido (Z X C V B N M ,)';
     glowHeader.style.marginTop = '10px';
     sectionEl.appendChild(glowHeader);
 
@@ -223,11 +225,12 @@ export function createSequencerControls(sectionEl, app) {
     glowRow.style.gap = '4px';
 
     const glowBtns = [];
-    for (let i = 0; i < GLOW_MODES.length; i++) {
+    for (let i = 0; i < GLOW_QUICK.length; i++) {
+        const { key, mode, label } = GLOW_QUICK[i];
         const btn = document.createElement('button');
-        keyLabel(btn, GLOW_KEYS[i], GLOW_WORDS[i]);
+        keyLabel(btn, key.toUpperCase(), label);
         btn.addEventListener('click', () => {
-            app.setGlowMode(GLOW_MODES[i]);
+            app.setGlowMode(mode);
             refreshAll();
             app.updateHUD();
         });
@@ -334,7 +337,7 @@ export function createSequencerControls(sectionEl, app) {
         return [
             { btns: patBtns,  isActive: i => shownPattern() === PATTERNS[i] },
             { btns: movBtns,  isActive: i => app.currentMovement === MOVEMENTS[i] },
-            { btns: glowBtns, isActive: i => app.currentGlowMode === GLOW_MODES[i] },
+            { btns: glowBtns, isActive: i => app.currentGlowMode === GLOW_QUICK[i].mode },
             { btns: moodBtns, isActive: i => app.currentMood === MOOD_DEFS[i].key },
         ];
     }
