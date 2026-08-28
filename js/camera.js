@@ -25,12 +25,17 @@ async function openAndRelease(constraints) {
 // Labels stay empty until camera permission is granted, hence the throwaway
 // stream. It opens the system default camera, which can be listed yet
 // unopenable (a disconnected Iriun phone, a camera held by another app), so
-// its failure must not hide the other cameras.
+// its failure must not hide the other cameras. Once labels are available the
+// stream is skipped: this runs on every devicechange, and reopening a camera
+// each time lights it up and can fight a stream already in use.
 /**
  * Video inputs, labelled once any camera has opened. `error` is the last open
- * failure when cameras exist but none could be opened, otherwise null.
+ * failure when no camera could be listed or opened, otherwise null.
  */
 export async function enumerateCameras() {
+    const listed = await listCameras();
+    if (listed.some(cam => cam.label)) return { cameras: listed, error: null };
+
     try {
         await openAndRelease({ video: true });
         return { cameras: await listCameras(), error: null };
@@ -38,8 +43,8 @@ export async function enumerateCameras() {
         console.error(`Default camera failed to open (${e.name}):`, e);
         let error = e;
         const cameras = await listCameras();
-        if (cameras.length === 0 || cameras.some(cam => cam.label)) {
-            return { cameras, error: null };
+        if (cameras.length === 0) {
+            return { cameras, error };
         }
         for (const cam of cameras) {
             if (!cam.deviceId) continue;
@@ -55,13 +60,29 @@ export async function enumerateCameras() {
     }
 }
 
-/** Fill the startup camera select, preselecting the Iriun camera when present. */
+function noCamerasMessage(error) {
+    if (!error) return 'No cameras found';
+    if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+        return 'Camera access denied — check browser permissions';
+    }
+    if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
+        return 'No camera detected';
+    }
+    return `Camera error: ${error.message || error.name}`;
+}
+
+/**
+ * Rebuild the startup camera select from the devices present now, preselecting
+ * the Iriun camera when present. Keeps the user's current selection if that
+ * device is still listed.
+ */
 export async function populateCameraSelect() {
     const select = document.getElementById('camera-select');
+    const previousDeviceId = select.value;
     const { cameras, error } = await enumerateCameras();
 
     if (cameras.length === 0) {
-        select.innerHTML = '<option value="">No cameras found</option>';
+        select.replaceChildren(new Option(noCamerasMessage(error), ''));
         return;
     }
     if (error) {
@@ -73,8 +94,18 @@ export async function populateCameraSelect() {
         `<option value="${cam.deviceId}">${cam.label || `Camera ${i + 1}`}</option>`
     ).join('');
 
+    if (previousDeviceId && cameras.some(cam => cam.deviceId === previousDeviceId)) {
+        select.value = previousDeviceId;
+        return;
+    }
     const iriun = cameras.find(cam => labelMatches(cam, 'iriun'));
     if (iriun) select.value = iriun.deviceId;
+}
+
+/** Track cameras being plugged in or removed. Returns the unsubscribe function. */
+export function watchCameraDevices(onChange) {
+    navigator.mediaDevices.addEventListener('devicechange', onChange);
+    return () => navigator.mediaDevices.removeEventListener('devicechange', onChange);
 }
 
 /** deviceId of the other camera in the Iriun <-> Logitech pair; null unless both are present. */

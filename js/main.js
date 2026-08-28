@@ -1,6 +1,6 @@
 // --- Entry Point ---
 import { StreamLightApp } from './app.js';
-import { populateCameraSelect } from './camera.js';
+import { populateCameraSelect, watchCameraDevices } from './camera.js';
 
 // Two pages would each open the camera and render it, doubling the GPU load,
 // so only the page holding this Web Lock starts. The browser releases the lock
@@ -8,6 +8,19 @@ import { populateCameraSelect } from './camera.js';
 const INSTANCE_LOCK = 'stream-light-instance';
 
 let app = null;
+
+// Live while the startup screen is open so a plugged/unplugged camera
+// updates the select without a reload; stopped once the app has started,
+// since nothing after that reads the camera list again.
+let stopWatchingCameras = null;
+
+function hideStartupScreen() {
+    document.getElementById('startup').classList.add('hidden');
+    if (stopWatchingCameras) {
+        stopWatchingCameras();
+        stopWatchingCameras = null;
+    }
+}
 
 window.startApp = async function () {
     const select = document.getElementById('camera-select');
@@ -24,7 +37,7 @@ window.startApp = async function () {
         app = new StreamLightApp();
         await app.init(deviceId);
         window._app = app;
-        document.getElementById('startup').classList.add('hidden');
+        hideStartupScreen();
     } catch (e) {
         console.error('Failed to start:', e);
         errorDiv.textContent = `Error: ${e.message}`;
@@ -37,7 +50,7 @@ window.startDemo = async function () {
         app = new StreamLightApp();
         await app.initDemo();
         window._app = app;
-        document.getElementById('startup').classList.add('hidden');
+        hideStartupScreen();
     } catch (e) {
         console.error('Failed to start demo:', e);
     }
@@ -59,5 +72,6 @@ navigator.locks.request(INSTANCE_LOCK, { ifAvailable: true }, (lock) => {
         return undefined;
     }
     populateCameraSelect();
+    stopWatchingCameras = watchCameraDevices(() => populateCameraSelect());
     return new Promise(() => {});
 });
