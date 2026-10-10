@@ -1,6 +1,14 @@
 // --- Camera Management ---
 
 const CAMERA_CYCLE_PRIORITY = ['iriun', 'logitech'];
+// Quarter turns clockwise, counted like CONFIG.columns.rotationSteps.
+const CAMERA_ROTATION_STEPS = { iriun: 1 };
+
+/** Default rotationSteps for a camera label: its CAMERA_ROTATION_STEPS entry, else 0. */
+export function defaultRotationSteps(label = '') {
+    const name = Object.keys(CAMERA_ROTATION_STEPS).find(n => label.toLowerCase().includes(n));
+    return name ? CAMERA_ROTATION_STEPS[name] : 0;
+}
 
 const labelMatches = (cam, name) => cam.label.toLowerCase().includes(name);
 

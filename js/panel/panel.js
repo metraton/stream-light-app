@@ -166,6 +166,7 @@ export class ControlPanel {
         rotBtn.className = 'rotate-btn';
         const angleText = () => `⟳ ${(((CONFIG.columns.rotationSteps % 4) + 4) % 4) * 90}°`;
         rotBtn.textContent = angleText();
+        this.refreshRotationLabel = () => { rotBtn.textContent = angleText(); };
         rotBtn.addEventListener('click', () => {
             this.app.cycleRotation();
             rotBtn.textContent = angleText();

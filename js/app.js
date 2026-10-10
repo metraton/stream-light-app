@@ -9,7 +9,7 @@ import { ColumnManager } from './columns.js';
 import { Overlay } from './overlay.js';
 import { HUD } from './hud.js';
 import { setupShortcuts } from './shortcuts.js';
-import { setupWebcam, createTestPattern } from './camera.js';
+import { setupWebcam, createTestPattern, defaultRotationSteps } from './camera.js';
 import { ControlPanel } from './panel/panel.js';
 
 export class StreamLightApp {
@@ -36,6 +36,7 @@ export class StreamLightApp {
         const { videoElement, videoTexture } = await setupWebcam(deviceId);
         this.videoElement = videoElement;
         this.videoTexture = videoTexture;
+        this._applyCameraRotation();
         this.setup();
     }
 
@@ -343,6 +344,11 @@ export class StreamLightApp {
         return this.videoElement?.srcObject?.getVideoTracks()[0];
     }
 
+    /** Reset the orientation to the live camera's default, overriding any manual rotation. */
+    _applyCameraRotation() {
+        CONFIG.columns.rotationSteps = defaultRotationSteps(this._activeCameraTrack()?.label);
+    }
+
     /** Replace the live feed with camera `deviceId`, stopping the old stream first and reopening it if the new camera fails. */
     async switchCamera(deviceId) {
         const previousId = this.activeCameraId;
@@ -361,6 +367,8 @@ export class StreamLightApp {
             this.videoElement = feed.videoElement;
             this.videoTexture = feed.videoTexture;
             this.columnManager.setVideo(this.videoElement, this.videoTexture);
+            this._applyCameraRotation();
+            this.panel?.refreshRotationLabel?.();
             this.columnManager.rebuild();
             this.reapplyColors();
             if (this.overlay) this.overlay.moveToTop();
