@@ -48,17 +48,16 @@ export async function populateCameraSelect() {
     if (iriun) select.value = iriun.deviceId;
 }
 
-/** deviceId of the camera after `currentId` in the order Iriun, Logitech, then the rest; null when there is nothing to switch to. */
+/** deviceId of the other camera in the Iriun <-> Logitech pair; null unless both are present. */
 export async function nextCameraId(currentId) {
     if (!currentId) return null;
-    const rank = (cam) => {
-        const i = CAMERA_CYCLE_PRIORITY.findIndex(name => labelMatches(cam, name));
-        return i === -1 ? CAMERA_CYCLE_PRIORITY.length : i;
-    };
-    const cameras = (await listCameras()).sort((a, b) => rank(a) - rank(b));
-    if (cameras.length < 2) return null;
-    const current = cameras.findIndex(cam => cam.deviceId === currentId);
-    return cameras[(current + 1) % cameras.length].deviceId;
+    const cameras = await listCameras();
+    // One device per name: the first match in browser order, the same one
+    // populateCameraSelect preselects. Later matches and other inputs are skipped.
+    const pair = CAMERA_CYCLE_PRIORITY.map(name => cameras.find(cam => labelMatches(cam, name)));
+    if (pair.some(cam => !cam)) return null;
+    const current = pair.findIndex(cam => cam.deviceId === currentId);
+    return pair[(current + 1) % pair.length].deviceId;
 }
 
 export async function setupWebcam(deviceId) {

@@ -1,7 +1,7 @@
 // --- Keyboard Shortcuts (Sequencer layout) ---
 // Numbers 1-6: toggle color selection; |: toggle Empty
 // Shift+number / Shift+|: select only that color
-// 0 / Shift+0: next camera (Iriun, Logitech, then any others)
+// 0 / Shift+0: switch camera (Iriun <-> Logitech only)
 // QWERT: pattern (chase/pingpong/alternate/solid/carousel)
 // ASDFG: movement (none/wave/expand/broken/shake)
 // Z X C V B N M , : glow (off/sweep/breathe/pulse/strobe/bounce/cascade/alternate)
