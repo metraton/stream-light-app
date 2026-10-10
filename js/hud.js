@@ -13,13 +13,14 @@ export class HUD {
         if (this.hudEl) this.hudEl.classList.toggle('hidden', !this.visible);
     }
 
-    update(colorMode, effectName, glowName, bpm) {
+    update(colorMode, effectName, glowName, bpm, cameraLabel) {
         if (this.colorEl) this.colorEl.textContent = colorMode || '--';
         if (this.effectEl) {
             const parts = [];
             if (effectName) parts.push(`mov:${effectName}`);
             if (glowName) parts.push(`glow:${glowName}`);
             if (bpm) parts.push(`${bpm}bpm`);
+            if (cameraLabel) parts.push(`cam:${cameraLabel}`);
             this.effectEl.textContent = parts.join(' | ') || '--';
         }
     }

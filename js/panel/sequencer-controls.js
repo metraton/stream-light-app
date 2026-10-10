@@ -5,7 +5,7 @@ import { GLOW_QUICK } from '../glow-map.js';
 
 // Every button group uses the same two-line "KEY over WORD" layout via keyLabel().
 const COLOR_INDICES = [-1, 0, 1, 2, 3, 4, 99];
-const COLOR_KEYS = ['0', '1', '2', '3', '4', '5', '6'];
+const COLOR_KEYS = ['|', '1', '2', '3', '4', '5', '6'];
 const COLOR_WORDS = ['Empty', 'Yellow', 'Blue', 'Red', 'Green', 'Purple', 'Rainbow'];
 const COLOR_HEX = ['#444', '#ffff00', '#55aaff', '#ff0000', '#00ff00', '#ff00ff', 'linear-gradient(90deg,#ff0,#55f,#f00,#0f0,#f0f)'];
 const COLOR_EMOJIS = ['\u2B1B', '\uD83D\uDFE8', '\uD83D\uDFE6', '\uD83D\uDFE5', '\uD83D\uDFE9', '\uD83D\uDFEA'];

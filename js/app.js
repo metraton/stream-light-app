@@ -334,6 +334,45 @@ export class StreamLightApp {
         if (this.panel) this.panel.toggle();
     }
 
+    /** deviceId of the live webcam feed; undefined in demo mode. */
+    get activeCameraId() {
+        return this._activeCameraTrack()?.getSettings().deviceId;
+    }
+
+    _activeCameraTrack() {
+        return this.videoElement?.srcObject?.getVideoTracks()[0];
+    }
+
+    /** Replace the live feed with camera `deviceId`, stopping the old stream first and reopening it if the new camera fails. */
+    async switchCamera(deviceId) {
+        const previousId = this.activeCameraId;
+        if (this._switchingCamera || !previousId) return;
+        this._switchingCamera = true;
+        const oldTexture = this.videoTexture;
+        this.videoElement.srcObject.getTracks().forEach(t => t.stop());
+        try {
+            let feed;
+            try {
+                feed = await setupWebcam(deviceId);
+            } catch (e) {
+                console.error('Camera switch failed, reopening the previous camera:', e);
+                feed = await setupWebcam(previousId);
+            }
+            this.videoElement = feed.videoElement;
+            this.videoTexture = feed.videoTexture;
+            this.columnManager.setVideo(this.videoElement, this.videoTexture);
+            this.columnManager.rebuild();
+            this.reapplyColors();
+            if (this.overlay) this.overlay.moveToTop();
+            oldTexture.destroy(true);
+            this.updateHUD();
+        } catch (e) {
+            console.error('No camera could be reopened:', e);
+        } finally {
+            this._switchingCamera = false;
+        }
+    }
+
     updateHUD() {
         if (!this.hud) return;
         const seq = this.sequencer.state;
@@ -346,7 +385,8 @@ export class StreamLightApp {
             `${colorNames} [${mode}]`,
             effectName,
             glowName !== 'none' ? glowName : null,
-            seq.bpm
+            seq.bpm,
+            this._activeCameraTrack()?.label
         );
 
         // Refresh panel sequencer visuals (mini-stage, tags, dots)

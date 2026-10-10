@@ -1,6 +1,7 @@
 // --- Keyboard Shortcuts (Sequencer layout) ---
-// Numbers 0-6: toggle color selection
-// Shift+number: select only that color
+// Numbers 1-6: toggle color selection; |: toggle Empty
+// Shift+number / Shift+|: select only that color
+// 0 / Shift+0: next camera (Iriun, Logitech, then any others)
 // QWERT: pattern (chase/pingpong/alternate/solid/carousel)
 // ASDFG: movement (none/wave/expand/broken/shake)
 // Z X C V B N M , : glow (off/sweep/breathe/pulse/strobe/bounce/cascade/alternate)
@@ -12,6 +13,7 @@
 // F: fullscreen, H: HUD, P: panel
 
 import { GLOW_KEY_TO_MODE } from './glow-map.js';
+import { nextCameraId } from './camera.js';
 
 const PATTERN_KEYS = { q: 'chase', w: 'pingpong', e: 'alternate', r: 'solid', t: 'carousel' };
 const MOVEMENT_KEYS = { a: 'none', s: 'wave', d: 'expand', f: 'broken', g: 'shake', h: 'equalizer' };
@@ -47,7 +49,7 @@ export function setupShortcuts(app) {
             return;
         }
 
-        // --- Pipe "|" or 0 = empty color (empty stays reachable) ---
+        // --- Pipe "|" = empty color ---
         if (key === '|' && !ctrl && !alt) {
             e.preventDefault();
             if (shift) {
@@ -59,20 +61,14 @@ export function setupShortcuts(app) {
             return;
         }
 
-        // --- Numbers 0-6: Color selection ---
+        // --- Number 0: next camera; numbers 1-6: color selection ---
         const digitMatch = e.code.match(/^Digit(\d)$/);
         if (digitMatch && !ctrl && !alt) {
             const num = parseInt(digitMatch[1]);
 
-            // 0 = empty color
             if (num === 0) {
                 e.preventDefault();
-                if (shift) {
-                    app.sequencer.selectOnly(-1);
-                } else {
-                    app.sequencer.toggleColor(-1);
-                }
-                app.updateHUD();
+                nextCameraId(app.activeCameraId).then((id) => id && app.switchCamera(id));
                 return;
             }
 

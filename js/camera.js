@@ -1,17 +1,28 @@
 // --- Camera Management ---
 
+const CAMERA_CYCLE_PRIORITY = ['iriun', 'logitech'];
+
+const labelMatches = (cam, name) => cam.label.toLowerCase().includes(name);
+
+async function listCameras() {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    return devices.filter(d => d.kind === 'videoinput');
+}
+
+// Device labels stay empty until camera permission is granted, hence the
+// throwaway stream before enumerating.
 export async function enumerateCameras() {
     try {
         const tempStream = await navigator.mediaDevices.getUserMedia({ video: true });
         tempStream.getTracks().forEach(t => t.stop());
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        return devices.filter(d => d.kind === 'videoinput');
+        return await listCameras();
     } catch (e) {
         console.error('Failed to enumerate cameras:', e);
         return [];
     }
 }
 
+/** Fill the startup camera select, preselecting the Iriun camera when present. */
 export async function populateCameraSelect() {
     const select = document.getElementById('camera-select');
     const cameras = await enumerateCameras();
@@ -24,6 +35,22 @@ export async function populateCameraSelect() {
     select.innerHTML = cameras.map((cam, i) =>
         `<option value="${cam.deviceId}">${cam.label || `Camera ${i + 1}`}</option>`
     ).join('');
+
+    const iriun = cameras.find(cam => labelMatches(cam, 'iriun'));
+    if (iriun) select.value = iriun.deviceId;
+}
+
+/** deviceId of the camera after `currentId` in the order Iriun, Logitech, then the rest; null when there is nothing to switch to. */
+export async function nextCameraId(currentId) {
+    if (!currentId) return null;
+    const rank = (cam) => {
+        const i = CAMERA_CYCLE_PRIORITY.findIndex(name => labelMatches(cam, name));
+        return i === -1 ? CAMERA_CYCLE_PRIORITY.length : i;
+    };
+    const cameras = (await listCameras()).sort((a, b) => rank(a) - rank(b));
+    if (cameras.length < 2) return null;
+    const current = cameras.findIndex(cam => cam.deviceId === currentId);
+    return cameras[(current + 1) % cameras.length].deviceId;
 }
 
 export async function setupWebcam(deviceId) {
