@@ -13,7 +13,7 @@ export class ColorSequencer {
 
     constructor() {
         this.selectedColors = [];   // ordered array of color indices (-1, 0-4)
-        this.pattern = 'solid';     // default at startup so 'Q Solid' shows active;
+        this.pattern = 'solid';     // default at startup so 'R Solid' shows active;
                                     // 'solid','alternate','chase','carousel','pingpong'
         this.frames = [];           // generated frames: each is [c0,c1,c2,c3,c4]
         this.currentStep = 0;

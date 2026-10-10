@@ -252,30 +252,22 @@ export class StreamLightApp {
         this.updateHUD();
     }
 
-    /** CUE (Backspace): start STAGING a new combo in the background. The LIVE
-     *  rotation keeps playing untouched; subsequent color/pattern presses build
-     *  the pending combo. Movement/Glow/Mood are NOT staged — they stay live.
-     *  Press Space to commit (pending -> live, play from 0).
-     *  The normal cue PRESERVES the current live pattern (not null): on commit
-     *  the new colors play with the SAME pattern/movement/glow as before. This
-     *  removes the old pattern=null "limbo" so the HUD always shows a real
-     *  active pattern, consistent with the total cue. */
+    /** CUE (Backspace): identical to the total cue. */
     cueReset() {
-        this.sequencer.startStaging(this.sequencer.pattern); // preserve live pattern
-        this.updateHUD();                                    // refresh UI (preview shows pending combo)
+        this.totalReset();
     }
 
-    /** TOTAL CUE (Shift+Backspace / panel button): stages a FULL baseline. Live
-     *  rotation keeps playing; movement/glow/mood stay live UNTIL commit. On Play
-     *  (commitCue) the live state becomes: cued colors, Pattern=Solid, Movement
-     *  None, Glow None, Mood None. */
+    /** TOTAL CUE (Shift+Backspace / panel button): stage a new combo while the
+     *  live rotation keeps playing. On commit the live state becomes the cued
+     *  colors, the pattern pressed while staging (Solid if none), and Movement,
+     *  Glow and Mood None; BPM is kept. */
     totalReset() {
-        this.sequencer.startStaging('solid', true); // fullReset=true: reset layers on commit
+        this.sequencer.startStaging('solid', true);
         this.updateHUD();
     }
 
-    /** Commit a cue (Space while staging). pending -> live + play from 0; if it
-     *  was a Cue total, also reset movement/glow/mood to baseline now. */
+    /** Commit a cue (Space / panel Play while staging): pending -> live, play
+     *  from 0, and reset movement/glow/mood when the cue asked for it. */
     commitCue() {
         const res = this.sequencer.commitStaged();
         if (res && res.fullReset) {
@@ -289,7 +281,7 @@ export class StreamLightApp {
     /** EMPTY RESET (Escape): brutal clean slate. Colors -> empty (visible
      *  neutral), Movement=None, Glow=None, Mood=None, playback STOPPED, staging
      *  cancelled. Pattern resets to the 'solid' baseline (not null) so the
-     *  resulting "listening" state shows a real active pattern (Q highlighted,
+     *  resulting "listening" state shows a real active pattern (R highlighted,
      *  HUD consistent) — matching the total-cue baseline and avoiding the old
      *  pattern=null limbo. After Escape the user builds a fresh combo and
      *  presses SPACE to play (nothing auto-plays). */

@@ -1,19 +1,19 @@
 // --- Keyboard Shortcuts (Sequencer layout) ---
 // Numbers 0-6: toggle color selection
 // Shift+number: select only that color
-// QWERT: pattern (solid/alternate/chase/carousel/pingpong)
+// QWERT: pattern (chase/pingpong/alternate/solid/carousel)
 // ASDFG: movement (none/wave/expand/broken/shake)
 // Z X C V B N M , : glow (off/sweep/breathe/pulse/strobe/bounce/cascade/alternate)
 //   (single source of truth: js/glow-map.js)
 // Shift+ZXCVB: moods (calm/build/tension/peak/mystic)
-// Backspace: clear color selection
-// Space: play/stop sequencer
+// Backspace / Shift+Backspace: cue a new combo while the live one keeps playing
+// Space: commit the cue (movement/glow/mood reset to None), else play/stop
 // +/-: BPM speed
 // F: fullscreen, H: HUD, P: panel
 
 import { GLOW_KEY_TO_MODE } from './glow-map.js';
 
-const PATTERN_KEYS = { q: 'solid', w: 'alternate', e: 'chase', r: 'carousel', t: 'pingpong' };
+const PATTERN_KEYS = { q: 'chase', w: 'pingpong', e: 'alternate', r: 'solid', t: 'carousel' };
 const MOVEMENT_KEYS = { a: 'none', s: 'wave', d: 'expand', f: 'broken', g: 'shake', h: 'equalizer' };
 // Glow quick keys come from the shared map (js/glow-map.js). Moods stay here:
 // Shift+ZXCVB. The glow block below uses GLOW_KEY_TO_MODE for the no-shift case
@@ -154,7 +154,7 @@ export function setupShortcuts(app) {
             if (shift) {
                 app.totalReset();   // start staging with Solid baseline
             } else {
-                app.cueReset();     // start staging (pattern null)
+                app.cueReset();
             }
             return;
         }
