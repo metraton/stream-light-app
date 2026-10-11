@@ -83,10 +83,6 @@ class ServeTest(unittest.TestCase):
         self.assertTrue(self.bridge.is_bound('KeyQ/none'))
 
 
-class StopFollowing(Exception):
-    pass
-
-
 def drain(events):
     received = []
     while not events.empty():
@@ -112,31 +108,36 @@ class CapsLockLiveModeTest(unittest.TestCase):
         self.events = self.bridge.subscribe()
         drain(self.events)
 
-    def test_live_mode_follows_caps_lock_and_publishes_only_changes(self):
-        readings = iter([True, True, False, False, True])
+    def test_caps_keydown_flips_live_once_per_press_ignoring_autorepeat(self):
+        hook = serve.KeyboardHook(self.bridge)
+        injected_caps = SimpleNamespace(vkCode=serve.VK_CAPITAL, scanCode=0x3A, flags=serve.LLKHF_INJECTED)
+        presses = [
+            (CAPS, True), (CAPS, True), (CAPS, True), (CAPS, False),
+            (CAPS, True), (CAPS, False),
+            (injected_caps, True), (injected_caps, False),
+        ]
+        swallowed = [hook._swallow(event, is_down) for event, is_down in presses]
 
-        def read_caps():
-            try:
-                return next(readings)
-            except StopIteration:
-                raise StopFollowing
-
-        with self.assertRaises(StopFollowing):
-            serve.follow_caps_lock(self.bridge, read_caps)
+        self.assertEqual(swallowed, [False] * len(presses))
         self.assertEqual(drain(self.events), [
             ('live', {'live': True}),
             ('live', {'live': False}),
             ('live', {'live': True}),
         ])
 
+    def test_live_mode_starts_from_the_seeded_caps_state(self):
+        self.bridge.set_live(True)
+        hook = serve.KeyboardHook(self.bridge)
+        hook._swallow(CAPS, True)
+        self.assertFalse(self.bridge.live)
+
     def test_caps_lock_passes_through_and_is_not_read_as_shift(self):
         hook = serve.KeyboardHook(self.bridge)
         self.bridge.set_bound(['KeyQ/none', 'KeyZ/shift'])
-        self.bridge.set_live(True)
-        drain(self.events)
 
         self.assertFalse(hook._swallow(CAPS, True))
         self.assertFalse(hook._swallow(CAPS, False))
+        self.assertTrue(self.bridge.live)
         self.assertTrue(hook._swallow(Q, True))
         self.assertTrue(hook._swallow(Q, False))
         self.assertFalse(hook._swallow(LEFT_SHIFT, True))
@@ -149,7 +150,7 @@ class CapsLockLiveModeTest(unittest.TestCase):
         hook = serve.KeyboardHook(self.bridge)
         self.bridge.set_bound(['KeyQ/none'])
         self.assertFalse(hook._swallow(Q, True))
-        self.assertFalse(hook._swallow(CAPS, True))
+        self.assertFalse(hook._swallow(Q, False))
         self.assertEqual(drain(self.events), [])
 
 

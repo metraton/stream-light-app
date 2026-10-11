@@ -11,8 +11,11 @@ Because OBS captures that window, it is usually not the focused one while stream
 ## Flow
 
 ```
-Caps Lock toggled (any window, passes through to Windows)
-  -> serve.py polls the Caps state every 100 ms -> "live" event on change -> page shows / hides EN VIVO
+Caps Lock pressed (any window, passes through to Windows)
+  -> serve.py keyboard hook flips live mode on each press (seeded from the Caps state at startup)
+  -> "live" event -> page shows / hides EN VIVO
+  (python serve.py --debug prints one line per hook, Caps, live key and /events or /bound event;
+   the page logs its side to the browser console with a [live-bridge] prefix)
 key pressed in any window
   -> serve.py keyboard hook (WH_KEYBOARD_LL)
        live and bound   -> swallowed -> "key" event on /events -> resolveShortcut -> app action

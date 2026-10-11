@@ -9,13 +9,13 @@ page as a Server-Sent Event on /events. Standard library only; Windows only.
 import argparse
 import ctypes
 import json
+import logging
 import os
 import queue
 import shutil
 import subprocess
 import sys
 import threading
-import time
 from ctypes import wintypes
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -30,7 +30,8 @@ CHROME_FLAGS = [
     '--disable-background-timer-throttling',
 ]
 KEEPALIVE_SECONDS = 15
-CAPS_POLL_SECONDS = 0.1
+
+log = logging.getLogger('serve')
 
 WH_KEYBOARD_LL = 13
 HC_ACTION = 0
@@ -116,10 +117,15 @@ user32.ToUnicodeEx.argtypes = [
 user32.ToUnicodeEx.restype = ctypes.c_int
 kernel32.GetModuleHandleW.argtypes = [wintypes.LPCWSTR]
 kernel32.GetModuleHandleW.restype = wintypes.HMODULE
+kernel32.GetCurrentThreadId.restype = wintypes.DWORD
 
 
 def caps_lock_on():
-    """Returns the Caps Lock toggle state Windows reports, the one the keyboard light shows."""
+    """Returns the Caps Lock toggle state as this thread's view of the keyboard reports it.
+
+    Only trusted once, at startup, before any key arrives: a thread that is not
+    reading keyboard messages keeps a stale copy of this state afterwards.
+    """
     return bool(user32.GetKeyState(VK_CAPITAL) & 1)
 
 
@@ -210,18 +216,6 @@ class Bridge:
         return keystroke_id in self._bound
 
 
-def follow_caps_lock(bridge, read_caps=caps_lock_on):
-    """Keeps live mode equal to Caps Lock forever.
-
-    Polling, rather than reacting to the Caps key in the hook, also catches Caps
-    turned off by other means (the Windows "press Shift to turn off Caps Lock"
-    setting) and reads the state after Windows has applied the toggle.
-    """
-    while True:
-        bridge.set_live(read_caps())
-        time.sleep(CAPS_POLL_SECONDS)
-
-
 class KeyboardHook(threading.Thread):
     """Owns the WH_KEYBOARD_LL hook; Windows calls it on the thread that installed it."""
 
@@ -230,6 +224,7 @@ class KeyboardHook(threading.Thread):
         self._bridge = bridge
         self._held_modifiers = set()
         self._swallowed_scans = set()
+        self._caps_held = False
         self._proc = HOOKPROC(self._on_key)
         self._installed = threading.Event()
         self.error = None
@@ -248,6 +243,7 @@ class KeyboardHook(threading.Thread):
         self._installed.set()
         if not hook:
             return
+        log.debug('hook installed on thread %d', kernel32.GetCurrentThreadId())
         message = wintypes.MSG()
         while user32.GetMessageW(ctypes.byref(message), None, 0, 0) > 0:
             pass
@@ -255,18 +251,26 @@ class KeyboardHook(threading.Thread):
     def _on_key(self, n_code, w_param, l_param):
         if n_code == HC_ACTION:
             event = ctypes.cast(l_param, ctypes.POINTER(KBDLLHOOKSTRUCT)).contents
-            is_down = w_param in (WM_KEYDOWN, WM_SYSKEYDOWN)
-            if not event.flags & LLKHF_INJECTED and self._swallow(event, is_down):
+            if self._swallow(event, w_param in (WM_KEYDOWN, WM_SYSKEYDOWN)):
                 return 1
         return user32.CallNextHookEx(None, n_code, w_param, l_param)
 
     def _swallow(self, event, is_down):
-        """Decides whether a key event stops here; relays bound keydowns while live.
+        """Decides whether a key event stops here; flips live mode on Caps Lock and relays bound keydowns while live.
 
-        Caps Lock itself always passes through: Windows must toggle it for the
-        keyboard light and for follow_caps_lock to see the change.
+        Caps Lock always passes through so Windows toggles it and the keyboard
+        light matches live mode. Injected Caps presses count too, since Windows
+        toggles Caps for them as well; other injected keys are never relayed.
         """
         vk, scan = event.vkCode, event.scanCode
+        if vk == VK_CAPITAL:
+            if is_down and not self._caps_held:
+                self._bridge.set_live(not self._bridge.live)
+                log.debug('caps lock toggled: live=%s', self._bridge.live)
+            self._caps_held = is_down
+            return False
+        if event.flags & LLKHF_INJECTED:
+            return False
         if vk in MODIFIER_VKS:
             if is_down:
                 self._held_modifiers.add(vk)
@@ -278,14 +282,18 @@ class KeyboardHook(threading.Thread):
                 self._swallowed_scans.discard(scan)
                 return True
             return False
-        modifiers = self._modifiers()
-        if not self._bridge.live or event.flags & LLKHF_EXTENDED or modifiers is None:
+        if not self._bridge.live:
             return False
-        keystroke = describe_keystroke(scan, modifiers, foreground_layout())
+        modifiers = self._modifiers()
+        keystroke = None
+        if modifiers is not None and not event.flags & LLKHF_EXTENDED:
+            keystroke = describe_keystroke(scan, modifiers, foreground_layout())
         if keystroke is None or not self._bridge.is_bound(keystroke['id']):
+            log.debug('live key vk=0x%02X scan=0x%02X %s: passed', vk, scan, keystroke and keystroke['id'])
             return False
         self._swallowed_scans.add(scan)
         self._bridge.publish('key', keystroke)
+        log.debug('live key vk=0x%02X scan=0x%02X %s: swallowed and relayed', vk, scan, keystroke['id'])
         return True
 
     def _modifiers(self):
@@ -331,6 +339,7 @@ class Handler(SimpleHTTPRequestHandler):
             self.send_error(400)
             return
         self.bridge.set_bound(keystroke_ids)
+        log.debug('POST /bound: %d bound keystrokes', len(keystroke_ids))
         self.send_response(204)
         self.end_headers()
 
@@ -340,6 +349,8 @@ class Handler(SimpleHTTPRequestHandler):
         self.send_header('Cache-Control', 'no-cache')
         self.end_headers()
         events = self.bridge.subscribe()
+        client = '%s:%d' % self.client_address
+        log.debug('/events client connected: %s', client)
         try:
             while True:
                 try:
@@ -353,6 +364,7 @@ class Handler(SimpleHTTPRequestHandler):
             pass
         finally:
             self.bridge.unsubscribe(events)
+            log.debug('/events client disconnected: %s', client)
 
 
 def make_server(bridge, port):
@@ -382,11 +394,14 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument('--port', type=int, default=8080)
     parser.add_argument('--chrome', action='store_true', help='open the Chrome app window OBS captures')
+    parser.add_argument('--debug', action='store_true', help='print one line per hook, Caps, key and bridge event')
     args = parser.parse_args()
+    logging.basicConfig(level=logging.DEBUG if args.debug else logging.WARNING,
+                        format='%(asctime)s [%(threadName)s] %(message)s')
 
     bridge = Bridge(lambda: keystroke_candidates(foreground_layout()))
     bridge.set_live(caps_lock_on())
-    threading.Thread(target=follow_caps_lock, args=(bridge,), name='caps-lock', daemon=True).start()
+    log.debug('caps lock at startup: live=%s', bridge.live)
     KeyboardHook(bridge).install()
     server = make_server(bridge, args.port)
     # localhost, not 127.0.0.1: the Chrome profile keeps camera permission and
