@@ -3,23 +3,24 @@
 // Shift+number / Shift+|: select only that color
 // 0 / Shift+0: switch camera (Iriun <-> Logitech only)
 // QWERT: pattern (chase/pingpong/alternate/solid/carousel)
-// ASDFG: movement (none/wave/expand/broken/shake)
+// ASDFGH: movement (none/wave/expand/broken/shake/equalizer)
 // Z X C V B N M , : glow (off/sweep/breathe/pulse/strobe/bounce/cascade/alternate)
 //   (single source of truth: js/glow-map.js)
 // Shift+ZXCVB: moods (calm/build/tension/peak/mystic)
 // Backspace / Shift+Backspace: cue a new combo while the live one keeps playing
 // Space: commit the cue (movement/glow/mood reset to None), else play/stop
-// +/-: BPM speed
-// F: fullscreen, H: HUD, P: panel
+// + / ´: BPM up / down
+// <: mood None, Escape: empty reset, J: HUD, P: panel
+//
+// resolveShortcut is the only key map: the keydown listener and the live
+// bridge (js/live-bridge.js) both run it, and serve.py suppresses a key
+// globally only when resolveShortcut binds it.
 
 import { GLOW_KEY_TO_MODE } from './glow-map.js';
 import { nextCameraId } from './camera.js';
 
 const PATTERN_KEYS = { q: 'chase', w: 'pingpong', e: 'alternate', r: 'solid', t: 'carousel' };
 const MOVEMENT_KEYS = { a: 'none', s: 'wave', d: 'expand', f: 'broken', g: 'shake', h: 'equalizer' };
-// Glow quick keys come from the shared map (js/glow-map.js). Moods stay here:
-// Shift+ZXCVB. The glow block below uses GLOW_KEY_TO_MODE for the no-shift case
-// and MOOD_KEYS for the shift case.
 const MOOD_KEYS = { z: 'calm', x: 'build', c: 'tension', v: 'peak', b: 'mystic' };
 
 const MOODS = {
@@ -30,181 +31,149 @@ const MOODS = {
     mystic:  { colors: [4],         pattern: 'solid',    movement: 'equalizer', glow: 'sweep',     bpm: 90 },
 };
 
-export function setupShortcuts(app) {
-    document.addEventListener('keydown', (e) => {
-        const shift = e.shiftKey;
-        const ctrl = e.ctrlKey;
-        const alt = e.altKey;
-        const key = e.key;
-        const keyLower = key.toLowerCase();
+/**
+ * Returns the action bound to a keystroke as `(app) => void`, or null when the
+ * keystroke is unbound. `e` needs only key, code, shiftKey, ctrlKey and altKey,
+ * so a KeyboardEvent and a relayed keystroke descriptor resolve identically.
+ */
+export function resolveShortcut(e) {
+    const shift = e.shiftKey;
+    const ctrl = e.ctrlKey;
+    const alt = e.altKey;
+    const key = e.key;
+    const keyLower = key.toLowerCase();
 
-        // Skip if typing in input/textarea
-        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    // On ES layout "<" is e.key '<' / e.code 'IntlBackslash'; match both.
+    if ((key === '<' || e.code === 'IntlBackslash') && !ctrl && !alt) {
+        return (app) => app.clearMood();
+    }
 
-        // --- "<" key = Mood NONE (clears the active mood) ---
-        // On ES layout "<" is e.key '<' / e.code 'IntlBackslash'; match both.
-        if ((key === '<' || e.code === 'IntlBackslash') && !ctrl && !alt) {
-            e.preventDefault();
-            app.clearMood();
-            return;
-        }
-
-        // --- Pipe "|" = empty color ---
-        if (key === '|' && !ctrl && !alt) {
-            e.preventDefault();
+    if (key === '|' && !ctrl && !alt) {
+        return (app) => {
             if (shift) {
                 app.sequencer.selectOnly(-1);
             } else {
                 app.sequencer.toggleColor(-1);
             }
             app.updateHUD();
-            return;
+        };
+    }
+
+    const digitMatch = e.code.match(/^Digit(\d)$/);
+    if (digitMatch && !ctrl && !alt) {
+        const num = parseInt(digitMatch[1]);
+
+        if (num === 0) {
+            return (app) => nextCameraId(app.activeCameraId).then((id) => id && app.switchCamera(id));
         }
 
-        // --- Number 0: next camera; numbers 1-6: color selection ---
-        const digitMatch = e.code.match(/^Digit(\d)$/);
-        if (digitMatch && !ctrl && !alt) {
-            const num = parseInt(digitMatch[1]);
-
-            if (num === 0) {
-                e.preventDefault();
-                nextCameraId(app.activeCameraId).then((id) => id && app.switchCamera(id));
-                return;
-            }
-
-            // 1-5 = colors (map to index 0-4)
-            if (num >= 1 && num <= 5) {
-                e.preventDefault();
-                const colorIdx = num - 1;
+        if (num >= 1 && num <= 5) {
+            const colorIdx = num - 1;
+            return (app) => {
                 if (shift) {
                     app.sequencer.selectOnly(colorIdx);
                 } else {
                     app.sequencer.toggleColor(colorIdx);
                 }
                 app.updateHUD();
-                return;
-            }
+            };
+        }
 
-            // 6 = REAL rainbow (all 5 colors + carousel = marching rainbow).
-            // Shift is treated the same: there is no distinct "only rainbow" mode.
-            if (num === 6) {
-                e.preventDefault();
+        // 6 = rainbow (all 5 colors + carousel). Shift has no distinct mode.
+        if (num === 6) {
+            return (app) => {
                 app.sequencer.selectRainbow();
                 app.updateHUD();
-                return;
-            }
+            };
         }
+    }
 
-        // --- QWERT: Pattern selection ---
-        if (PATTERN_KEYS[keyLower] && !ctrl && !alt && !shift) {
-            e.preventDefault();
+    if (PATTERN_KEYS[keyLower] && !ctrl && !alt && !shift) {
+        return (app) => {
             app.sequencer.setPattern(PATTERN_KEYS[keyLower]);
             app.updateHUD();
-            return;
-        }
+        };
+    }
 
-        // --- ASDFG: Movement selection ---
-        if (MOVEMENT_KEYS[keyLower] && !ctrl && !alt && !shift) {
-            e.preventDefault();
-            const movement = MOVEMENT_KEYS[keyLower];
+    if (MOVEMENT_KEYS[keyLower] && !ctrl && !alt && !shift) {
+        const movement = MOVEMENT_KEYS[keyLower];
+        return (app) => {
             if (movement === 'none') {
                 app.stopEffect();
             } else {
-                // Play movement effect with current color context
                 app.playMovement(movement);
             }
             app.updateHUD();
-            return;
-        }
+        };
+    }
 
-        // --- Glow (no shift): Z X C V B N M , ---  and  Moods (shift): ZXCVB ---
-        // The two cases are gated SEPARATELY so Shift only fires on real mood
-        // keys (ZXCVB) and never swallows Shift+N/M/comma (which have no glow on
-        // shift). No-shift fires only on the shared glow map.
-        const glowMode = !shift ? GLOW_KEY_TO_MODE[keyLower] : undefined;
-        const moodName = shift ? MOOD_KEYS[keyLower] : undefined;
-        if ((glowMode !== undefined || moodName !== undefined) && !ctrl && !alt) {
-            e.preventDefault();
+    // Glow and moods are gated separately so Shift fires only on real mood
+    // keys (ZXCVB) and never swallows Shift+N/M/comma, which have no shift glow.
+    const glowMode = !shift ? GLOW_KEY_TO_MODE[keyLower] : undefined;
+    const moodName = shift ? MOOD_KEYS[keyLower] : undefined;
+    if (moodName !== undefined && !ctrl && !alt) {
+        return (app) => {
+            app.applyMood(MOODS[moodName], moodName);
+            app.updateHUD();
+        };
+    }
+    if (glowMode !== undefined && !ctrl && !alt) {
+        return (app) => {
+            app.setGlowMode(glowMode);
+            app.updateHUD();
+        };
+    }
 
-            if (moodName !== undefined) {
-                // Moods (Shift+ZXCVB)
-                const mood = MOODS[moodName];
-                if (mood) {
-                    app.applyMood(mood, moodName);
-                    app.updateHUD();
-                }
-            } else {
-                // Glow (no-shift quick key)
-                app.setGlowMode(glowMode);
-                app.updateHUD();
-            }
-            return;
-        }
+    // Cue (DJ staging model): neither form pauses; the live rotation keeps
+    // playing while a new combo is staged. Shift stages from a Solid baseline.
+    if (key === 'Backspace') {
+        return (app) => (shift ? app.totalReset() : app.cueReset());
+    }
 
-        // --- Backspace = CUE; Shift+Backspace = TOTAL CUE (DJ staging model) ---
-        // Neither pauses: the LIVE rotation keeps playing while a NEW combo is
-        // staged in the background. Plain: pending pattern null. Shift: Solid.
-        // Press Space to commit the staged combo (it then plays from frame 0).
-        if (key === 'Backspace') {
-            e.preventDefault();
-            if (shift) {
-                app.totalReset();   // start staging with Solid baseline
-            } else {
-                app.cueReset();
-            }
-            return;
-        }
-
-        // --- Space: commit a staged cue, else Play/Stop the live sequencer ---
-        if (key === ' ') {
-            e.preventDefault();
+    if (key === ' ') {
+        return (app) => {
             if (app.sequencer.staging) {
-                app.commitCue();          // commit cue (+ baseline reset if Cue total)
+                app.commitCue();
             } else {
                 app.sequencer.togglePlay();
                 app.updateHUD();
             }
-            return;
-        }
+        };
+    }
 
-        // --- Escape: EMPTY RESET (todo a empty) ---
-        // Visibly wipes colors to neutral, Pattern=null, Movement/Glow/Mood None,
-        // stopped. Distinct from totalReset (Solid baseline). Not user-paused.
-        if (key === 'Escape') {
-            e.preventDefault();
-            app.emptyReset();
-            return;
-        }
+    // Empty reset: distinct from totalReset, which keeps a Solid baseline.
+    if (key === 'Escape') {
+        return (app) => app.emptyReset();
+    }
 
-        // --- BPM increase: "+" key ---
-        if (key === '+') {
-            e.preventDefault();
+    if (key === '+') {
+        return (app) => {
             app.sequencer.setBPM(app.sequencer.bpm + 10);
             app.updateHUD();
-            return;
-        }
-        // --- BPM decrease: "´" acute-accent key (Spanish layout) ---
-        // It is a DEAD KEY, so the keydown may arrive as e.key === 'Dead' rather
-        // than '´'. Match both, plus the physical e.code 'BracketRight' (the key
-        // right of P on ES-QWERTY) as a layout-independent fallback.
-        if ((key === '´' || key === 'Dead' || e.code === 'BracketRight') && !ctrl && !alt) {
-            e.preventDefault();
+        };
+    }
+    // "´" is a dead key on the Spanish layout, so keydown may report 'Dead';
+    // e.code 'BracketRight' is the physical fallback.
+    if ((key === '´' || key === 'Dead' || e.code === 'BracketRight') && !ctrl && !alt) {
+        return (app) => {
             app.sequencer.setBPM(app.sequencer.bpm - 10);
             app.updateHUD();
-            return;
-        }
+        };
+    }
 
-        // Fullscreen is the browser's native F11 — intentionally NOT bound here
-        // (no preventDefault), so F11 fullscreens and F12 opens DevTools normally.
+    // F11 (fullscreen) and F12 (DevTools) stay unbound on purpose.
+    if (keyLower === 'j') return (app) => app.toggleHUD();
+    if (keyLower === 'p') return (app) => app.togglePanel();
 
-        // --- Utility keys ---
-        switch (keyLower) {
-            case 'j':
-                e.preventDefault(); app.toggleHUD();
-                break;
-            case 'p':
-                e.preventDefault(); app.togglePanel();
-                break;
-        }
+    return null;
+}
+
+export function setupShortcuts(app) {
+    document.addEventListener('keydown', (e) => {
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+        const action = resolveShortcut(e);
+        if (!action) return;
+        e.preventDefault();
+        action(app);
     });
 }

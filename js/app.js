@@ -9,6 +9,7 @@ import { ColumnManager } from './columns.js';
 import { Overlay } from './overlay.js';
 import { HUD } from './hud.js';
 import { setupShortcuts } from './shortcuts.js';
+import { connectLiveBridge } from './live-bridge.js';
 import { setupWebcam, createTestPattern, defaultRotationSteps } from './camera.js';
 import { ControlPanel } from './panel/panel.js';
 
@@ -73,6 +74,7 @@ export class StreamLightApp {
         this.reapplyColors();
 
         setupShortcuts(this);
+        connectLiveBridge(this);
 
         this.pixiApp.ticker.add((ticker) => this.update(ticker));
     }
