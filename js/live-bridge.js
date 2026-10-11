@@ -1,5 +1,5 @@
 // --- Live bridge: keys from any window, relayed by serve.py ---
-// serve.py owns the global keyboard hook and toggles live mode on Pause. This
+// serve.py owns the global keyboard hook; live mode follows Caps Lock. This
 // module tells it which keystrokes the app binds (resolveShortcut decides, so
 // the key map stays in js/shortcuts.js), runs the keystrokes it relays, and
 // shows the EN VIVO badge while live mode is on.

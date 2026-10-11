@@ -7,6 +7,7 @@ import unittest
 import urllib.error
 import urllib.request
 from pathlib import Path
+from types import SimpleNamespace
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -53,7 +54,7 @@ class ServeTest(unittest.TestCase):
     def test_bridge_delivers_relayed_key_to_client(self):
         with urllib.request.urlopen(f'{self.base}/events', timeout=5) as stream:
             received = [read_event(stream), read_event(stream)]
-            self.bridge.toggle_live()
+            self.bridge.set_live(True)
             self.bridge.publish('key', CANDIDATE)
             received += [read_event(stream), read_event(stream)]
         for event, data in received:
@@ -80,6 +81,76 @@ class ServeTest(unittest.TestCase):
         self.assertEqual(post('application/json', b'{"not": "a list"}'), 400)
         self.assertEqual(post('application/json', b'["KeyQ/none"]'), 204)
         self.assertTrue(self.bridge.is_bound('KeyQ/none'))
+
+
+class StopFollowing(Exception):
+    pass
+
+
+def drain(events):
+    received = []
+    while not events.empty():
+        received.append(events.get_nowait())
+    return received
+
+
+def key_event(vk, scan):
+    return SimpleNamespace(vkCode=vk, scanCode=scan, flags=0)
+
+
+CAPS = key_event(serve.VK_CAPITAL, 0x3A)
+LEFT_SHIFT = key_event(serve.VK_LSHIFT, 0x2A)
+Q = key_event(ord('Q'), 0x10)
+Z = key_event(ord('Z'), 0x2C)
+
+
+class CapsLockLiveModeTest(unittest.TestCase):
+    """Live mode follows Caps Lock, and Caps never acts as Shift; runs without installing the hook."""
+
+    def setUp(self):
+        self.bridge = serve.Bridge(lambda: [])
+        self.events = self.bridge.subscribe()
+        drain(self.events)
+
+    def test_live_mode_follows_caps_lock_and_publishes_only_changes(self):
+        readings = iter([True, True, False, False, True])
+
+        def read_caps():
+            try:
+                return next(readings)
+            except StopIteration:
+                raise StopFollowing
+
+        with self.assertRaises(StopFollowing):
+            serve.follow_caps_lock(self.bridge, read_caps)
+        self.assertEqual(drain(self.events), [
+            ('live', {'live': True}),
+            ('live', {'live': False}),
+            ('live', {'live': True}),
+        ])
+
+    def test_caps_lock_passes_through_and_is_not_read_as_shift(self):
+        hook = serve.KeyboardHook(self.bridge)
+        self.bridge.set_bound(['KeyQ/none', 'KeyZ/shift'])
+        self.bridge.set_live(True)
+        drain(self.events)
+
+        self.assertFalse(hook._swallow(CAPS, True))
+        self.assertFalse(hook._swallow(CAPS, False))
+        self.assertTrue(hook._swallow(Q, True))
+        self.assertTrue(hook._swallow(Q, False))
+        self.assertFalse(hook._swallow(LEFT_SHIFT, True))
+        self.assertTrue(hook._swallow(Z, True))
+
+        relayed = [data for event, data in drain(self.events) if event == 'key']
+        self.assertEqual([(k['code'], k['shiftKey']) for k in relayed], [('KeyQ', False), ('KeyZ', True)])
+
+    def test_nothing_is_swallowed_with_caps_lock_off(self):
+        hook = serve.KeyboardHook(self.bridge)
+        self.bridge.set_bound(['KeyQ/none'])
+        self.assertFalse(hook._swallow(Q, True))
+        self.assertFalse(hook._swallow(CAPS, True))
+        self.assertEqual(drain(self.events), [])
 
 
 if __name__ == '__main__':

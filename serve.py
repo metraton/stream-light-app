@@ -1,9 +1,9 @@
 """Serve stream-light-app on 127.0.0.1 and relay its shortcuts from any window.
 
-Pause/Break toggles live mode through a Windows low-level keyboard hook
-(WH_KEYBOARD_LL, no admin rights needed). While live, every keystroke the page
-reports as bound is swallowed system-wide and relayed to the page as a
-Server-Sent Event on /events. Standard library only; Windows only.
+Live mode follows the Caps Lock toggle, so the keyboard's Caps light shows it.
+While live, a Windows low-level keyboard hook (WH_KEYBOARD_LL, no admin rights
+needed) swallows every keystroke the page reports as bound and relays it to the
+page as a Server-Sent Event on /events. Standard library only; Windows only.
 """
 
 import argparse
@@ -15,6 +15,7 @@ import shutil
 import subprocess
 import sys
 import threading
+import time
 from ctypes import wintypes
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -29,6 +30,7 @@ CHROME_FLAGS = [
     '--disable-background-timer-throttling',
 ]
 KEEPALIVE_SECONDS = 15
+CAPS_POLL_SECONDS = 0.1
 
 WH_KEYBOARD_LL = 13
 HC_ACTION = 0
@@ -41,7 +43,7 @@ MAPVK_VSC_TO_VK_EX = 3
 # dead key, so probing a keystroke never alters what the user types next.
 TOUNICODE_KEEP_STATE = 0x4
 
-VK_PAUSE = 0x13
+VK_CAPITAL = 0x14
 VK_SHIFT, VK_CONTROL, VK_MENU = 0x10, 0x11, 0x12
 VK_LSHIFT, VK_RSHIFT = 0xA0, 0xA1
 VK_LCONTROL, VK_RCONTROL = 0xA2, 0xA3
@@ -50,6 +52,8 @@ MODIFIER_VKS = {VK_LSHIFT, VK_RSHIFT, VK_LCONTROL, VK_RCONTROL, VK_LMENU, VK_RME
 
 # Modifier combinations a relayable keystroke may carry, as the keyboard state
 # ToUnicodeEx needs to produce the character. AltGr is Ctrl+Alt to Windows.
+# VK_CAPITAL is never set: Caps Lock is always on while live, and it must not
+# change which shortcut a key resolves to (moods stay Shift-driven).
 KEYSTATE_BY_MODIFIERS = {
     'none': (),
     'shift': (VK_SHIFT,),
@@ -101,6 +105,8 @@ user32.GetWindowThreadProcessId.argtypes = [wintypes.HWND, ctypes.POINTER(wintyp
 user32.GetWindowThreadProcessId.restype = wintypes.DWORD
 user32.GetKeyboardLayout.argtypes = [wintypes.DWORD]
 user32.GetKeyboardLayout.restype = ctypes.c_void_p
+user32.GetKeyState.argtypes = [ctypes.c_int]
+user32.GetKeyState.restype = ctypes.c_short
 user32.MapVirtualKeyExW.argtypes = [wintypes.UINT, wintypes.UINT, ctypes.c_void_p]
 user32.MapVirtualKeyExW.restype = wintypes.UINT
 user32.ToUnicodeEx.argtypes = [
@@ -110,6 +116,11 @@ user32.ToUnicodeEx.argtypes = [
 user32.ToUnicodeEx.restype = ctypes.c_int
 kernel32.GetModuleHandleW.argtypes = [wintypes.LPCWSTR]
 kernel32.GetModuleHandleW.restype = wintypes.HMODULE
+
+
+def caps_lock_on():
+    """Returns the Caps Lock toggle state Windows reports, the one the keyboard light shows."""
+    return bool(user32.GetKeyState(VK_CAPITAL) & 1)
 
 
 def foreground_layout():
@@ -185,15 +196,30 @@ class Bridge:
         for events in subscribers:
             events.put((event, data))
 
-    def toggle_live(self):
-        self.live = not self.live
-        self.publish('live', {'live': self.live})
+    def set_live(self, live):
+        """Records the live state and tells the pages, only when it actually changes."""
+        if live == self.live:
+            return
+        self.live = live
+        self.publish('live', {'live': live})
 
     def set_bound(self, keystroke_ids):
         self._bound = frozenset(keystroke_ids)
 
     def is_bound(self, keystroke_id):
         return keystroke_id in self._bound
+
+
+def follow_caps_lock(bridge, read_caps=caps_lock_on):
+    """Keeps live mode equal to Caps Lock forever.
+
+    Polling, rather than reacting to the Caps key in the hook, also catches Caps
+    turned off by other means (the Windows "press Shift to turn off Caps Lock"
+    setting) and reads the state after Windows has applied the toggle.
+    """
+    while True:
+        bridge.set_live(read_caps())
+        time.sleep(CAPS_POLL_SECONDS)
 
 
 class KeyboardHook(threading.Thread):
@@ -204,7 +230,6 @@ class KeyboardHook(threading.Thread):
         self._bridge = bridge
         self._held_modifiers = set()
         self._swallowed_scans = set()
-        self._pause_held = False
         self._proc = HOOKPROC(self._on_key)
         self._installed = threading.Event()
         self.error = None
@@ -236,7 +261,11 @@ class KeyboardHook(threading.Thread):
         return user32.CallNextHookEx(None, n_code, w_param, l_param)
 
     def _swallow(self, event, is_down):
-        """Decides whether a key event stops here; relays bound keydowns while live."""
+        """Decides whether a key event stops here; relays bound keydowns while live.
+
+        Caps Lock itself always passes through: Windows must toggle it for the
+        keyboard light and for follow_caps_lock to see the change.
+        """
         vk, scan = event.vkCode, event.scanCode
         if vk in MODIFIER_VKS:
             if is_down:
@@ -244,11 +273,6 @@ class KeyboardHook(threading.Thread):
             else:
                 self._held_modifiers.discard(vk)
             return False
-        if vk == VK_PAUSE:
-            if is_down and not self._pause_held:
-                self._bridge.toggle_live()
-            self._pause_held = is_down
-            return True
         if not is_down:
             if scan in self._swallowed_scans:
                 self._swallowed_scans.discard(scan)
@@ -361,12 +385,16 @@ def main():
     args = parser.parse_args()
 
     bridge = Bridge(lambda: keystroke_candidates(foreground_layout()))
+    bridge.set_live(caps_lock_on())
+    threading.Thread(target=follow_caps_lock, args=(bridge,), name='caps-lock', daemon=True).start()
     KeyboardHook(bridge).install()
     server = make_server(bridge, args.port)
     # localhost, not 127.0.0.1: the Chrome profile keeps camera permission and
     # presets per origin, and the existing ones belong to http://localhost:8080.
     url = f'http://localhost:{args.port}'
-    print(f'Serving {ROOT} at {url} (bound to {HOST}). Pause/Break toggles live mode; Ctrl+C stops.', flush=True)
+    state = 'ON' if bridge.live else 'OFF'
+    print(f'Serving {ROOT} at {url} (bound to {HOST}). Caps Lock toggles live mode (now {state}); Ctrl+C stops.',
+          flush=True)
     if args.chrome:
         launch_chrome(url)
     try:
