@@ -13,7 +13,7 @@ Because OBS captures that window, it is usually not the focused one while stream
 ```
 Caps Lock pressed (any window, passes through to Windows)
   -> serve.py keyboard hook flips live mode on each press (seeded from the Caps state at startup)
-  -> "live" event -> page shows / hides EN VIVO
+  -> "live" event -> page sets the window title
   (python serve.py --debug prints one line per hook, Caps, live key and /events or /bound event;
    the page logs its side to the browser console with a [live-bridge] prefix)
 key pressed in any window
@@ -39,7 +39,7 @@ page connects to /events
 python serve.py --chrome
 ```
 
-This serves the app at `http://localhost:8080` (bound to `127.0.0.1` only), installs the hook, and opens the Chrome app window with the profile and background-throttling flags OBS capture needs. Drop `--chrome` to open the window yourself; `--port` changes the port. Ctrl+C stops it. Expected first line (live mode starts already on if Caps Lock is on):
+This serves the app at `http://localhost:8080` (bound to `127.0.0.1` only), installs the hook, and opens the Chrome app window with the profile and background-throttling flags OBS capture needs. Drop `--chrome` to open the window yourself; `--port` changes the port; `--debug` logs every bridge event. Ctrl+C stops it. Expected first line (live mode starts already on if Caps Lock is on):
 
 ```
 Serving C:\...\stream-light-app at http://localhost:8080 (bound to 127.0.0.1). Caps Lock toggles live mode (now OFF); Ctrl+C stops.
@@ -47,7 +47,7 @@ Serving C:\...\stream-light-app at http://localhost:8080 (bound to 127.0.0.1). C
 
 Press START or DEMO in the page first: the page reports its bound keys once the app is running, and until then live mode swallows nothing.
 
-The red **EN VIVO** badge (top left) appears while live mode is on and disappears when it is off or the page loses its connection to `serve.py`. It is part of the page, so it shows in the OBS capture while live; crop the top-left corner in OBS if it should stay off stream.
+Live state is shown only in the window title, never inside the page, because OBS Window Capture records the page content and not the title bar: `Stream Light — EN VIVO` while live, `Stream Light` when not, and `Stream Light — sin conexión` while the page has lost its connection to `serve.py`. The title is visible on the taskbar and in Alt+Tab.
 
 Ctrl and Alt combinations are never relayed, so Ctrl+Backspace and similar keep working in other programs while live.
 
@@ -56,13 +56,13 @@ Tests (the file server, the bridge and the Caps Lock logic, without installing t
 ## Structure
 
 ```
-index.html          page shell, HUD and EN VIVO badge styles
+index.html          page shell and HUD styles
 panel.css           control panel styles
-serve.py            file server + Caps Lock watcher + keyboard hook + /events and /bound bridge, one process
+serve.py            file server + keyboard hook (Caps Lock live mode) + /events and /bound bridge, one process
 js/main.js          entry point: camera picker, START / DEMO
 js/app.js           StreamLightApp: wires engines, HUD, panel, shortcuts and the live bridge
 js/shortcuts.js     resolveShortcut, the single key map, and the keydown listener
-js/live-bridge.js   page side of live mode: reports bound keys, runs relayed keys, shows EN VIVO
+js/live-bridge.js   page side of live mode: reports bound keys, runs relayed keys, sets the window title
 js/glow-map.js      glow quick keys shared by shortcuts and the panel
 js/panel/           control panel sections
 js/*.js             rendering engines: columns, effects, glow, color sequencer, camera, HUD
