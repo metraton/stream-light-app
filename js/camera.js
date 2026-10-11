@@ -17,26 +17,55 @@ async function listCameras() {
     return devices.filter(d => d.kind === 'videoinput');
 }
 
-// Device labels stay empty until camera permission is granted, hence the
-// throwaway stream before enumerating.
+async function openAndRelease(constraints) {
+    const stream = await navigator.mediaDevices.getUserMedia(constraints);
+    stream.getTracks().forEach(t => t.stop());
+}
+
+// Labels stay empty until camera permission is granted, hence the throwaway
+// stream. It opens the system default camera, which can be listed yet
+// unopenable (a disconnected Iriun phone, a camera held by another app), so
+// its failure must not hide the other cameras.
+/**
+ * Video inputs, labelled once any camera has opened. `error` is the last open
+ * failure when cameras exist but none could be opened, otherwise null.
+ */
 export async function enumerateCameras() {
     try {
-        const tempStream = await navigator.mediaDevices.getUserMedia({ video: true });
-        tempStream.getTracks().forEach(t => t.stop());
-        return await listCameras();
+        await openAndRelease({ video: true });
+        return { cameras: await listCameras(), error: null };
     } catch (e) {
-        console.error('Failed to enumerate cameras:', e);
-        return [];
+        console.error(`Default camera failed to open (${e.name}):`, e);
+        let error = e;
+        const cameras = await listCameras();
+        if (cameras.length === 0 || cameras.some(cam => cam.label)) {
+            return { cameras, error: null };
+        }
+        for (const cam of cameras) {
+            if (!cam.deviceId) continue;
+            try {
+                await openAndRelease({ video: { deviceId: { exact: cam.deviceId } } });
+                return { cameras: await listCameras(), error: null };
+            } catch (camError) {
+                console.error(`Camera ${cam.deviceId} failed to open (${camError.name}):`, camError);
+                error = camError;
+            }
+        }
+        return { cameras, error };
     }
 }
 
 /** Fill the startup camera select, preselecting the Iriun camera when present. */
 export async function populateCameraSelect() {
     const select = document.getElementById('camera-select');
-    const cameras = await enumerateCameras();
+    const { cameras, error } = await enumerateCameras();
 
     if (cameras.length === 0) {
         select.innerHTML = '<option value="">No cameras found</option>';
+        return;
+    }
+    if (error) {
+        select.replaceChildren(new Option(`Cameras found but none could be opened (${error.name})`, ''));
         return;
     }
 
