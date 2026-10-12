@@ -1,4 +1,4 @@
-// --- Color Controls ---
+// --- Color Controls (Color Hex) ---
 import { CONFIG } from '../config.js';
 
 function hexFromInt(val) {
@@ -14,8 +14,13 @@ function intFromHex(hex) {
     return parseInt(hex.slice(1), 16);
 }
 
-export function createColorControls(sectionEl, app) {
-    for (const name of CONFIG.colorOrder) {
+/**
+ * Builds one picker per color.
+ * @param {Function} onColorsChange called after a hex changes, so every panel swatch redraws.
+ * @returns {Function} refresh: shows CONFIG.colors in the pickers.
+ */
+export function createColorControls(sectionEl, app, onColorsChange) {
+    const rows = CONFIG.colorOrder.map(name => {
         const row = document.createElement('div');
         row.className = 'color-row';
 
@@ -24,23 +29,30 @@ export function createColorControls(sectionEl, app) {
 
         const picker = document.createElement('input');
         picker.type = 'color';
-        picker.value = hexFromInt(CONFIG.colors[name]);
 
         const hexDisplay = document.createElement('span');
         hexDisplay.className = 'hex-value';
-        hexDisplay.textContent = picker.value;
 
         picker.addEventListener('input', () => {
             CONFIG.colors[name] = intFromHex(picker.value);
-            hexDisplay.textContent = picker.value;
-            // Re-render from the sequencer's current frame so the new hex is
-            // picked up for whatever colors are live (was refreshColors()).
             app.reapplyColors();
+            onColorsChange();
         });
 
         row.appendChild(label);
         row.appendChild(picker);
         row.appendChild(hexDisplay);
         sectionEl.appendChild(row);
+        return { name, picker, hexDisplay };
+    });
+
+    function refresh() {
+        for (const { name, picker, hexDisplay } of rows) {
+            picker.value = colorHex(name);
+            hexDisplay.textContent = picker.value;
+        }
     }
+
+    refresh();
+    return refresh;
 }

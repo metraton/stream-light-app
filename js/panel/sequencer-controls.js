@@ -1,14 +1,17 @@
 // --- Sequencer Controls (visual panel + color selection, pattern, movement, glow, moods) ---
+import { CONFIG } from '../config.js';
 import { ColorSequencer } from '../color-sequencer.js';
 import { GLOW_QUICK } from '../glow-map.js';
 import { MOODS, MOOD_QUICK } from '../mood-map.js';
+import { colorHex } from './color-controls.js';
 
 // Every button group uses the same two-line "KEY over WORD" layout via keyLabel(),
 // and every row of the 6-key grid starts with None.
 const COLOR_INDICES = [-1, 0, 1, 2, 3, 4, 99];
 const COLOR_KEYS = ['|', '1', '2', '3', '4', '5', '6'];
 const COLOR_WORDS = ['Empty', 'Yellow', 'Blue', 'Red', 'Green', 'Purple', 'Todos al azar'];
-const COLOR_HEX = ['#444', '#ffff00', '#55aaff', '#ff0000', '#00ff00', '#ff00ff', 'linear-gradient(90deg,#ff0,#55f,#f00,#0f0,#f0f)'];
+const EMPTY_HEX = '#444';
+const ALL_COLORS_HEX = '#888';
 const COLOR_EMOJIS = ['⬛', '🟨', '🟦', '🟥', '🟩', '🟪'];
 
 const PATTERNS = ['none', 'chase', 'carousel', 'mirror', 'fill', 'sparkle'];
@@ -18,6 +21,19 @@ const PATTERN_WORDS = ['None', 'Chase', 'Carousel', 'Mirror', 'Fill', 'Sparkle']
 const MOVEMENTS = ['none', 'wave', 'expand', 'broken', 'shake', 'equalizer'];
 const MOVEMENT_KEYS = ['A', 'S', 'D', 'F', 'G', 'H'];
 const MOVEMENT_WORDS = ['None', 'Wave', 'Expand', 'Broken', 'Shake', 'Equalizer'];
+
+/** The hex of a color slot (0-4) as CONFIG.colors holds it now. */
+function slotHex(slot) {
+    return colorHex(CONFIG.colorOrder[slot]);
+}
+
+/** The swatch of color button `i`, read from CONFIG.colors so it follows hex edits. */
+function colorButtonHex(i) {
+    const idx = COLOR_INDICES[i];
+    if (idx === -1) return EMPTY_HEX;
+    if (idx === 99) return ALL_COLORS_HEX;
+    return slotHex(idx);
+}
 
 /** Build the uniform two-line button content: key glyph on top, word below. */
 function keyLabel(btn, key, word) {
@@ -89,8 +105,6 @@ export function createSequencerControls(sectionEl, app) {
     for (let i = 0; i < COLOR_KEYS.length; i++) {
         const btn = document.createElement('button');
         keyLabel(btn, COLOR_KEYS[i], COLOR_WORDS[i]);
-        btn.style.border = `2px solid ${typeof COLOR_HEX[i] === 'string' && COLOR_HEX[i].startsWith('#') ? COLOR_HEX[i] : '#888'}`;
-        btn.style.background = '#222';
 
         btn.addEventListener('click', () => {
             const idx = COLOR_INDICES[i];
@@ -348,7 +362,9 @@ export function createSequencerControls(sectionEl, app) {
             } else {
                 selected = colors.includes(idx);
             }
-            colorBtns[i].style.background = selected ? (COLOR_HEX[i].startsWith('#') ? COLOR_HEX[i] : '#888') : '#222';
+            const hex = colorButtonHex(i);
+            colorBtns[i].style.border = `2px solid ${hex}`;
+            colorBtns[i].style.background = selected ? hex : '#222';
             colorBtns[i].style.color = selected ? '#000' : '#aaa';
         }
     }
@@ -379,7 +395,7 @@ export function createSequencerControls(sectionEl, app) {
                 mc.classList.add('active');
                 mc.classList.remove('glow-on');
             } else if (colorIdx >= 0 && colorIdx <= 4) {
-                const hex = COLOR_HEX[colorIdx + 1]; // offset: COLOR_HEX[0] is empty
+                const hex = slotHex(colorIdx);
                 mc.style.backgroundColor = hex;
                 mc.style.setProperty('--mini-glow', hex);
                 mc.classList.add('active');

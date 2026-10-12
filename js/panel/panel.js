@@ -70,7 +70,7 @@ export class ControlPanel {
                     break;
                 }
                 case 'colors':
-                    createColorControls(contentEl, this.app);
+                    this._colorHexRefresh = createColorControls(contentEl, this.app, () => this.refreshColorSwatches());
                     break;
                 case 'layout':
                     this.createLayoutControls(contentEl);
@@ -79,7 +79,7 @@ export class ControlPanel {
                     this._movementRefresh = createEffectControls(contentEl, this.app);
                     break;
                 case 'filters':
-                    createFilterControls(contentEl, this.app);
+                    this._filterRefresh = createFilterControls(contentEl, this.app);
                     break;
                 case 'glow':
                     this._glowRefresh = createGlowControls(contentEl, this.app);
@@ -192,6 +192,13 @@ export class ControlPanel {
     /** Called from app.updateHUD() to refresh sequencer visual state */
     refreshSequencerUI() {
         if (this._sequencerRefresh) this._sequencerRefresh();
+    }
+
+    /** Redraws every swatch (sequencer, mini-stage, Color chips, Color Hex) from CONFIG.colors. */
+    refreshColorSwatches() {
+        this._sequencerRefresh?.();
+        this._filterRefresh?.();
+        this._colorHexRefresh?.();
     }
 
     refresh() {
