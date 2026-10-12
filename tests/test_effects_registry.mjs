@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
     EFFECTS, effectById, ASCII_RAMP, LUMA_WEIGHTS, asciiLevel, glyphIndex, xrayNegative,
-    beatEnvelope, runsOnBeat, PIXEL_BAR_STEPS, pixelBarSize,
+    beatEnvelope, runsOnBeat, PIXEL_BAR_STEPS, pixelBarSize, THERMAL_STOPS, thermalColor, posterize,
 } from '../js/effects-registry.js';
 import { restoreEffectStack } from '../js/effect-stack.js';
 
@@ -15,7 +15,8 @@ const REGISTRY_SOURCE = readFileSync(new URL('../js/effects-registry.js', import
 
 test('every custom fragment shader declares highp float first, after an optional #version line', () => {
     const fragments = [...REGISTRY_SOURCE.matchAll(/const (\w+_FRAGMENT) = `([^`]*)`/g)];
-    assert.ok(fragments.length >= 2, 'no *_FRAGMENT shaders found');
+    assert.deepEqual(fragments.map(([, name]) => name).sort(),
+        ['ASCII_FRAGMENT', 'NEON_FRAGMENT', 'POSTERIZE_FRAGMENT', 'THERMAL_FRAGMENT', 'XRAY_FRAGMENT']);
     for (const [, name, source] of fragments) {
         const body = source.replace(/^#version[^\n]*\n/, '');
         assert.ok(body.startsWith('precision highp float;'), `${name} does not open with precision highp float;`);
@@ -54,6 +55,42 @@ test('Pixelado por compás holds one size per 4-beat bar and loops through the s
     const loop = PIXEL_BAR_STEPS.length * 4;
     for (let beat = 0; beat < loop; beat++) assert.equal(pixelBarSize(10, beat), pixelBarSize(10, beat + loop));
     assert.ok(new Set(PIXEL_BAR_STEPS).size > 1, 'the size never changes');
+});
+
+const near = (actual, expected) => actual.every((v, i) => Math.abs(v - expected[i]) < 1e-9);
+
+test('the thermal ramp runs black, blue, magenta, red, yellow, white at evenly spaced luminance', () => {
+    assert.deepEqual(THERMAL_STOPS, [[0, 0, 0], [0, 0, 1], [1, 0, 1], [1, 0, 0], [1, 1, 0], [1, 1, 1]]);
+    const segments = THERMAL_STOPS.length - 1;
+    THERMAL_STOPS.forEach((stop, i) => assert.ok(near(thermalColor(i / segments), stop), `stop ${i}`));
+});
+
+test('the thermal ramp blends linearly between stops and clamps luminance outside 0-1', () => {
+    assert.ok(near(thermalColor(0.3), [0.5, 0, 1]), 'halfway blue to magenta');
+    assert.ok(near(thermalColor(0.7), [1, 0.5, 0]), 'halfway red to yellow');
+    assert.ok(near(thermalColor(-0.5), [0, 0, 0]));
+    assert.ok(near(thermalColor(1.5), [1, 1, 1]));
+});
+
+test('posterize snaps 0-1 onto exactly `levels` values and keeps black and white', () => {
+    for (let levels = 2; levels <= 8; levels++) {
+        const seen = new Set();
+        for (let value = 0; value <= 1; value += 0.001) seen.add(posterize(value, levels));
+        assert.equal(seen.size, levels, `levels ${levels}`);
+        assert.equal(posterize(0, levels), 0);
+        assert.equal(posterize(1, levels), 1);
+    }
+    assert.equal(posterize(0.49, 2), 0);
+    assert.equal(posterize(0.51, 2), 1);
+    assert.equal(posterize(-1, 4), 0);
+    assert.equal(posterize(2, 4), 1);
+});
+
+test('Posterizado levels run 2-8 and Contorno neón offers Columna or Blanco', () => {
+    const levels = effectById('posterize').params.find(p => p.key === 'levels');
+    assert.deepEqual([levels.min, levels.max, levels.decimals], [2, 8, 0]);
+    const color = effectById('neon').params.find(p => p.key === 'color');
+    assert.deepEqual(color.options.map(o => o.value), ['column', 'white']);
 });
 
 test('Pixelado por compás never drops below a 2px block, even before beat 0', () => {

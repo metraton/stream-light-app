@@ -519,7 +519,186 @@ const glitch = {
     },
 };
 
-export const EFFECTS = [ascii, xray, rgbSplit, pixelate, halftone, glitch];
+// --- Térmica ---
+// A custom shader rather than ColorMapFilter: that filter remaps RGB through a
+// 3D lookup texture, so a luminance ramp would need a full RGB cube built on a
+// canvas, while the ramp itself is five mixes the tests can mirror in JS.
+
+/** The heat-camera ramp, black -> blue -> magenta -> red -> yellow -> white, at evenly spaced luminance stops. */
+export const THERMAL_STOPS = [[0, 0, 0], [0, 0, 1], [1, 0, 1], [1, 0, 0], [1, 1, 0], [1, 1, 1]];
+
+/** The ramp color for `luma` (clamped to 0-1), linear between stops; THERMAL_FRAGMENT's `thermal` mirrors it. */
+export function thermalColor(luma) {
+    const segments = THERMAL_STOPS.length - 1;
+    const t = Math.min(1, Math.max(0, luma)) * segments;
+    const index = Math.min(Math.floor(t), segments - 1);
+    const weight = t - index;
+    const [from, to] = [THERMAL_STOPS[index], THERMAL_STOPS[index + 1]];
+    return from.map((channel, i) => channel + (to[i] - channel) * weight);
+}
+
+const THERMAL_FRAGMENT = `precision highp float;
+in vec2 vTextureCoord;
+out vec4 finalColor;
+
+uniform sampler2D uTexture;
+uniform float uMix;
+
+const vec3 LUMA = vec3(0.299, 0.587, 0.114);
+
+vec3 thermal(float luma)
+{
+    float t = clamp(luma, 0.0, 1.0) * 5.0;
+    vec3 color = mix(vec3(0.0), vec3(0.0, 0.0, 1.0), clamp(t, 0.0, 1.0));
+    color = mix(color, vec3(1.0, 0.0, 1.0), clamp(t - 1.0, 0.0, 1.0));
+    color = mix(color, vec3(1.0, 0.0, 0.0), clamp(t - 2.0, 0.0, 1.0));
+    color = mix(color, vec3(1.0, 1.0, 0.0), clamp(t - 3.0, 0.0, 1.0));
+    return mix(color, vec3(1.0), clamp(t - 4.0, 0.0, 1.0));
+}
+
+void main(void)
+{
+    vec4 source = texture(uTexture, vTextureCoord);
+    vec3 heat = thermal(dot(source.rgb, LUMA));
+    finalColor = vec4(mix(source.rgb, heat * source.a, uMix), source.a);
+}
+`;
+
+const thermalEffect = {
+    id: 'thermal',
+    label: 'Térmica',
+    defaults: { mix: 1 },
+    params: [{ key: 'mix', label: 'Mezcla', min: 0, max: 1, decimals: 2 }],
+    create(params) {
+        return glFilter('thermal-filter', THERMAL_FRAGMENT, {
+            thermalUniforms: { uMix: { value: params.mix, type: 'f32' } },
+        });
+    },
+    update(filter, params) {
+        filter.resources.thermalUniforms.uniforms.uMix = params.mix;
+    },
+};
+
+// --- Posterizado ---
+
+/** `value` (clamped to 0-1) snapped to the nearest of `levels` evenly spaced steps; POSTERIZE_FRAGMENT mirrors it. */
+export function posterize(value, levels) {
+    const steps = levels - 1;
+    return Math.round(Math.min(1, Math.max(0, value)) * steps) / steps;
+}
+
+const POSTERIZE_FRAGMENT = `precision highp float;
+in vec2 vTextureCoord;
+out vec4 finalColor;
+
+uniform sampler2D uTexture;
+uniform float uLevels;
+
+void main(void)
+{
+    vec4 source = texture(uTexture, vTextureCoord);
+    float steps = uLevels - 1.0;
+    vec3 color = floor(clamp(source.rgb, 0.0, 1.0) * steps + 0.5) / steps;
+    finalColor = vec4(color * source.a, source.a);
+}
+`;
+
+const posterizeEffect = {
+    id: 'posterize',
+    label: 'Posterizado',
+    defaults: { levels: 4 },
+    params: [{ key: 'levels', label: 'Niveles', min: 2, max: 8, decimals: 0 }],
+    create(params) {
+        return glFilter('posterize-filter', POSTERIZE_FRAGMENT, {
+            posterizeUniforms: { uLevels: { value: params.levels, type: 'f32' } },
+        });
+    },
+    update(filter, params) {
+        filter.resources.posterizeUniforms.uniforms.uLevels = params.levels;
+    },
+};
+
+// --- Contorno neón ---
+
+// Black everywhere but the luminance edges: a 3x3 Sobel at 1px draws the line
+// and the same kernel at 3px adds a softer halo around it, both in the tint.
+// `uGlow` scales the edge strength, so a higher glow lights fainter edges too.
+const NEON_FRAGMENT = `precision highp float;
+in vec2 vTextureCoord;
+out vec4 finalColor;
+
+uniform sampler2D uTexture;
+uniform vec4 uInputSize;
+uniform vec4 uInputClamp;
+uniform float uGlow;
+uniform vec3 uTint;
+
+const vec3 LUMA = vec3(0.299, 0.587, 0.114);
+const float HALO_RADIUS = 3.0;
+const float HALO_WEIGHT = 0.45;
+
+float lumaAt(vec2 offset)
+{
+    vec2 uv = clamp(vTextureCoord + offset * uInputSize.zw, uInputClamp.xy, uInputClamp.zw);
+    return dot(texture(uTexture, uv).rgb, LUMA);
+}
+
+float sobel(float radius)
+{
+    float tl = lumaAt(vec2(-radius, -radius));
+    float t  = lumaAt(vec2(    0.0, -radius));
+    float tr = lumaAt(vec2( radius, -radius));
+    float l  = lumaAt(vec2(-radius,     0.0));
+    float r  = lumaAt(vec2( radius,     0.0));
+    float bl = lumaAt(vec2(-radius,  radius));
+    float b  = lumaAt(vec2(    0.0,  radius));
+    float br = lumaAt(vec2( radius,  radius));
+    float gx = (tr + 2.0 * r + br) - (tl + 2.0 * l + bl);
+    float gy = (bl + 2.0 * b + br) - (tl + 2.0 * t + tr);
+    return length(vec2(gx, gy));
+}
+
+void main(void)
+{
+    float alpha = texture(uTexture, vTextureCoord).a;
+    float line = smoothstep(0.05, 0.5, sobel(1.0) * uGlow);
+    float halo = smoothstep(0.05, 0.8, sobel(HALO_RADIUS) * uGlow) * HALO_WEIGHT;
+    vec3 color = uTint * clamp(line + halo, 0.0, 1.0);
+    finalColor = vec4(color * alpha, alpha);
+}
+`;
+
+const neon = {
+    id: 'neon',
+    label: 'Contorno neón',
+    defaults: { glow: 1.5, color: 'column' },
+    params: [
+        { key: 'glow', label: 'Brillo', min: 0.5, max: 4, decimals: 2 },
+        {
+            key: 'color',
+            label: 'Color',
+            options: [{ value: 'column', label: 'Columna' }, { value: 'white', label: 'Blanco' }],
+        },
+    ],
+    create(params, context) {
+        const filter = glFilter('neon-edge-filter', NEON_FRAGMENT, {
+            neonUniforms: {
+                uGlow: { value: params.glow, type: 'f32' },
+                uTint: { value: new Float32Array(3), type: 'vec3<f32>' },
+            },
+        });
+        neon.update(filter, params, context);
+        return filter;
+    },
+    update(filter, params, context) {
+        const uniforms = filter.resources.neonUniforms.uniforms;
+        uniforms.uGlow = params.glow;
+        const tint = params.color === 'column' && context.color !== null ? context.color : WHITE;
+        uniforms.uTint.set(hexToRgb(tint));
+    },
+};
+
+export const EFFECTS = [ascii, xray, rgbSplit, pixelate, halftone, glitch, thermalEffect, posterizeEffect, neon];
 
 /** The definition registered under `id`, undefined when there is none. */
 export function effectById(id) {
