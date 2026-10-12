@@ -298,7 +298,49 @@ const mirror = {
     },
 };
 
-export const SCREEN_EFFECTS = [flash, trails, mirror];
+// --- VHS / CRT ---
+// pixi-filters' CRTFilter: scanlines (lineContrast), curvature, vignette and
+// noise. Its noise moves only when `seed` changes and its lines scroll only as
+// `time` advances, so it has no `sync` param and ticks every frame. Rollo al
+// golpe throws `time` forward on each beat, so the lines jump and settle, and
+// raises the noise along the same envelope.
+const CRT_TIME_PER_BEAT = 2;
+const CRT_ROLL = 6;
+const CRT_NOISE_BURST = 0.6;
+
+const crt = {
+    id: 'crt',
+    label: 'VHS / CRT',
+    defaults: { scanlines: 0.25, curvature: 1, noise: 0.15, roll: 'off' },
+    params: [
+        { key: 'scanlines', label: 'Líneas', min: 0, max: 1, decimals: 2 },
+        { key: 'curvature', label: 'Curvatura', min: 0, max: 10, decimals: 1 },
+        { key: 'noise', label: 'Ruido', min: 0, max: 1, decimals: 2 },
+        {
+            key: 'roll',
+            label: 'Rollo',
+            options: [{ value: 'off', label: 'Sin rollo' }, { value: 'beat', label: 'Rollo al golpe' }],
+        },
+    ],
+    create(params) {
+        const filter = new PIXI.filters.CRTFilter();
+        crt.update(filter, params);
+        return filter;
+    },
+    update(filter, params) {
+        filter.lineContrast = params.scanlines;
+        filter.curvature = params.curvature;
+        filter.noise = params.noise;
+    },
+    tick(filter, params, { beatPhase, beatIndex }) {
+        const hit = params.roll === 'beat' ? beatEnvelope(beatPhase) : 0;
+        filter.time = (beatIndex + beatPhase) * CRT_TIME_PER_BEAT + hit * CRT_ROLL;
+        filter.seed = Math.random();
+        filter.noise = params.noise + (1 - params.noise) * CRT_NOISE_BURST * hit;
+    },
+};
+
+export const SCREEN_EFFECTS = [flash, trails, mirror, crt];
 
 /** The definition registered under `id`, undefined when there is none. */
 export function screenEffectById(id) {
