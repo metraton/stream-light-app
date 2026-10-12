@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { PATTERNS, PATTERN_RATES, generateFrames, canonicalPattern } from '../js/color-sequencer.js';
+import { PATTERNS, PATTERN_RATES, ColorSequencer, generateFrames, canonicalPattern } from '../js/color-sequencer.js';
 import { BeatClock, RATES } from '../js/tempo.js';
 import { EffectEngine } from '../js/effect-engine.js';
 import { GlowEngine } from '../js/glow-engine.js';
@@ -126,6 +126,48 @@ test('Q W E R T Y resolve to the patterns in panel order: T is Fill, Y is Sparkl
     assert.deepEqual(['q', 'w', 'e', 'r', 't', 'y'].map(patternFor), PATTERNS);
     assert.equal(patternFor('t'), 'fill');
     assert.equal(patternFor('y'), 'sparkle');
+});
+
+/** An app stand-in around a real sequencer, its other layers away from the base state. */
+function fakeApp() {
+    return { sequencer: new ColorSequencer(), currentMovement: 'wave', currentGlowMode: 'pulse', currentMood: 'calm', updateHUD() {} };
+}
+
+function press(app, key, code, shiftKey = false) {
+    resolveShortcut({ key, code, shiftKey, ctrlKey: false, altKey: false })(app);
+}
+
+test('6 and Shift+6 select each color once in a fresh random order and change nothing else', () => {
+    for (const [key, shiftKey] of [['6', false], ['&', true]]) {
+        const app = fakeApp();
+        const seq = app.sequencer;
+        seq.setPattern('mirror');
+        seq.setRate(4);
+        seq.setBPM(150);
+        const orders = new Set();
+        for (let i = 0; i < 20; i++) {
+            press(app, key, 'Digit6', shiftKey);
+            assert.deepEqual([...seq.selectedColors].sort(), [0, 1, 2, 3, 4]);
+            orders.add(seq.selectedColors.join());
+        }
+        assert.ok(orders.size > 1, `${key}: 20 presses gave one order`);
+        assert.equal(seq.pattern, 'mirror');
+        assert.equal(seq.rate, 4);
+        assert.equal(seq.bpm, 150);
+        assert.deepEqual(seq.frames, generateFrames('mirror', seq.selectedColors));
+        assert.deepEqual([app.currentMovement, app.currentGlowMode, app.currentMood], ['wave', 'pulse', 'calm']);
+    }
+});
+
+test('6 while a cue is staged fills the pending colors and leaves the live combo alone', () => {
+    const app = fakeApp();
+    const seq = app.sequencer;
+    seq.selectOnly(2);
+    seq.startStaging('chase');
+    press(app, '6', 'Digit6');
+    assert.deepEqual([...seq.pendingColors].sort(), [0, 1, 2, 3, 4]);
+    assert.equal(seq.pendingPattern, 'chase');
+    assert.deepEqual(seq.selectedColors, [2]);
 });
 
 test('a BPM change keeps the beat position continuous', () => {

@@ -7,7 +7,7 @@ import { MOODS, MOOD_QUICK } from '../mood-map.js';
 // and every row of the 6-key grid starts with None.
 const COLOR_INDICES = [-1, 0, 1, 2, 3, 4, 99];
 const COLOR_KEYS = ['|', '1', '2', '3', '4', '5', '6'];
-const COLOR_WORDS = ['Empty', 'Yellow', 'Blue', 'Red', 'Green', 'Purple', 'Rainbow'];
+const COLOR_WORDS = ['Empty', 'Yellow', 'Blue', 'Red', 'Green', 'Purple', 'Todos al azar'];
 const COLOR_HEX = ['#444', '#ffff00', '#55aaff', '#ff0000', '#00ff00', '#ff00ff', 'linear-gradient(90deg,#ff0,#55f,#f00,#0f0,#f0f)'];
 const COLOR_EMOJIS = ['⬛', '🟨', '🟦', '🟥', '🟩', '🟪'];
 
@@ -95,7 +95,7 @@ export function createSequencerControls(sectionEl, app) {
         btn.addEventListener('click', () => {
             const idx = COLOR_INDICES[i];
             if (idx === 99) {
-                seq.selectRainbow();
+                seq.selectAllShuffled();
             } else {
                 seq.toggleColor(idx);
             }

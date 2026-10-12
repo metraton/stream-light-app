@@ -1,5 +1,5 @@
 // --- Keyboard Shortcuts ---
-// |: toggle Empty; 1-5: toggle a color; 6: rainbow (all 5 + carousel)
+// |: toggle Empty; 1-5: toggle a color; 6 / Shift+6: all 5 colors in a random order
 // Shift+| / Shift+1-5: select only that color
 // 0 / Shift+0: switch camera (Iriun <-> Logitech only)
 // Q W E R T Y: pattern (none/chase/carousel/mirror/fill/sparkle)
@@ -73,7 +73,7 @@ export function resolveShortcut(e) {
 
         if (num === 6) {
             return (app) => {
-                app.sequencer.selectRainbow();
+                app.sequencer.selectAllShuffled();
                 app.updateHUD();
             };
         }

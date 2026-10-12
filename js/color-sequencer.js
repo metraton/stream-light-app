@@ -185,29 +185,19 @@ export class ColorSequencer {
         this._regenerate();
     }
 
-    /** Rainbow: all 5 colors with the carousel pattern, so every column shows a
-     *  distinct color and the rainbow marches across the columns on Play.
-     *  Pressing it again while the rainbow is active clears the colors. */
-    selectRainbow() {
+    /** Todos al azar: all 5 colors in a fresh random order on every press. Only
+     *  the color selection changes; the pattern, its rate and the other layers stay. */
+    selectAllShuffled() {
+        const colors = [0, 1, 2, 3, 4];
+        for (let i = colors.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [colors[i], colors[j]] = [colors[j], colors[i]];
+        }
         if (this.staging) {
-            const allFive = this.pendingColors.length === 5 &&
-                [0, 1, 2, 3, 4].every(c => this.pendingColors.includes(c));
-            if (allFive && this.pendingPattern === 'carousel') {
-                this.pendingColors = [];
-            } else {
-                this.pendingColors = [0, 1, 2, 3, 4];
-                this.pendingPattern = 'carousel';
-            }
+            this.pendingColors = colors;
             return;
         }
-        const allFive = this.selectedColors.length === 5 &&
-            [0, 1, 2, 3, 4].every(c => this.selectedColors.includes(c));
-        if (allFive && this.pattern === 'carousel') {
-            this.selectedColors = [];
-        } else {
-            this.selectedColors = [0, 1, 2, 3, 4];
-            this.pattern = 'carousel';
-        }
+        this.selectedColors = colors;
         this._regenerate();
     }
 
