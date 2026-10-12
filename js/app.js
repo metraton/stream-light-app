@@ -324,8 +324,8 @@ export class StreamLightApp {
     }
 
     /** Apply a mood (mood-map.js): colors, pattern, movement, glow, BPM and a
-     *  rate per layer. The color rotation does not start until Space ("nothing
-     *  auto-plays"); movement and glow are continuous layers and start at once.
+     *  rate per layer. Every layer starts at once, the color rotation from
+     *  frame 0 even when it was paused.
      *  @param {object} mood - mood definition
      *  @param {string|null} moodKey - mood name, for the active-state highlight */
     applyMood(mood, moodKey = null) {
@@ -334,6 +334,7 @@ export class StreamLightApp {
         this.sequencer.setBPM(mood.bpm);
         this.sequencer.setPattern(mood.pattern);
         this.sequencer.setRate(mood.rates.color, false);
+        this.sequencer.play(true);
 
         if (mood.movement && mood.movement !== 'none') {
             this.playMovement(mood.movement, mood.rates.movement);
@@ -376,8 +377,8 @@ export class StreamLightApp {
         this.updateHUD();
     }
 
-    /** Return every performance layer to BASE_STATE, BPM and stopped playback
-     *  included (Escape, Reset to Defaults). Layout, filters, rotation and the
+    /** Return every performance layer to BASE_STATE, BPM and playing with no
+     *  colors included (Escape, Reset to Defaults). Layout, filters, rotation and the
      *  FPS cap are not performance layers and stay as they are. */
     resetToBase() {
         this.sequencer.resetToBase();
@@ -489,7 +490,7 @@ export class StreamLightApp {
         const glowName = this.currentGlowMode;
 
         this.hud.update(
-            `${colorNames} [${mode}]`,
+            `${colorNames} [${mode}]${seq.isPlaying ? '' : ' PAUSA'}`,
             effectName,
             glowName !== 'none' ? glowName : null,
             seq.bpm,

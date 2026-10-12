@@ -16,7 +16,7 @@ export const BASE_STATE = Object.freeze({
     glow: 'none',
     mood: null,
     bpm: 120,
-    playing: false,
+    playing: true,
 });
 
 // A mood's speed is its BPM plus one rate per layer, in steps per beat from

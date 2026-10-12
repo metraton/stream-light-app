@@ -18,6 +18,54 @@ import { resolveShortcut } from '../js/shortcuts.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const COLUMN_COUNT = 5;
+const KEY = { shiftKey: false, ctrlKey: false, altKey: false };
+const SPACE = { ...KEY, key: ' ', code: 'Space' };
+const ESCAPE = { ...KEY, key: 'Escape', code: 'Escape' };
+
+test('playback is on at startup, so the first color advances frames with no play()', () => {
+    const seq = new ColorSequencer();
+    assert.equal(BASE_STATE.playing, true);
+    assert.equal(seq.isPlaying, true);
+    seq.setPattern('chase');
+    seq.toggleColor(0);
+    const start = performance.now();
+    const stepMs = (60000 / seq.bpm) / seq.rate;
+    seq.update(start + stepMs * 0.5);
+    assert.equal(seq.currentStep, 0, 'the first color starts at frame 0');
+    seq.update(start + stepMs * 1.5);
+    assert.equal(seq.currentStep, 1, 'one step later chase has moved on');
+});
+
+test('Escape returns to playing with no colors', () => {
+    const seq = new ColorSequencer();
+    const app = { sequencer: seq, updateHUD() {}, resetToBase: () => seq.resetToBase() };
+    resolveShortcut(SPACE)(app);
+    seq.toggleColor(0);
+    resolveShortcut(ESCAPE)(app);
+    assert.equal(seq.isPlaying, true);
+    assert.deepEqual(seq.selectedColors, []);
+});
+
+test('a Space pause holds while colors are added; Space and a cue commit play again', () => {
+    const seq = new ColorSequencer();
+    const app = { sequencer: seq, updateHUD() {}, commitCue: () => seq.commitStaged() };
+    resolveShortcut(SPACE)(app);
+    assert.equal(seq.isPlaying, false);
+    seq.setPattern('chase');
+    seq.toggleColor(0);
+    seq.update(performance.now() + 60000);
+    assert.equal(seq.isPlaying, false);
+    assert.equal(seq.currentStep, 0);
+    resolveShortcut(SPACE)(app);
+    assert.equal(seq.isPlaying, true, 'Space resumes');
+
+    resolveShortcut(SPACE)(app);
+    seq.startStaging();
+    seq.toggleColor(1);
+    resolveShortcut(SPACE)(app);
+    assert.equal(seq.isPlaying, true, 'a cue commit plays');
+    assert.equal(seq.currentStep, 0, 'a cue commit starts at frame 0');
+});
 
 /** Every ordered subset of `pool` with 1 to 5 members, in pool order. */
 function combos(pool) {

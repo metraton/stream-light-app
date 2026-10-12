@@ -175,7 +175,7 @@ export class ColorSequencer {
         this.resetToBase();
     }
 
-    /** Return to BASE_STATE: no colors, base pattern (no variant) and BPM, stopped, no cue in progress. */
+    /** Return to BASE_STATE: no colors, base pattern (no variant) and BPM, playing, no cue in progress. */
     resetToBase() {
         this.selectedColors = [...BASE_STATE.colors];
         this.pattern = BASE_STATE.pattern;
@@ -320,13 +320,12 @@ export class ColorSequencer {
 
     // --- Playback ---
 
-    /** Start playback. reset=true restarts at frame 0; reset=false resumes. */
+    /** Start playback. reset=true restarts at frame 0; reset=false resumes.
+     *  Playing with no colors is valid: the first color pressed moves at once. */
     play(reset = true) {
-        if (this.frames.length === 0) return;
         this.isPlaying = true;
         if (reset) this.currentStep = 0;
-        this.phase.restartAt(this.beatAt(performance.now()));
-        this._wholeStep = 0;
+        this._restartPhase();
         this._applyCurrentFrame();
     }
 
@@ -363,13 +362,22 @@ export class ColorSequencer {
         this._onFrameChange = callback;
     }
 
-    /** Rebuild the frames and paint frame 0. Never starts playback: nothing
-     *  auto-plays, Space does. If already playing, the ticker keeps cycling. */
+    /** Rebuild the frames and paint frame 0 without changing the play state:
+     *  while playing, the first colors after an empty list run from frame 0 at
+     *  once; while paused, nothing moves until Space. */
     _regenerate() {
         this._syncPatternRate();
+        const wasEmpty = this.frames.length === 0;
         this.currentStep = 0;
         this.frames = generateFrames(this.pattern, this.selectedColors, this.variant);
+        if (this.isPlaying && wasEmpty) this._restartPhase();
         this._applyCurrentFrame();
+    }
+
+    /** Count frame steps from the current beat, so the next step is one full step away. */
+    _restartPhase() {
+        this.phase.restartAt(this.beatAt(performance.now()));
+        this._wholeStep = 0;
     }
 
     _applyCurrentFrame() {

@@ -9,7 +9,7 @@
 // Shift+Z X C V B N: mood (none/calm/build/tension/peak/mystic), from js/mood-map.js
 // <: mood None
 // Backspace: cue a new combo while the live one keeps playing
-// Space: commit the cue (movement/glow/mood back to the base state), else play/stop
+// Space: commit the cue (movement/glow/mood back to the base state), else pause/resume
 // + / ´: BPM up / down
 // Escape: back to the base state; J: HUD; P: panel
 //

@@ -57,8 +57,8 @@ Every row of the key grid has six keys and starts with None:
 | `A S D F G H` | Movement | None, Wave, Expand, Broken, Shake, Equalizer |
 | `Z X C V B N` | Glow | None, Sweep, Breathe, Pulse, Strobe, Alternate |
 | `Shift+Z X C V B N` | Mood (`<` is also None) | None, Calm, Build, Tension, Peak, Mystic |
-| `Backspace` / `Space` | Cue | stage a new combo while the live one plays / commit it (or play-stop) |
-| `Escape` | Base state | no colors, every layer None, 120 BPM, stopped; layout, filters, rotation and FPS cap stay |
+| `Backspace` / `Space` | Cue | stage a new combo while the live one plays / commit it (otherwise pause / resume) |
+| `Escape` | Base state | no colors, every layer None, 120 BPM, playing (the first color pressed moves at once); layout, filters, rotation and FPS cap stay |
 | `+` / `´`, `0`, `J`, `P` | Other | BPM up/down, next camera, HUD, panel |
 
 Pattern variants (`js/color-sequencer.js` `PATTERN_VARIANTS`): Carousel reversed runs the same frames backwards. Chase, Mirror, Fill and Sparkle negative swap lit and Empty columns: each selected color in turn fills the row and the columns the normal pattern lights for that color alone become gaps, so Chase is a full row with a travelling gap and Fill empties the row column by column. None has no variant, so Shift+Q is Q. A plain key always picks the normal pattern; pressing Shift again keeps the variant; moods play the normal pattern.

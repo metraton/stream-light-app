@@ -275,32 +275,23 @@ export function createSequencerControls(sectionEl, app) {
     bpmRow.appendChild(bpmVal);
     sectionEl.appendChild(bpmRow);
 
-    // === Play/Stop ===
+    // === Play/Pause (= Space): commits a cue, else toggles; the label shows the current state ===
     const transportRow = document.createElement('div');
     transportRow.className = 'effect-buttons';
     transportRow.style.marginTop = '6px';
 
     const playBtn = document.createElement('button');
-    playBtn.textContent = '▶ Play';
     playBtn.addEventListener('click', () => {
         if (seq.staging) {
             app.commitCue();
         } else {
-            seq.play();
+            seq.togglePlay();
         }
         refreshAll();
         app.updateHUD();
     });
 
-    const stopBtn = document.createElement('button');
-    stopBtn.textContent = '■ Stop';
-    stopBtn.addEventListener('click', () => {
-        seq.stop();
-        app.updateHUD();
-    });
-
     transportRow.appendChild(playBtn);
-    transportRow.appendChild(stopBtn);
     sectionEl.appendChild(transportRow);
 
     // === Refresh functions ===
@@ -345,6 +336,14 @@ export function createSequencerControls(sectionEl, app) {
         updatePatternPreview();
         bpmVal.textContent = seq.bpm;
         bpmSlider.value = seq.bpm;
+        updatePlayBtn();
+    }
+
+    function updatePlayBtn() {
+        playBtn.textContent = seq.isPlaying ? '▶ Playing' : '❚❚ Pausa';
+        playBtn.title = seq.isPlaying ? 'Click (or Space) to pause' : 'Click (or Space) to play';
+        playBtn.style.background = seq.isPlaying ? '#FFD700' : '#333';
+        playBtn.style.color = seq.isPlaying ? '#000' : '#aaa';
     }
 
     // While staging (DJ cue), the panel reflects the PENDING combo being built;
