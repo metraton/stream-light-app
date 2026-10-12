@@ -364,6 +364,7 @@
 
 .effect-buttons {
     display: flex;
+    flex-wrap: wrap;
     gap: 4px;
     margin-top: 6px;
 }

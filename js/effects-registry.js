@@ -3,6 +3,9 @@
 // `params` describes the panel controls: a slider ({ key, label, min, max,
 // decimals }) or a button choice ({ key, label, options: [{ value, label }] }).
 // `context.color` is the hex of the color the column shows, null when uncolored.
+// An effect that can follow the beat also has a `sync` option and
+// tick(filter, params, { beatPhase, beatIndex }), called every frame only while
+// `sync` is not 'fixed' (runsOnBeat); every other effect costs nothing per frame.
 // create() and update() reach the PIXI global and the DOM only when called, so
 // the definitions load in Node for the stack tests. Every effect is one more
 // render pass, paid only by the columns whose color runs it.
@@ -365,7 +368,97 @@ const xray = {
     },
 };
 
-export const EFFECTS = [ascii, xray];
+// --- Beat sync ---
+
+const FIXED = 'fixed';
+
+/**
+ * The strength of a beat-struck value at `beatPhase` (0-1 within the beat): 1 on
+ * the beat, falling along (1 - phase)^3 to 0 just before the next, so the hit
+ * reads as a spike with a fast decay rather than a sawtooth.
+ */
+export function beatEnvelope(beatPhase) {
+    const phase = Math.min(1, Math.max(0, beatPhase));
+    return (1 - phase) ** 3;
+}
+
+/** Whether effect `effect` with `params` needs tick() every frame. */
+export function runsOnBeat(effect, params) {
+    return effect.tick !== undefined && params.sync !== FIXED;
+}
+
+// --- RGB split ---
+
+// Red moves left and blue right by `amount` px; green stays as the anchor.
+function setSplit(filter, amount) {
+    filter.redX = -amount;
+    filter.blueX = amount;
+}
+
+const rgbSplit = {
+    id: 'rgbsplit',
+    label: 'RGB split',
+    defaults: { amount: 8, sync: FIXED },
+    params: [
+        { key: 'amount', label: 'Desfase px', min: 0, max: 40, decimals: 0 },
+        {
+            key: 'sync',
+            label: 'Ritmo',
+            options: [{ value: FIXED, label: 'Fijo' }, { value: 'beat', label: 'Al golpe' }],
+        },
+    ],
+    create(params) {
+        const filter = new PIXI.filters.RGBSplitFilter({ red: [0, 0], green: [0, 0], blue: [0, 0] });
+        rgbSplit.update(filter, params);
+        return filter;
+    },
+    update(filter, params) {
+        setSplit(filter, params.amount);
+    },
+    tick(filter, params, { beatPhase }) {
+        setSplit(filter, params.amount * beatEnvelope(beatPhase));
+    },
+};
+
+// --- Pixelado ---
+
+/** Block-size multipliers one bar (4 beats) each, looping. */
+export const PIXEL_BAR_STEPS = [1, 2, 3, 2];
+const BEATS_PER_BAR = 4;
+const MIN_PIXEL = 2;
+
+/** The block size during the bar holding `beatIndex`: `size` times that bar's step, at least MIN_PIXEL. */
+export function pixelBarSize(size, beatIndex) {
+    const bar = Math.floor(beatIndex / BEATS_PER_BAR);
+    const step = PIXEL_BAR_STEPS[((bar % PIXEL_BAR_STEPS.length) + PIXEL_BAR_STEPS.length) % PIXEL_BAR_STEPS.length];
+    return Math.max(MIN_PIXEL, Math.round(size * step));
+}
+
+const pixelate = {
+    id: 'pixelate',
+    label: 'Pixelado',
+    defaults: { size: 10, sync: FIXED },
+    params: [
+        { key: 'size', label: 'Bloque', min: MIN_PIXEL, max: 60, decimals: 0 },
+        {
+            key: 'sync',
+            label: 'Ritmo',
+            options: [{ value: FIXED, label: 'Fijo' }, { value: 'bar', label: 'Por compás' }],
+        },
+    ],
+    create(params) {
+        return new PIXI.filters.PixelateFilter(params.size);
+    },
+    update(filter, params) {
+        filter.size = params.size;
+    },
+    tick(filter, params, { beatIndex }) {
+        const size = pixelBarSize(params.size, beatIndex);
+        if (filter.sizeX !== size) filter.size = size;
+    },
+};
+
+export const EFFECTS = [ascii, xray, rgbSplit, pixelate];
 
 /** The definition registered under `id`, undefined when there is none. */
 export function effectById(id) {

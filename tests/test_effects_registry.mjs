@@ -1,11 +1,65 @@
-// Checks the GPU-free parts of the effect registry: the ASCII ramp mapping,
-// the luminance gain curve the shader mirrors, and every effect's defaults
-// against its own panel controls.
+// Checks the GPU-free parts of the effect registry: the curves the shaders
+// mirror, the beat helpers, every custom fragment's precision line, and every
+// effect's defaults against its own panel controls.
 // Run: node --test tests/test_effects_registry.mjs
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { EFFECTS, effectById, ASCII_RAMP, LUMA_WEIGHTS, asciiLevel, glyphIndex, xrayNegative } from '../js/effects-registry.js';
+import { readFileSync } from 'node:fs';
+import {
+    EFFECTS, effectById, ASCII_RAMP, LUMA_WEIGHTS, asciiLevel, glyphIndex, xrayNegative,
+    beatEnvelope, runsOnBeat, PIXEL_BAR_STEPS, pixelBarSize,
+} from '../js/effects-registry.js';
 import { restoreEffectStack } from '../js/effect-stack.js';
+
+const REGISTRY_SOURCE = readFileSync(new URL('../js/effects-registry.js', import.meta.url), 'utf8');
+
+test('every custom fragment shader declares highp float first, after an optional #version line', () => {
+    const fragments = [...REGISTRY_SOURCE.matchAll(/const (\w+_FRAGMENT) = `([^`]*)`/g)];
+    assert.ok(fragments.length >= 2, 'no *_FRAGMENT shaders found');
+    for (const [, name, source] of fragments) {
+        const body = source.replace(/^#version[^\n]*\n/, '');
+        assert.ok(body.startsWith('precision highp float;'), `${name} does not open with precision highp float;`);
+    }
+});
+
+test('the beat envelope spikes to 1 on the beat and decays monotonically to 0 by the next', () => {
+    assert.equal(beatEnvelope(0), 1);
+    assert.equal(beatEnvelope(1), 0);
+    let previous = 2;
+    for (let phase = 0; phase <= 1; phase += 0.05) {
+        const value = beatEnvelope(phase);
+        assert.ok(value <= previous && value >= 0);
+        previous = value;
+    }
+    assert.ok(beatEnvelope(0.25) < 0.5, 'decay too slow to read as a hit');
+    assert.equal(beatEnvelope(-0.1), 1);
+    assert.equal(beatEnvelope(1.3), 0);
+});
+
+test('only an effect with tick() and a non-fixed sync runs on the beat', () => {
+    const split = effectById('rgbsplit');
+    assert.equal(runsOnBeat(split, split.defaults), false);
+    assert.equal(runsOnBeat(split, { ...split.defaults, sync: 'beat' }), true);
+    assert.equal(runsOnBeat(effectById('ascii'), { sync: 'beat' }), false);
+    for (const effect of EFFECTS) {
+        const sync = effect.params.find(p => p.key === 'sync');
+        assert.equal(Boolean(effect.tick), Boolean(sync), `${effect.id}: tick() and a sync option go together`);
+        if (sync) assert.equal(effect.defaults.sync, 'fixed', `${effect.id} must default to Fijo`);
+    }
+});
+
+test('Pixelado por compás holds one size per 4-beat bar and loops through the steps', () => {
+    for (let beat = 0; beat < 4; beat++) assert.equal(pixelBarSize(10, beat), 10 * PIXEL_BAR_STEPS[0]);
+    assert.equal(pixelBarSize(10, 4), 10 * PIXEL_BAR_STEPS[1]);
+    const loop = PIXEL_BAR_STEPS.length * 4;
+    for (let beat = 0; beat < loop; beat++) assert.equal(pixelBarSize(10, beat), pixelBarSize(10, beat + loop));
+    assert.ok(new Set(PIXEL_BAR_STEPS).size > 1, 'the size never changes');
+});
+
+test('Pixelado por compás never drops below a 2px block, even before beat 0', () => {
+    assert.ok(pixelBarSize(effectById('pixelate').params[0].min, 0) >= 2);
+    assert.ok(Number.isInteger(pixelBarSize(7, -3)) && pixelBarSize(7, -3) >= 2);
+});
 
 const GLYPHS = ASCII_RAMP.length;
 const DEFAULT_GAIN = effectById('ascii').defaults.gain;

@@ -2,7 +2,7 @@
 import { CONFIG } from './config.js';
 import { effectiveFilter, isNeutral } from './color-filter.js';
 import { resolveEffects, chainKey } from './effect-stack.js';
-import { effectById } from './effects-registry.js';
+import { effectById, runsOnBeat } from './effects-registry.js';
 
 // ============================================================================
 // UNIFIED MOVEMENT MARGIN RULE  (single source of truth — tune here)
@@ -175,6 +175,8 @@ export class ColumnManager {
                 colorMatrix,
                 // Effect filters by id, created on first use and kept while the column lives.
                 effectFilters: new Map(),
+                // The entries of the current chain that tickEffects() drives, refreshed by applyFilters().
+                beatEffects: [],
                 filterKey: null,
                 glowContainer,
                 glowGfx,
@@ -234,12 +236,29 @@ export class ColumnManager {
             const effects = resolveEffects(CONFIG.effectStack, slot);
             const context = { color: slot === -1 ? null : CONFIG.colors[colorName] };
             const effectFilters = effects.map(({ id, params }) => this._effectFilter(col, id, params, context));
+            col.beatEffects = effects.flatMap(({ id, params }, index) => {
+                const effect = effectById(id);
+                return runsOnBeat(effect, params) ? [{ effect, filter: effectFilters[index], params }] : [];
+            });
 
             const key = (adjust ? 'adjust+' : '') + chainKey(effects);
             if (key === col.filterKey) continue;
             col.filterKey = key;
             const chain = adjust ? [col.colorMatrix, ...effectFilters] : effectFilters;
             col.sprite.filters = chain.length > 0 ? chain : null;
+        }
+    }
+
+    /**
+     * Advance the beat-driven effects to `beat` (the master clock's continuous
+     * beat position); returns at once when no column runs one.
+     */
+    tickEffects(beat) {
+        if (!this.columns.some(col => col.beatEffects.length > 0)) return;
+        const beatIndex = Math.floor(beat);
+        const timing = { beatPhase: beat - beatIndex, beatIndex };
+        for (const col of this.columns) {
+            for (const { effect, filter, params } of col.beatEffects) effect.tick(filter, params, timing);
         }
     }
 

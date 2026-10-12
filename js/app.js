@@ -510,6 +510,7 @@ export class StreamLightApp {
         const now = performance.now();
         this.sequencer.update(now);
         const beat = this.sequencer.beatAt(now);
+        this.columnManager.tickEffects(beat);
 
         const scaleFactor = this.pixiApp.screen.height / 1080;
         const offsets = this.effectEngine.compute(CONFIG.columns.count, scaleFactor, beat);
