@@ -12,7 +12,7 @@ const SECTION_DEFS = [
     { key: 'colors',    title: 'Color Hex', open: false },
     { key: 'filters',   title: 'Filters',   open: false },
     { key: 'layout',    title: 'Layout',    open: false },
-    { key: 'effects',   title: 'Effects',   open: false },
+    { key: 'effects',   title: 'Movimiento', open: false },
     { key: 'glow',      title: 'Glow Params', open: false },
     { key: 'presets',   title: 'Presets',    open: false },
 ];

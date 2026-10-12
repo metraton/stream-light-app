@@ -22,7 +22,7 @@ export function createEffectControls(sectionEl, app) {
     selRow.className = 'effect-row';
 
     const selLabel = document.createElement('label');
-    selLabel.textContent = 'Effect';
+    selLabel.textContent = 'Movimiento';
 
     const effectSelect = document.createElement('select');
     for (const key of keys) {
