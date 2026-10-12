@@ -11,11 +11,13 @@ import { createGlowControls } from './glow-controls.js';
 import { createPresetControls } from './preset-manager.js';
 import { createEffectControls } from './effect-controls.js';
 import { createNowPlaying } from './layer-controls.js';
+import { createScreenControls } from './screen-controls.js';
 
 const SECTION_DEFS = [
     { key: 'sequencer', title: 'Sequencer', open: true },
     { key: 'colors',    title: 'Color Hex', open: false },
     { key: 'filters',   title: 'Color',     open: false },
+    { key: 'screen',    title: 'Pantalla',  open: false },
     { key: 'layout',    title: 'Layout',    open: false },
     { key: 'effects',   title: 'Movimiento', open: false },
     { key: 'glow',      title: 'Glow Params', open: false },
@@ -88,6 +90,9 @@ export class ControlPanel {
                     break;
                 case 'filters':
                     this._filterRefresh = createFilterControls(contentEl, this.app);
+                    break;
+                case 'screen':
+                    createScreenControls(contentEl, this.app);
                     break;
                 case 'glow':
                     this._glowRefresh = createGlowControls(contentEl, this.app);

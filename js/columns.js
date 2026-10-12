@@ -3,6 +3,7 @@ import { CONFIG } from './config.js';
 import { effectiveFilter, isNeutral } from './color-filter.js';
 import { resolveEffects, chainKey } from './effect-stack.js';
 import { effectById, runsOnBeat } from './effects-registry.js';
+import { ScreenLayer } from './screen-layer.js';
 
 // ============================================================================
 // UNIFIED MOVEMENT MARGIN RULE  (single source of truth — tune here)
@@ -55,6 +56,9 @@ function loadColorMatrix(cm, settings) {
 export class ColumnManager {
     constructor(pixiApp) {
         this.pixiApp = pixiApp;
+        // Every column and glow is drawn into this layer, which runs the Pantalla
+        // effects; it outlives rebuild(), so the effects survive a layout change.
+        this.screenLayer = new ScreenLayer(pixiApp, CONFIG.screenEffects);
         this.videoElement = null;
         this.videoTexture = null;
         this.columns = [];
@@ -165,8 +169,8 @@ export class ColumnManager {
             this._setGlowAlpha(glowContainer, g.intensity);
 
             // Glow goes behind column
-            this.pixiApp.stage.addChild(glowContainer);
-            this.pixiApp.stage.addChild(container);
+            this.screenLayer.container.addChild(glowContainer);
+            this.screenLayer.container.addChild(container);
 
             this.columns.push({
                 container,
@@ -196,7 +200,7 @@ export class ColumnManager {
     /** Recreate every column for the current layout, releasing the old columns' GPU resources but not the shared video texture. */
     rebuild() {
         for (const col of this.columns) {
-            this.pixiApp.stage.removeChild(col.container, col.glowContainer);
+            this.screenLayer.container.removeChild(col.container, col.glowContainer);
             // destroy() keeps sprite textures unless asked ({ texture: true }), so the video survives.
             col.container.destroy({ children: true });
             col.glowContainer.destroy({ children: true });
@@ -250,10 +254,12 @@ export class ColumnManager {
     }
 
     /**
-     * Advance the beat-driven effects to `beat` (the master clock's continuous
-     * beat position); returns at once when no column runs one.
+     * Advance the beat-driven effects, per column and on the screen layer, to
+     * `beat` (the master clock's continuous beat position); each part returns
+     * at once when it runs none.
      */
     tickEffects(beat) {
+        this.screenLayer.tick(beat);
         if (!this.columns.some(col => col.beatEffects.length > 0)) return;
         const beatIndex = Math.floor(beat);
         const timing = { beatPhase: beat - beatIndex, beatIndex };

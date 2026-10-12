@@ -4,10 +4,12 @@
 // Filters are saved as `colorFilter` (global + per-slot offsets). A preset from
 // before that model carries `filters` (absolute per-slot values) and is
 // converted on load by migrateLegacyFilters, so its columns look the same.
-// Effects are saved as `effectStack`; a preset without one loads with no effects.
+// Effects are saved as `effectStack` and Pantalla effects as `screenEffects`;
+// a preset without either loads with none of those effects on.
 import { CONFIG, DEFAULTS } from '../config.js';
 import { restoreColorFilter, migrateLegacyFilters } from '../color-filter.js';
 import { restoreEffectStack } from '../effect-stack.js';
+import { restoreScreenStack, loadScreenStack, resetScreenStack } from '../screen-stack.js';
 import { activeLayoutDefault } from '../layout-default.js';
 
 const STORAGE_PREFIX = 'streamlight-preset-';
@@ -24,6 +26,7 @@ export function savePreset(name, app) {
         },
         colorFilter: restoreColorFilter(CONFIG.colorFilter),
         effectStack: restoreEffectStack(CONFIG.effectStack),
+        screenEffects: restoreScreenStack(CONFIG.screenEffects),
         glow: { ...CONFIG.glow },
         tweaks: app.exportTweaks(),
     };
@@ -51,6 +54,7 @@ export function loadPreset(name, app) {
             Object.assign(CONFIG.colorFilter, migrateLegacyFilters(data.filters));
         }
         Object.assign(CONFIG.effectStack, restoreEffectStack(data.effectStack));
+        loadScreenStack(CONFIG.screenEffects, data.screenEffects);
         if (data.glow) {
             Object.assign(CONFIG.glow, data.glow);
         }
@@ -76,9 +80,9 @@ export function deletePreset(name) {
     localStorage.removeItem(STORAGE_PREFIX + name);
 }
 
-/** Restore colors, filters, effects, glow look and every speed tweak to their factory
- *  values, and the layout to the active layout default: the user's saved one
- *  ("Guardar como default" in Layout) when it exists, otherwise factory. The
+/** Restore colors, filters, effects, Pantalla effects, glow look and every speed tweak
+ *  to their factory values, and the layout to the active layout default: the user's
+ *  saved one ("Guardar como default" in Layout) when it exists, otherwise factory. The
  *  rotation is kept: the camera sets it, not the defaults. */
 export function resetToDefaults(app, storage = localStorage) {
     const { rotationSteps } = CONFIG.columns;
@@ -86,6 +90,7 @@ export function resetToDefaults(app, storage = localStorage) {
     Object.assign(CONFIG.columns, DEFAULTS.columns, activeLayoutDefault(storage), { rotationSteps });
     Object.assign(CONFIG.colorFilter, restoreColorFilter(DEFAULTS.colorFilter));
     Object.assign(CONFIG.effectStack, restoreEffectStack(DEFAULTS.effectStack));
+    resetScreenStack(CONFIG.screenEffects);
     Object.assign(CONFIG.glow, DEFAULTS.glow);
     app.resetTweaks();
 }
@@ -101,6 +106,7 @@ export function createPresetControls(sectionEl, app) {
         resetToDefaults(app);
         app.resetToBase();
         app.columnManager.rebuild();
+        app.columnManager.screenLayer.apply();
         app.reapplyColors();
         if (app.overlay) app.overlay.moveToTop();
         if (app.panel) app.panel.refresh();
@@ -144,6 +150,7 @@ export function createPresetControls(sectionEl, app) {
         if (!name) return;
         if (loadPreset(name, app)) {
             app.columnManager.rebuild();
+            app.columnManager.screenLayer.apply();
             app.reapplyColors();
             if (app.overlay) app.overlay.moveToTop();
             // Refresh panel controls to reflect new values

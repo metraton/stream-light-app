@@ -1,0 +1,117 @@
+// Checks the GPU-free parts of the Pantalla effects: every default against its
+// own controls, every custom fragment's precision line, the pure helpers the
+// shaders and ticks rely on, the list's fixed order, and presets saving it.
+// Run: node --test tests/test_screen_effects.mjs
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { SCREEN_EFFECTS, screenEffectById, flashEnvelope } from '../js/screen-effects.js';
+import { toggleScreenEffect, restoreScreenStack, resetScreenStack } from '../js/screen-stack.js';
+import { runsOnBeat } from '../js/effects-registry.js';
+import { CONFIG } from '../js/config.js';
+import { savePreset, loadPreset } from '../js/panel/preset-manager.js';
+
+const SOURCE = readFileSync(new URL('../js/screen-effects.js', import.meta.url), 'utf8');
+
+const storage = new Map();
+Object.defineProperty(globalThis, 'localStorage', {
+    configurable: true,
+    value: {
+        getItem: key => storage.get(key) ?? null,
+        setItem: (key, value) => storage.set(key, String(value)),
+        removeItem: key => storage.delete(key),
+    },
+});
+const app = { exportTweaks: () => ({}), importTweaks() {} };
+
+test('every screen effect default lies within its slider range or among its options', () => {
+    for (const effect of SCREEN_EFFECTS) {
+        for (const param of effect.params) {
+            const value = effect.defaults[param.key];
+            if (param.options) {
+                assert.ok(param.options.some(option => option.value === value), `${effect.id}.${param.key}`);
+                assert.equal(new Set(param.options.map(o => o.value)).size, param.options.length, `${effect.id}.${param.key} repeats a value`);
+            } else {
+                assert.ok(value >= param.min && value <= param.max, `${effect.id}.${param.key}=${value}`);
+            }
+        }
+        assert.deepEqual(Object.keys(effect.defaults).sort(), effect.params.map(p => p.key).sort());
+    }
+    assert.equal(new Set(SCREEN_EFFECTS.map(e => e.id)).size, SCREEN_EFFECTS.length, 'repeated id');
+});
+
+test('every custom screen fragment shader opens with precision highp float;', () => {
+    const fragments = [...SOURCE.matchAll(/const (\w+_FRAGMENT) = `([^`]*)`/g)];
+    assert.deepEqual(fragments.map(([, name]) => name).sort(), ['FLASH_FRAGMENT']);
+    for (const [, name, source] of fragments) {
+        assert.ok(source.startsWith('precision highp float;'), `${name} does not open with precision highp float;`);
+    }
+});
+
+test('the flash is full on the beat, gone after its duration and decays in between', () => {
+    assert.equal(flashEnvelope(0, 1, 0.25), 1);
+    assert.equal(flashEnvelope(7, 1, 0.25), 1);
+    assert.equal(flashEnvelope(0.25, 1, 0.25), 0);
+    assert.equal(flashEnvelope(0.6, 1, 0.25), 0);
+    let previous = 2;
+    for (let beat = 0; beat < 0.25; beat += 0.01) {
+        const value = flashEnvelope(beat, 1, 0.25);
+        assert.ok(value < previous && value > 0);
+        previous = value;
+    }
+});
+
+test('Ritmo 1/2 and 1/4 flash two and four times per beat, and a long duration is cut to the gap', () => {
+    for (const beat of [0, 0.5, 1, 1.5]) assert.equal(flashEnvelope(beat, 2, 0.1), 1);
+    assert.equal(flashEnvelope(0.25, 2, 0.1), 0);
+    for (const beat of [0, 0.25, 0.5, 0.75]) assert.equal(flashEnvelope(beat, 4, 1), 1);
+    assert.ok(flashEnvelope(0.24, 4, 1) < 0.01, 'a flash must have faded before the next one');
+    assert.equal(flashEnvelope(-1, 1, 0.25), 1);
+});
+
+test('the flash ticks every frame', () => {
+    const flash = screenEffectById('flash');
+    assert.equal(runsOnBeat(flash, flash.defaults), true);
+});
+
+test('effects run in registry order whatever order they are turned on in', () => {
+    const list = [];
+    for (const { id } of [...SCREEN_EFFECTS].reverse()) toggleScreenEffect(list, id);
+    assert.deepEqual(list.map(e => e.id), SCREEN_EFFECTS.map(e => e.id));
+    toggleScreenEffect(list, SCREEN_EFFECTS[0].id);
+    assert.deepEqual(list.map(e => e.id), SCREEN_EFFECTS.slice(1).map(e => e.id));
+    assert.throws(() => toggleScreenEffect(list, 'nope'));
+});
+
+test('restoring drops unknown and repeated effects, checks params and treats non-lists as none', () => {
+    const restored = restoreScreenStack([
+        { id: 'nope', params: {} },
+        { id: 'flash', params: { mode: 'negative', rate: 3, duration: 9 } },
+        { id: 'flash', params: { mode: 'black' } },
+    ]);
+    const { defaults } = screenEffectById('flash');
+    assert.deepEqual(restored, [{ id: 'flash', params: { mode: 'negative', rate: defaults.rate, duration: 1 } }]);
+    assert.deepEqual(restoreScreenStack(undefined), []);
+    assert.deepEqual(restoreScreenStack({ flash: true }), []);
+});
+
+test('a preset saves the Pantalla effects and loads them back into the same list', () => {
+    const list = CONFIG.screenEffects;
+    resetScreenStack(list);
+    for (const { id } of SCREEN_EFFECTS) toggleScreenEffect(list, id);
+    list[0].params = { ...list[0].params, ...{ mode: 'negative', rate: 4, duration: 0.5 } };
+    const saved = structuredClone(list);
+    savePreset('round-trip', app);
+    resetScreenStack(list);
+    assert.equal(loadPreset('round-trip', app), true);
+    assert.equal(CONFIG.screenEffects, list, 'the screen layer holds this array; it must not be replaced');
+    assert.deepEqual(list, saved);
+});
+
+test('a preset from before Pantalla loads with no screen effect on', () => {
+    resetScreenStack(CONFIG.screenEffects);
+    toggleScreenEffect(CONFIG.screenEffects, 'flash');
+    storage.set('streamlight-preset-old', JSON.stringify({ colors: { ...CONFIG.colors } }));
+    assert.equal(loadPreset('old', app), true);
+    assert.deepEqual(CONFIG.screenEffects, []);
+});

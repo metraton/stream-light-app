@@ -89,7 +89,7 @@ const checkedPrograms = new Set();
  * stages mediump by default and vertex stages highp, and uInputSize is
  * declared in both, so a mediump fragment fails to link.
  */
-function glFilter(name, fragment, resources) {
+export function glFilter(name, fragment, resources) {
     try {
         const glProgram = PIXI.GlProgram.from({ vertex: FILTER_VERTEX, fragment, name });
         if (!checkedPrograms.has(name)) {

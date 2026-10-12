@@ -29,6 +29,8 @@ export const CONFIG = {
     colorOrder: ['YELLOW', 'BLUE', 'RED', 'GREEN', 'PURPLE'],
     colorFilter: createColorFilter(),
     effectStack: createEffectStack(),
+    // The Pantalla effects that are on (screen-stack.js); the screen layer holds this array, so it changes only in place.
+    screenEffects: [],
     glow: {
         distance: 8,           // UI "Distance" — how far glow extends (px); range 2-25
         outerStrength: 2,      // UI "Strength" — outer glow intensity; range 0-10

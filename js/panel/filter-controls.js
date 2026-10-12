@@ -16,6 +16,7 @@ import {
 import { EFFECTS } from '../effects-registry.js';
 import { colorHex } from './color-controls.js';
 import { createSlider } from './slider.js';
+import { createParamControls } from './effect-params.js';
 
 /** Selection after a click on `slot` (null = "Todos"); Shift toggles the color in a multi-selection. */
 function nextSelection(selection, slot, shiftKey) {
@@ -189,32 +190,8 @@ export function createFilterControls(sectionEl, app) {
         effectParamBox.innerHTML = '';
         for (const { id, params } of list) {
             const effect = EFFECTS.find(def => def.id === id);
-            for (const param of effect.params) {
-                const label = `${effect.label} · ${param.label}`;
-                if (param.options) {
-                    const row = document.createElement('div');
-                    row.className = 'effect-buttons';
-                    row.title = label;
-                    for (const option of param.options) {
-                        const btn = document.createElement('button');
-                        btn.textContent = `${param.label}: ${option.label}`;
-                        btn.classList.toggle('active', params[param.key] === option.value);
-                        btn.addEventListener('click', () => {
-                            writeEffectParam(targets, id, param.key, option.value);
-                            buildEffects();
-                        });
-                        row.appendChild(btn);
-                    }
-                    effectParamBox.appendChild(row);
-                } else {
-                    createSlider(effectParamBox, {
-                        label, min: param.min, max: param.max, decimals: param.decimals,
-                        defaultValue: effect.defaults[param.key],
-                        value: params[param.key],
-                        onChange: v => writeEffectParam(targets, id, param.key, v),
-                    });
-                }
-            }
+            createParamControls(effectParamBox, effect, params,
+                (key, value) => writeEffectParam(targets, id, key, value), buildEffects);
         }
     }
 
