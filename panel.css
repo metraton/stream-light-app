@@ -256,6 +256,46 @@
     font-family: monospace;
 }
 
+/* Color sets */
+.color-sets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin: 6px 0 8px;
+}
+
+.color-set {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 6px;
+    background: #222;
+    color: #aaa;
+    border: 1px solid #444;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 11px;
+}
+
+.color-set.active {
+    border-color: #FFD700;
+    color: #fff;
+}
+
+.color-set-strip { display: flex; }
+.color-set-strip span { width: 8px; height: 14px; }
+
+.color-set-delete { color: #888; }
+.color-set-delete:hover { color: #ff5555; }
+
+.color-set-message {
+    min-height: 14px;
+    font-size: 11px;
+    color: #8c8;
+}
+
+.color-set-message.error { color: #ff6b6b; }
+
 /* Effect block */
 .effect-block {
     margin-bottom: 12px;
