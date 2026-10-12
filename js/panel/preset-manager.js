@@ -6,6 +6,7 @@
 // converted on load by migrateLegacyFilters, so its columns look the same.
 import { CONFIG, DEFAULTS } from '../config.js';
 import { restoreColorFilter, migrateLegacyFilters } from '../color-filter.js';
+import { activeLayoutDefault } from '../layout-default.js';
 
 const STORAGE_PREFIX = 'streamlight-preset-';
 
@@ -71,12 +72,14 @@ export function deletePreset(name) {
     localStorage.removeItem(STORAGE_PREFIX + name);
 }
 
-/** Restore colors, layout, filters, glow look and every speed tweak to their
- *  defaults. The rotation is kept: the camera sets it, not the defaults. */
-export function resetToDefaults(app) {
+/** Restore colors, filters, glow look and every speed tweak to their factory
+ *  values, and the layout to the active layout default: the user's saved one
+ *  ("Guardar como default" in Layout) when it exists, otherwise factory. The
+ *  rotation is kept: the camera sets it, not the defaults. */
+export function resetToDefaults(app, storage = localStorage) {
     const { rotationSteps } = CONFIG.columns;
     Object.assign(CONFIG.colors, DEFAULTS.colors);
-    Object.assign(CONFIG.columns, DEFAULTS.columns, { rotationSteps });
+    Object.assign(CONFIG.columns, DEFAULTS.columns, activeLayoutDefault(storage), { rotationSteps });
     Object.assign(CONFIG.colorFilter, restoreColorFilter(DEFAULTS.colorFilter));
     Object.assign(CONFIG.glow, DEFAULTS.glow);
     app.resetTweaks();

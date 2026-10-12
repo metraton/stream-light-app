@@ -1,5 +1,8 @@
 // --- Control Panel Orchestrator ---
 import { CONFIG, DEFAULTS } from '../config.js';
+import {
+    LAYOUT_DEFS, activeLayoutDefault, factoryLayout, loadUserLayout, saveUserLayout, clearUserLayout,
+} from '../layout-default.js';
 import { createSlider } from './slider.js';
 import { createSequencerControls } from './sequencer-controls.js';
 import { createColorControls } from './color-controls.js';
@@ -29,7 +32,12 @@ export class ControlPanel {
         this._sequencerRefresh = null; // callback for live updates
     }
 
+    /** Builds the panel once at startup, starting the columns from the active layout default. */
     create() {
+        // Applied here and not in refresh(), which runs after a preset load
+        // and must keep the preset's layout.
+        this._applyLayout(activeLayoutDefault());
+
         this.element = document.createElement('div');
         this.element.className = 'control-panel hidden';
 
@@ -40,7 +48,7 @@ export class ControlPanel {
         title.textContent = 'CONTROL';
         const closeBtn = document.createElement('button');
         closeBtn.className = 'panel-close';
-        closeBtn.textContent = '\u00D7';
+        closeBtn.textContent = '×';
         closeBtn.addEventListener('click', () => this.toggle());
         header.appendChild(title);
         header.appendChild(closeBtn);
@@ -100,7 +108,7 @@ export class ControlPanel {
 
         const header = document.createElement('div');
         header.className = 'section-header';
-        header.innerHTML = `<span class="section-chevron">${isOpen ? '\u25BC' : '\u25B6'}</span> ${title}`;
+        header.innerHTML = `<span class="section-chevron">${isOpen ? '▼' : '▶'}</span> ${title}`;
 
         const content = document.createElement('div');
         content.className = 'section-content';
@@ -108,7 +116,7 @@ export class ControlPanel {
 
         header.addEventListener('click', () => {
             const open = content.classList.toggle('collapsed');
-            header.querySelector('.section-chevron').textContent = open ? '\u25B6' : '\u25BC';
+            header.querySelector('.section-chevron').textContent = open ? '▶' : '▼';
             sessionStorage.setItem(`panel-${key}`, open ? 'closed' : 'open');
         });
 
@@ -118,29 +126,69 @@ export class ControlPanel {
         return { sectionEl: section, contentEl: content };
     }
 
+    /** Sets layout fields of CONFIG.columns and redraws the columns; rotation and FPS cap are untouched. */
+    _applyLayout(values) {
+        Object.assign(CONFIG.columns, values);
+        this.app.columnManager.rebuild();
+        this.app.reapplyColors();
+        if (this.app.overlay) this.app.overlay.moveToTop();
+    }
+
     createLayoutControls(sectionEl) {
         // Ranges keep the values that read as a layout change on a 1080p stage;
         // the slider is fine around the default (config.js) and coarse at the ends.
-        const layouts = [
-            { key: 'gap', label: 'Gap', min: 0, max: 40, decimals: 0 },
-            { key: 'margin', label: 'Margin', min: 0, max: 60, decimals: 0 },
-            { key: 'cornerRadius', label: 'Radius', min: 0, max: 30, decimals: 0 },
-            { key: 'zoom', label: 'Zoom', min: 0.8, max: 1.5, decimals: 2 },
-            { key: 'spread', label: 'Spread', min: 0.5, max: 1.5, decimals: 2 },
-        ];
-
-        for (const { key, label, min, max, decimals } of layouts) {
-            createSlider(sectionEl, {
+        const sliders = LAYOUT_DEFS.map(({ key, label, min, max, decimals }) => ({
+            key,
+            slider: createSlider(sectionEl, {
                 label, min, max, decimals,
                 defaultValue: DEFAULTS.columns[key], value: CONFIG.columns[key],
-                onChange: v => {
-                    CONFIG.columns[key] = v;
-                    this.app.columnManager.rebuild();
-                    this.app.reapplyColors();
-                    if (this.app.overlay) this.app.overlay.moveToTop();
-                },
-            });
-        }
+                onChange: v => this._applyLayout({ [key]: v }),
+            }),
+        }));
+        const showLayout = () => {
+            for (const { key, slider } of sliders) slider.show(CONFIG.columns[key]);
+        };
+
+        // Reset goes to the active default (yours if saved, else factory);
+        // Fábrica forgets yours, so it also holds across reloads.
+        const defaultRow = document.createElement('div');
+        defaultRow.className = 'preset-row';
+        const addButton = (text, title, onClick) => {
+            const btn = document.createElement('button');
+            btn.textContent = text;
+            btn.title = title;
+            btn.style.flex = '1';
+            btn.addEventListener('click', onClick);
+            defaultRow.appendChild(btn);
+        };
+
+        const statusRow = document.createElement('div');
+        statusRow.className = 'layout-row';
+        const status = document.createElement('label');
+        statusRow.appendChild(status);
+        const showStatus = () => {
+            status.textContent = loadUserLayout() ? 'Default: tuyo' : 'Default: fábrica';
+        };
+
+        addButton('Reset', 'Vuelve al default activo: el tuyo si guardaste uno, si no el de fábrica', () => {
+            this._applyLayout(activeLayoutDefault());
+            showLayout();
+        });
+        addButton('Guardar como default', 'Guarda Gap, Margin, Radius, Zoom y Spread actuales como tu default', () => {
+            saveUserLayout(CONFIG.columns);
+            showStatus();
+        });
+        addButton('Fábrica', 'Valores de fábrica y borra tu default guardado', () => {
+            if (!confirm('¿Volver al Layout de fábrica y borrar tu default guardado?')) return;
+            clearUserLayout();
+            this._applyLayout(factoryLayout());
+            showLayout();
+            showStatus();
+        });
+
+        showStatus();
+        sectionEl.appendChild(defaultRow);
+        sectionEl.appendChild(statusRow);
 
         // Rotate: single button cycling 0°/90°/180°/270°, displaying current angle.
         const rotRow = document.createElement('div');
