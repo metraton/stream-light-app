@@ -382,6 +382,26 @@
     margin-bottom: 6px;
 }
 
+/* "Title: value" line: what a section acts on now. Sized by its text, not a
+   fixed label column, so a long title never runs into its value. */
+.control-panel .active-line {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 6px;
+    margin-bottom: 8px;
+    font-size: 12px;
+}
+
+.control-panel .active-label {
+    color: #888;
+}
+
+.control-panel .active-value {
+    color: #FFD700;
+    font-weight: bold;
+}
+
 /* Layout sliders */
 .layout-row {
     display: flex;

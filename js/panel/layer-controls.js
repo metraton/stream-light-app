@@ -40,6 +40,20 @@ export function buttonRow(parent, labels, onPick) {
     return btns;
 }
 
+/** A "Title: value" line naming what a layer plays now; returns the value's setter. */
+export function activeLine(parent, title) {
+    const line = document.createElement('div');
+    line.className = 'active-line';
+    const label = document.createElement('span');
+    label.className = 'active-label';
+    label.textContent = `${title}:`;
+    const value = document.createElement('span');
+    value.className = 'active-value';
+    line.append(label, value);
+    parent.appendChild(line);
+    return text => { value.textContent = text; };
+}
+
 /** Highlight the button isOn picks; with nothing playing every button is disabled. */
 function highlight(btns, isOn, disabled) {
     btns.forEach((btn, i) => {
@@ -58,29 +72,21 @@ export function createNowPlaying(parent, app) {
     parent.appendChild(header);
 
     const rows = LAYERS.map(({ layer, title, hasEasing }) => {
-        const line = document.createElement('div');
-        line.className = 'effect-row';
-        const label = document.createElement('label');
-        label.textContent = title;
-        const name = document.createElement('span');
-        name.className = 'range-value';
-        line.append(label, name);
-        parent.appendChild(line);
-
+        const setName = activeLine(parent, title);
         const rateBtns = buttonRow(parent, RATES.map(r => RATE_LABELS.get(r)),
             i => app.setLayerRate(layer, RATES[i]));
         const easingBtns = hasEasing
             ? buttonRow(parent, EASING_MODES.map(m => m.label),
                 i => app.setLayerEasing(layer, EASING_MODES[i].curve))
             : [];
-        return { layer, name, rateBtns, easingBtns };
+        return { layer, setName, rateBtns, easingBtns };
     });
 
     function refresh() {
         const playing = app.nowPlaying();
-        for (const { layer, name, rateBtns, easingBtns } of rows) {
+        for (const { layer, setName, rateBtns, easingBtns } of rows) {
             const { label, rate, easing } = playing[layer];
-            name.textContent = label;
+            setName(label);
             highlight(rateBtns, i => RATES[i] === rate, rate === null);
             highlight(easingBtns, i => sameCurve(EASING_MODES[i].curve, easing), easing === null);
         }

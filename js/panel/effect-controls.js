@@ -4,7 +4,7 @@
 import { EFFECTS } from '../effects.js';
 import { RATES, RATE_LABELS } from '../tempo.js';
 import { createSlider } from './slider.js';
-import { EASING_MODES, buttonRow, sameCurve } from './layer-controls.js';
+import { EASING_MODES, activeLine, buttonRow, sameCurve } from './layer-controls.js';
 
 /** Bounds of the movement intensity slider; app.js importTweaks drops a stored intensity outside them. */
 export const INTENSITY_MIN = 0.25;
@@ -12,14 +12,7 @@ export const INTENSITY_MAX = 2;
 
 /** Builds the section; returns its refresh callback. */
 export function createEffectControls(sectionEl, app) {
-    const row = document.createElement('div');
-    row.className = 'effect-row';
-    const label = document.createElement('label');
-    label.textContent = 'Movimiento';
-    const name = document.createElement('span');
-    name.className = 'range-value';
-    row.append(label, name);
-    sectionEl.appendChild(row);
+    const setName = activeLine(sectionEl, 'Movimiento');
 
     const intensity = createSlider(sectionEl, {
         label: 'Intensidad', min: INTENSITY_MIN, max: INTENSITY_MAX, defaultValue: 1, decimals: 2,
@@ -51,7 +44,7 @@ export function createEffectControls(sectionEl, app) {
     function refresh() {
         const playing = app.nowPlaying().movement;
         const idle = playing.rate === null;
-        name.textContent = EFFECTS[app.currentMovement]?.label ?? 'None';
+        setName(EFFECTS[app.currentMovement]?.label ?? 'None');
         intensity.setDisabled(idle);
         intensity.show(playing.intensity ?? 1);
         mark(easingBtns, i => sameCurve(EASING_MODES[i].curve, playing.easing), idle);
