@@ -5,13 +5,18 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { SCREEN_EFFECTS, screenEffectById, flashEnvelope } from '../js/screen-effects.js';
+import {
+    SCREEN_EFFECTS, screenEffectById, flashEnvelope,
+    PERSISTENCE_MIN, PERSISTENCE_MAX, clampPersistence, trailPersistence, foldAngle, kaleidoRotation,
+} from '../js/screen-effects.js';
 import { toggleScreenEffect, restoreScreenStack, resetScreenStack } from '../js/screen-stack.js';
 import { runsOnBeat } from '../js/effects-registry.js';
 import { CONFIG } from '../js/config.js';
 import { savePreset, loadPreset } from '../js/panel/preset-manager.js';
 
 const SOURCE = readFileSync(new URL('../js/screen-effects.js', import.meta.url), 'utf8');
+const TAU = 2 * Math.PI;
+const close = (actual, expected) => Math.abs(actual - expected) < 1e-9;
 
 const storage = new Map();
 Object.defineProperty(globalThis, 'localStorage', {
@@ -42,7 +47,7 @@ test('every screen effect default lies within its slider range or among its opti
 
 test('every custom screen fragment shader opens with precision highp float;', () => {
     const fragments = [...SOURCE.matchAll(/const (\w+_FRAGMENT) = `([^`]*)`/g)];
-    assert.deepEqual(fragments.map(([, name]) => name).sort(), ['FLASH_FRAGMENT']);
+    assert.deepEqual(fragments.map(([, name]) => name).sort(), ['FLASH_FRAGMENT', 'MIRROR_FRAGMENT', 'TRAILS_FRAGMENT']);
     for (const [, name, source] of fragments) {
         assert.ok(source.startsWith('precision highp float;'), `${name} does not open with precision highp float;`);
     }
@@ -69,9 +74,61 @@ test('Ritmo 1/2 and 1/4 flash two and four times per beat, and a long duration i
     assert.equal(flashEnvelope(-1, 1, 0.25), 1);
 });
 
-test('the flash ticks every frame', () => {
-    const flash = screenEffectById('flash');
-    assert.equal(runsOnBeat(flash, flash.defaults), true);
+test('the flash ticks every frame; Estelas and Espejo cost nothing per frame at their defaults', () => {
+    const tickers = SCREEN_EFFECTS.filter(effect => runsOnBeat(effect, effect.defaults)).map(e => e.id);
+    assert.ok(tickers.includes('flash'));
+    assert.ok(!tickers.includes('trails') && !tickers.includes('mirror'));
+});
+
+test('persistence is held to 0.5-0.95 so a trail always fades and never freezes', () => {
+    assert.deepEqual([PERSISTENCE_MIN, PERSISTENCE_MAX], [0.5, 0.95]);
+    assert.equal(clampPersistence(0.1), 0.5);
+    assert.equal(clampPersistence(1), 0.95);
+    assert.equal(clampPersistence(0.7), 0.7);
+    const slider = screenEffectById('trails').params.find(p => p.key === 'persistence');
+    assert.deepEqual([slider.min, slider.max], [PERSISTENCE_MIN, PERSISTENCE_MAX]);
+});
+
+test('Estelas al golpe jumps to the longest trail on the beat and falls back to the base', () => {
+    assert.equal(trailPersistence(0.6, 0), PERSISTENCE_MAX);
+    assert.ok(close(trailPersistence(0.6, 1), 0.6));
+    let previous = 2;
+    for (let phase = 0; phase <= 1; phase += 0.05) {
+        const value = trailPersistence(0.6, phase);
+        assert.ok(value <= previous && value >= PERSISTENCE_MIN && value <= PERSISTENCE_MAX);
+        previous = value;
+    }
+    assert.ok(close(trailPersistence(0.1, 1), PERSISTENCE_MIN), 'the base is clamped too');
+});
+
+test('folding puts every angle in half a wedge, mirrors neighbours and repeats every wedge', () => {
+    for (let segments = 3; segments <= 12; segments++) {
+        const segment = TAU / segments;
+        for (let angle = -10; angle <= 10; angle += 0.37) {
+            const folded = foldAngle(angle, segments);
+            assert.ok(folded >= 0 && folded <= segment / 2 + 1e-12, `${segments}: ${angle} -> ${folded}`);
+            assert.ok(close(folded, foldAngle(-angle, segments)), 'neighbouring wedges are reflections');
+            assert.ok(close(folded, foldAngle(angle + segment, segments)), 'every wedge repeats');
+        }
+        assert.equal(foldAngle(0, segments), 0);
+        assert.ok(close(foldAngle(segment / 2, segments), segment / 2));
+    }
+});
+
+test('the kaleidoscope turns `spin` turns per bar, and al golpe meets each beat without a jump', () => {
+    assert.ok(close(kaleidoRotation(0.5, 4, 0, 'smooth'), 0.5 * TAU));
+    assert.ok(close(kaleidoRotation(0.5, 4, 0, 'beat'), 0.5 * TAU));
+    for (let beat = 0; beat < 8; beat++) {
+        assert.ok(Math.abs(kaleidoRotation(0.3, beat, 0.9999, 'beat') - kaleidoRotation(0.3, beat + 1, 0, 'beat')) < 1e-6);
+    }
+    assert.ok(kaleidoRotation(1, 0, 0.25, 'beat') > kaleidoRotation(1, 0, 0.25, 'smooth'), 'al golpe turns fast early in the beat');
+});
+
+test('Espejo offers Espejo H, Espejo V and Caleido with 3-12 segments', () => {
+    const { params } = screenEffectById('mirror');
+    assert.deepEqual(params.find(p => p.key === 'mode').options.map(o => o.value), ['horizontal', 'vertical', 'kaleido']);
+    const segments = params.find(p => p.key === 'segments');
+    assert.deepEqual([segments.min, segments.max, segments.decimals], [3, 12, 0]);
 });
 
 test('effects run in registry order whatever order they are turned on in', () => {
