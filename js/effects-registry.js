@@ -248,8 +248,21 @@ const ascii = {
 
 const CLASSIC_CYAN = 0x59f2ff;
 
-// One pass: inverted luminance on a dark blue -> tint -> white ramp, a 3x3
-// Sobel edge glow in the tint, and static per-pixel grain.
+/**
+ * The photographic negative of one channel or luma value, 0-1: the value
+ * scaled by `exposure` and clamped, inverted, then stretched by `contrast`
+ * around mid-grey and clamped. Exposure first lets a dim room fill the whole
+ * tonal range instead of inverting to a flat pale frame. XRAY_FRAGMENT's
+ * `negative` computes the same curve and must change with it.
+ */
+export function xrayNegative(value, exposure, contrast) {
+    const exposed = Math.min(1, Math.max(0, value) * exposure);
+    return Math.min(1, Math.max(0, (1 - exposed - 0.5) * contrast + 0.5));
+}
+
+// One pass: the exposed, inverted, contrast-stretched image, either in color
+// or as its luminance on a black -> tint -> white ramp, plus an optional 3x3
+// Sobel edge glow in the tint and static per-pixel grain.
 const XRAY_FRAGMENT = `precision highp float;
 in vec2 vTextureCoord;
 out vec4 finalColor;
@@ -258,16 +271,25 @@ uniform sampler2D uTexture;
 uniform vec4 uInputSize;
 uniform vec4 uInputClamp;
 uniform float uEdge;
+uniform float uExposure;
+uniform float uContrast;
+uniform float uTinted;
 uniform vec3 uTint;
 
 const vec3 LUMA = vec3(0.299, 0.587, 0.114);
-const float RAMP_MID = 0.55;
-const float GRAIN = 0.05;
+const float RAMP_MID = 0.6;
+const float GRAIN = 0.03;
 
 float lumaAt(vec2 offset)
 {
     vec2 uv = clamp(vTextureCoord + offset * uInputSize.zw, uInputClamp.xy, uInputClamp.zw);
-    return dot(texture(uTexture, uv).rgb, LUMA);
+    return dot(texture(uTexture, uv).rgb, LUMA) * uExposure;
+}
+
+vec3 negative(vec3 value)
+{
+    vec3 exposed = min(value * uExposure, 1.0);
+    return clamp((1.0 - exposed - 0.5) * uContrast + 0.5, 0.0, 1.0);
 }
 
 void main(void)
@@ -286,12 +308,13 @@ void main(void)
     float gy = (bl + 2.0 * b + br) - (tl + 2.0 * t + tr);
     float edge = smoothstep(0.08, 0.6, length(vec2(gx, gy))) * uEdge;
 
-    float density = 1.0 - dot(source.rgb, LUMA);
-    vec3 dark = mix(vec3(0.01, 0.03, 0.12), uTint * 0.12, 0.5);
-    vec3 color = density < RAMP_MID
-        ? mix(dark, uTint, density / RAMP_MID)
-        : mix(uTint, vec3(1.0), (density - RAMP_MID) / (1.0 - RAMP_MID));
-    color += uTint * edge + vec3(0.35 * edge);
+    vec3 inverted = negative(source.rgb);
+    float tone = dot(inverted, LUMA);
+    vec3 ramp = tone < RAMP_MID
+        ? mix(vec3(0.0), uTint, tone / RAMP_MID)
+        : mix(uTint, vec3(1.0), (tone - RAMP_MID) / (1.0 - RAMP_MID));
+    vec3 color = uTinted > 0.5 ? ramp : inverted;
+    color += uTint * edge;
 
     float grain = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453) - 0.5;
     color += grain * GRAIN;
@@ -303,15 +326,28 @@ void main(void)
 const xray = {
     id: 'xray',
     label: 'Rayos X',
-    defaults: { edge: 1.2, tint: 'cyan' },
+    defaults: { exposure: 2.5, contrast: 1.2, edge: 0, tint: 'none' },
     params: [
+        { key: 'exposure', label: 'Exposición', min: 0.5, max: 6, decimals: 1 },
+        { key: 'contrast', label: 'Contraste', min: 0.5, max: 3, decimals: 2 },
         { key: 'edge', label: 'Bordes', min: 0, max: 3, decimals: 2 },
-        { key: 'tint', label: 'Tinte', options: [{ value: 'cyan', label: 'Cian' }, { value: 'column', label: 'Columna' }] },
+        {
+            key: 'tint',
+            label: 'Tinte',
+            options: [
+                { value: 'none', label: 'Ninguno' },
+                { value: 'cyan', label: 'Cian' },
+                { value: 'column', label: 'Columna' },
+            ],
+        },
     ],
     create(params, context) {
         const filter = glFilter('xray-filter', XRAY_FRAGMENT, {
             xrayUniforms: {
                 uEdge: { value: params.edge, type: 'f32' },
+                uExposure: { value: params.exposure, type: 'f32' },
+                uContrast: { value: params.contrast, type: 'f32' },
+                uTinted: { value: 0, type: 'f32' },
                 uTint: { value: new Float32Array(3), type: 'vec3<f32>' },
             },
         });
@@ -321,6 +357,9 @@ const xray = {
     update(filter, params, context) {
         const uniforms = filter.resources.xrayUniforms.uniforms;
         uniforms.uEdge = params.edge;
+        uniforms.uExposure = params.exposure;
+        uniforms.uContrast = params.contrast;
+        uniforms.uTinted = params.tint === 'none' ? 0 : 1;
         const tint = params.tint === 'column' && context.color !== null ? context.color : CLASSIC_CYAN;
         uniforms.uTint.set(hexToRgb(tint));
     },

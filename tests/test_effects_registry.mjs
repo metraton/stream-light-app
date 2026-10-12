@@ -4,11 +4,44 @@
 // Run: node --test tests/test_effects_registry.mjs
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { EFFECTS, effectById, ASCII_RAMP, LUMA_WEIGHTS, asciiLevel, glyphIndex } from '../js/effects-registry.js';
+import { EFFECTS, effectById, ASCII_RAMP, LUMA_WEIGHTS, asciiLevel, glyphIndex, xrayNegative } from '../js/effects-registry.js';
 import { restoreEffectStack } from '../js/effect-stack.js';
 
 const GLYPHS = ASCII_RAMP.length;
 const DEFAULT_GAIN = effectById('ascii').defaults.gain;
+const XRAY = effectById('xray').defaults;
+
+test('at exposure and contrast 1 the X-ray negative is the plain inverse', () => {
+    for (const value of [0, 0.2, 0.5, 0.9, 1]) assert.ok(Math.abs(xrayNegative(value, 1, 1) - (1 - value)) < 1e-12);
+});
+
+test('the X-ray negative falls monotonically and stays within 0-1', () => {
+    let previous = 2;
+    for (let value = -0.2; value <= 1.2; value += 0.01) {
+        const tone = xrayNegative(value, XRAY.exposure, XRAY.contrast);
+        assert.ok(tone <= previous && tone >= 0 && tone <= 1);
+        previous = tone;
+    }
+});
+
+test('at the defaults a dark room inverts across the full tonal range, not to a pale frame', () => {
+    // Webcam luma in a dim room sits around 0.05-0.35; a plain inverse maps it to 0.65-0.95.
+    assert.ok(xrayNegative(0.05, XRAY.exposure, XRAY.contrast) > 0.85);
+    assert.ok(xrayNegative(0.35, XRAY.exposure, XRAY.contrast) < 0.1);
+    assert.ok(xrayNegative(0.2, XRAY.exposure, XRAY.contrast) < 1 - 0.2);
+});
+
+test('Rayos X offers Ninguno, Cian and Columna tints and defaults to an untinted negative with no edge glow', () => {
+    const tint = effectById('xray').params.find(p => p.key === 'tint');
+    assert.deepEqual(tint.options.map(o => o.value), ['none', 'cyan', 'column']);
+    assert.equal(XRAY.tint, 'none');
+    assert.equal(XRAY.edge, 0);
+});
+
+test('a Rayos X entry saved before exposure and contrast existed restores with their defaults', () => {
+    const model = restoreEffectStack({ global: [{ id: 'xray', params: { edge: 1.2, tint: 'cyan' } }] });
+    assert.deepEqual(model.global[0].params, { exposure: XRAY.exposure, contrast: XRAY.contrast, edge: 1.2, tint: 'cyan' });
+});
 
 test('the ramp runs from an empty cell to distinct denser glyphs', () => {
     assert.equal(ASCII_RAMP[0], ' ');
