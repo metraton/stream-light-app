@@ -33,12 +33,13 @@ export const EFFECTS = {
     },
     broken: {
         label: 'Broken',
-        // Neighbouring columns jump in opposite vertical directions, a zigzag
-        // that Expand's symmetric horizontal spread never produces.
+        // Neighbouring columns move in opposite vertical directions, a zigzag
+        // that Expand's symmetric horizontal spread never produces. +/-8 px puts
+        // 16 px between neighbours, the 15 px Wave and Expand reach.
         phases: {
             MAIN: [0, 0, 0, 0, 0],
-            ZIG:  [-20, 20, -20, 20, -20],
-            ZAG:  [20, -20, 20, -20, 20],
+            ZIG:  [-8, 8, -8, 8, -8],
+            ZAG:  [8, -8, 8, -8, 8],
         },
         sequence: ['ZIG', 'MAIN', 'ZAG', 'MAIN'],
         rate: 1,
@@ -47,35 +48,33 @@ export const EFFECTS = {
     },
     equalizer: {
         label: 'Equalizer',
-        // Every column follows the same +/-10% height sine, 72 degrees behind
-        // its left neighbour, so the bars rise and fall out of phase.
+        // The fluid version the user approved: a +/-0.04 height hump travels
+        // across the row and back. Neighbours differ by 0.02 and mostly share
+        // a sign, so the bars swell together instead of lurching apart.
         phases: {
-            E0: [0.00, 0.10, 0.06, -0.06, -0.10],
-            E1: [0.07, 0.09, -0.02, -0.10, -0.05],
-            E2: [0.10, 0.03, -0.08, -0.08, 0.03],
-            E3: [0.07, -0.05, -0.10, -0.02, 0.09],
-            E4: [0.00, -0.10, -0.06, 0.06, 0.10],
-            E5: [-0.07, -0.09, 0.02, 0.10, 0.05],
-            E6: [-0.10, -0.03, 0.08, 0.08, -0.03],
-            E7: [-0.07, 0.05, 0.10, 0.02, -0.09],
+            G1: [0.04, 0.02, 0.00, -0.02, -0.04],
+            G2: [0.02, 0.04, 0.02, 0.00, -0.02],
+            G3: [0.00, 0.02, 0.04, 0.02, 0.00],
+            G4: [-0.02, 0.00, 0.02, 0.04, 0.02],
+            G5: [-0.04, -0.02, 0.00, 0.02, 0.04],
         },
-        sequence: ['E0', 'E1', 'E2', 'E3', 'E4', 'E5', 'E6', 'E7'],
+        sequence: ['G1', 'G2', 'G3', 'G4', 'G5', 'G4', 'G3', 'G2'],
         rate: 1,
         axis: 'scaleY',
         easing: 'linear',
     },
     shake: {
         label: 'Shake',
-        // A real jitter: +/-4 px on both axes, a new position every step.
+        // A held tremor for the Tension mood: +/-2 px on both axes, gliding to
+        // a new position twice a beat. More amplitude or rate reads as frantic.
         phases: {
-            MAIN: { x: [0, 0, 0, 0, 0],     y: [0, 0, 0, 0, 0] },
-            S1:   { x: [-4, 2, 0, -2, 4],   y: [2, -4, 2, 4, -2] },
-            S2:   { x: [2, -2, 0, 2, -2],   y: [-4, 2, -2, -2, 4] },
-            S3:   { x: [4, -4, 0, 4, -4],   y: [-2, 4, -4, 2, -4] },
-            S4:   { x: [-2, 4, 0, -4, 2],   y: [4, -2, 4, -4, 2] },
+            S1: { x: [-2, 1, 0, -1, 2], y: [1, -2, 1, 2, -1] },
+            S2: { x: [1, -1, 0, 1, -1], y: [-2, 1, -1, -1, 2] },
+            S3: { x: [2, -2, 0, 2, -2], y: [-1, 2, -2, 1, -2] },
+            S4: { x: [-1, 2, 0, -2, 1], y: [2, -1, 2, -2, 1] },
         },
         sequence: ['S1', 'S2', 'S3', 'S4', 'S2', 'S1', 'S4', 'S3'],
-        rate: 4,
+        rate: 2,
         axis: 'xy',
         easing: 'linear',
     },

@@ -160,6 +160,35 @@ test('rate and BPM changes keep every movement and glow position continuous', ()
     }
 });
 
+// Peak displacement each movement may reach at intensity 1, in 1080p px or in
+// scaleY, agreed with the user so the movements read as one family: Wave and
+// Expand set the 15 px reference.
+const MOVEMENT_PEAK_BOUNDS = {
+    wave:      { px: [14, 15] },
+    expand:    { px: [14, 15] },
+    broken:    { px: [7, 8] },
+    shake:     { px: [1.5, 2] },
+    equalizer: { scale: [0.035, 0.04] },
+};
+
+test('every movement peaks within its agreed bounds', () => {
+    assert.deepEqual(Object.keys(MOVEMENT_PEAK_BOUNDS).sort(), Object.keys(EFFECTS).sort());
+    for (const [name, def] of Object.entries(EFFECTS)) {
+        const engine = new EffectEngine();
+        engine.play(name, def, { rate: 1, easing: 'linear', intensity: 1 }, 0);
+        let px = 0;
+        let scale = 0;
+        for (let beat = 0; beat < def.sequence.length; beat += 1 / 64) {
+            const { offsetX, offsetY, scaleY } = engine.compute(COLUMN_COUNT, 1, beat);
+            px = Math.max(px, ...offsetX.map(Math.abs), ...offsetY.map(Math.abs));
+            scale = Math.max(scale, ...scaleY.map(Math.abs));
+        }
+        const { px: pxBounds = [0, 0], scale: scaleBounds = [0, 0] } = MOVEMENT_PEAK_BOUNDS[name];
+        assert.ok(px >= pxBounds[0] - 1e-9 && px <= pxBounds[1] + 1e-9, `${name} peaks at ${px} px`);
+        assert.ok(scale >= scaleBounds[0] - 1e-9 && scale <= scaleBounds[1] + 1e-9, `${name} peaks at scale ${scale}`);
+    }
+});
+
 test('pulse and strobe flash at full intensity on every beat', () => {
     for (const name of ['pulse', 'strobe']) {
         const def = GLOW_SEQUENCES[name];
