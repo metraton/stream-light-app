@@ -1,11 +1,12 @@
 // Checks the Color panel math: global value, per-color offsets, multi-select
-// edits, clearing an offset and the conversion of old presets.
+// edits, clearing an offset, the Reset button and the conversion of old presets.
 // Run: node --test tests/test_color_filter.mjs
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
     NEUTRAL_FILTER, GLOBAL_SELECTION, createColorFilter, effectiveFilter, isNeutral,
-    readSelection, writeSelection, hasOffset, clearOffset, migrateLegacyFilters, restoreColorFilter,
+    readSelection, writeSelection, hasOffset, clearOffset, resetColorFilter,
+    migrateLegacyFilters, restoreColorFilter,
 } from '../js/color-filter.js';
 
 const UNCOLORED = -1;
@@ -80,6 +81,25 @@ test('clearing an offset returns that color to the global value only', () => {
     assert.deepEqual(effectiveFilter(model, 1), effectiveFilter(model, UNCOLORED));
     assert.equal(effectiveFilter(model, 2).saturation, 0.6);
     assert.ok(hasOffset(model, 2));
+});
+
+test('reset makes the global value neutral and clears every color offset in one call', () => {
+    const model = createColorFilter();
+    writeSelection(model, GLOBAL_SELECTION, 'brightness', 12);
+    writeSelection(model, GLOBAL_SELECTION, 'hue', -20);
+    writeSelection(model, [0, 3], 'contrast', 1.3);
+    writeSelection(model, [4], 'temperature', 40);
+    const global = model.global;
+
+    resetColorFilter(model);
+
+    assert.deepEqual(model.global, { ...NEUTRAL_FILTER });
+    assert.equal(model.global, global, 'global is reset in place, so holders of it see the change');
+    assert.ok([0, 1, 2, 3, 4].every(slot => !hasOffset(model, slot)), 'no chip keeps its dot');
+    for (const slot of [UNCOLORED, 0, 1, 2, 3, 4]) {
+        assert.ok(isNeutral(effectiveFilter(model, slot)), `slot ${slot} is neutral`);
+    }
+    assert.equal(model.offsets.length, 5);
 });
 
 test('setting a color back to the global value leaves no offset (no rounding residue)', () => {

@@ -1,11 +1,12 @@
 // --- Color panel: global filter ("Todos") plus a per-color offset ---
 // Click a chip to edit it, Shift+click to add or remove colors from the
 // selection, double click to clear a color's offset (on "Todos": reset the
-// global value). A dot marks a color with its own offset.
+// global value). A dot marks a color with its own offset. Reset does both for
+// every color at once; the hex colors are not part of the filter.
 import { CONFIG } from '../config.js';
 import {
     FILTER_DEFS, NEUTRAL_FILTER, GLOBAL_SELECTION,
-    readSelection, writeSelection, hasOffset, clearOffset,
+    readSelection, writeSelection, hasOffset, clearOffset, resetColorFilter,
 } from '../color-filter.js';
 import { colorHex } from './color-controls.js';
 import { createSlider } from './slider.js';
@@ -19,7 +20,7 @@ function nextSelection(selection, slot, shiftKey) {
 }
 
 /**
- * Builds the chip row and the sliders in `sectionEl`.
+ * Builds the chip row, the sliders and the Reset button in `sectionEl`.
  * @returns {Function} refresh: redraws swatches, dots and slider values from CONFIG.
  */
 export function createFilterControls(sectionEl, app) {
@@ -58,6 +59,21 @@ export function createFilterControls(sectionEl, app) {
         chipRow.appendChild(chip);
         return { chip, swatch, dot, slot };
     });
+
+    const resetRow = document.createElement('div');
+    resetRow.className = 'preset-row';
+    const resetBtn = document.createElement('button');
+    resetBtn.textContent = 'Reset';
+    resetBtn.title = 'Todos a neutro y ningún color con ajuste propio (los hex no cambian)';
+    resetBtn.style.flex = '1';
+    resetBtn.addEventListener('click', () => {
+        resetColorFilter(model);
+        app.columnManager.applyFilters();
+        buildSliders();
+        refresh();
+    });
+    resetRow.appendChild(resetBtn);
+    sectionEl.appendChild(resetRow);
 
     let sliders = [];
 

@@ -81,6 +81,12 @@ export function clearOffset(model, slot) {
     model.offsets[slot] = zeroOffset();
 }
 
+/** Return `model` to neutral: global at NEUTRAL_FILTER and no color with an offset. */
+export function resetColorFilter(model) {
+    Object.assign(model.global, NEUTRAL_FILTER);
+    for (let slot = 0; slot < SLOT_COUNT; slot++) clearOffset(model, slot);
+}
+
 /**
  * Convert the absolute per-slot settings used before the global/offset model
  * ({ key: [5 values] } plus the uncolored set) without changing what any
