@@ -12,6 +12,7 @@ const TITLES = {
     idle: 'Stream Light',
     live: 'Stream Light — EN VIVO',
     disconnected: 'Stream Light — sin conexión',
+    replaced: 'Stream Light — teclas en otra ventana',
 };
 
 /** Connects the page to serve.py's /events stream; under any other server the stream just keeps retrying. */
@@ -48,6 +49,14 @@ export function connectLiveBridge(app) {
         const action = resolveShortcut(keystroke);
         console.info(`[live-bridge] relayed ${keystroke.id} -> ${action ? 'run' : 'unbound'}`);
         if (action) action(app);
+    });
+
+    // serve.py relays keys to one page only and hands the bridge to the newest
+    // one; this page must stop reconnecting or the two would keep taking it back.
+    events.addEventListener('replaced', () => {
+        console.warn('[live-bridge] another page took over /events; this page no longer receives keys');
+        events.close();
+        document.title = TITLES.replaced;
     });
 
     // Without the connection the hook can relay nothing, so the title must not

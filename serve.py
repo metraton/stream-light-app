@@ -4,15 +4,18 @@ Live mode follows the Caps Lock toggle, so the keyboard's Caps light shows it.
 While live, a Windows low-level keyboard hook (WH_KEYBOARD_LL, no admin rights
 needed) swallows every keystroke the page reports as bound and relays it to the
 page as a Server-Sent Event on /events. Standard library only; Windows only.
+Only one instance runs at a time: a second one finds the port taken and exits.
 """
 
 import argparse
 import ctypes
+import errno
 import json
 import logging
 import os
 import queue
 import shutil
+import socket
 import subprocess
 import sys
 import threading
@@ -174,36 +177,44 @@ def keystroke_candidates(layout):
 
 
 class Bridge:
-    """Live-mode state shared by the keyboard hook thread and the HTTP handlers."""
+    """Live-mode state shared by the keyboard hook thread and the HTTP handlers.
+
+    It serves one page at a time, so a relayed keystroke runs exactly once: a
+    page that connects to /events takes the bridge over, and the page it
+    replaces receives a final 'replaced' event and stops reconnecting.
+    """
 
     def __init__(self, list_candidates):
         self._list_candidates = list_candidates
         self._lock = threading.Lock()
-        self._subscribers = []
+        self._subscriber = None
         self._bound = frozenset()
         self.live = False
 
     def subscribe(self):
-        """Registers a page; its queue starts with the live state and the candidate keystrokes."""
+        """Makes a page the bridge's only subscriber; its queue starts with the live state and the candidate keystrokes."""
         events = queue.Queue()
         events.put(('live', {'live': self.live}))
         events.put(('candidates', self._list_candidates()))
         with self._lock:
-            self._subscribers.append(events)
+            replaced, self._subscriber = self._subscriber, events
+        if replaced is not None:
+            replaced.put(('replaced', {}))
         return events
 
     def unsubscribe(self, events):
         with self._lock:
-            self._subscribers.remove(events)
+            if self._subscriber is events:
+                self._subscriber = None
 
     def publish(self, event, data):
         with self._lock:
-            subscribers = list(self._subscribers)
-        for events in subscribers:
-            events.put((event, data))
+            subscriber = self._subscriber
+        if subscriber is not None:
+            subscriber.put((event, data))
 
     def set_live(self, live):
-        """Records the live state and tells the pages, only when it actually changes."""
+        """Records the live state and tells the page, only when it actually changes."""
         if live == self.live:
             return
         self.live = live
@@ -357,9 +368,12 @@ class Handler(SimpleHTTPRequestHandler):
                     event, data = events.get(timeout=KEEPALIVE_SECONDS)
                     frame = f'event: {event}\ndata: {json.dumps(data)}\n\n'
                 except queue.Empty:
-                    frame = ': keepalive\n\n'
+                    event, frame = None, ': keepalive\n\n'
                 self.wfile.write(frame.encode())
                 self.wfile.flush()
+                if event == 'replaced':
+                    log.debug('/events client replaced by a newer page: %s', client)
+                    return
         except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
             pass
         finally:
@@ -367,10 +381,25 @@ class Handler(SimpleHTTPRequestHandler):
             log.debug('/events client disconnected: %s', client)
 
 
+class ExclusiveHTTPServer(ThreadingHTTPServer):
+    """An HTTP server whose port no other socket can share while it is bound.
+
+    HTTPServer sets allow_reuse_address, and on Windows SO_REUSEADDR lets a
+    second process bind a port that is already listening, so a second instance
+    would start silently. SO_EXCLUSIVEADDRUSE makes that second bind fail.
+    """
+
+    allow_reuse_address = False
+
+    def server_bind(self):
+        self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        super().server_bind()
+
+
 def make_server(bridge, port):
-    """Builds the loopback-only HTTP server for the app files and the bridge."""
+    """Builds the loopback-only HTTP server for the app files and the bridge; raises OSError if the port is taken."""
     handler = partial(Handler, bridge=bridge, directory=str(ROOT))
-    return ThreadingHTTPServer((HOST, port), handler)
+    return ExclusiveHTTPServer((HOST, port), handler)
 
 
 def find_chrome():
@@ -399,14 +428,21 @@ def main():
     logging.basicConfig(level=logging.DEBUG if args.debug else logging.WARNING,
                         format='%(asctime)s [%(threadName)s] %(message)s')
 
-    bridge = Bridge(lambda: keystroke_candidates(foreground_layout()))
-    bridge.set_live(caps_lock_on())
-    log.debug('caps lock at startup: live=%s', bridge.live)
-    KeyboardHook(bridge).install()
-    server = make_server(bridge, args.port)
     # localhost, not 127.0.0.1: the Chrome profile keeps camera permission and
     # presets per origin, and the existing ones belong to http://localhost:8080.
     url = f'http://localhost:{args.port}'
+    bridge = Bridge(lambda: keystroke_candidates(foreground_layout()))
+    # The port is the single-instance lock, so it is taken before anything with
+    # a side effect: a second instance must exit without a hook or a window.
+    try:
+        server = make_server(bridge, args.port)
+    except OSError as error:
+        if error.errno != errno.EADDRINUSE:
+            raise
+        sys.exit(f'Stream Light is already running at {url}; not starting a second instance.')
+    bridge.set_live(caps_lock_on())
+    log.debug('caps lock at startup: live=%s', bridge.live)
+    KeyboardHook(bridge).install()
     state = 'ON' if bridge.live else 'OFF'
     print(f'Serving {ROOT} at {url} (bound to {HOST}). Caps Lock toggles live mode (now {state}); Ctrl+C stops.',
           flush=True)

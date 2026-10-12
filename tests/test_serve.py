@@ -1,11 +1,14 @@
 """Exercises serve.py's file server and live bridge over real loopback HTTP, without the keyboard hook."""
 
+import errno
 import json
+import subprocess
 import sys
 import threading
 import unittest
 import urllib.error
 import urllib.request
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -81,6 +84,49 @@ class ServeTest(unittest.TestCase):
         self.assertEqual(post('application/json', b'{"not": "a list"}'), 400)
         self.assertEqual(post('application/json', b'["KeyQ/none"]'), 204)
         self.assertTrue(self.bridge.is_bound('KeyQ/none'))
+
+
+class SingleInstanceTest(unittest.TestCase):
+    """Only one serve.py may hold the port, and the bridge relays each key to one page only."""
+
+    def test_stock_http_server_would_share_the_port(self):
+        """The premise behind the exclusive bind: with SO_REUSEADDR, Windows lets a second server bind a listening port."""
+        first = ThreadingHTTPServer((serve.HOST, 0), BaseHTTPRequestHandler)
+        self.addCleanup(first.server_close)
+        second = ThreadingHTTPServer((serve.HOST, first.server_address[1]), BaseHTTPRequestHandler)
+        second.server_close()
+
+    def test_second_server_on_the_same_port_fails_to_bind(self):
+        first = serve.make_server(serve.Bridge(lambda: []), 0)
+        self.addCleanup(first.server_close)
+        with self.assertRaises(OSError) as raised:
+            serve.make_server(serve.Bridge(lambda: []), first.server_address[1])
+        print(f'\n  second bind -> {raised.exception!r}', end='')
+        self.assertEqual(raised.exception.errno, errno.EADDRINUSE)
+
+    def test_second_serve_py_exits_with_one_line_naming_the_url(self):
+        first = serve.make_server(serve.Bridge(lambda: []), 0)
+        self.addCleanup(first.server_close)
+        port = first.server_address[1]
+        result = subprocess.run([sys.executable, str(Path(serve.__file__)), '--port', str(port)],
+                                capture_output=True, text=True, timeout=20)
+        print(f'\n  exit {result.returncode}, stderr: {result.stderr.strip()}', end='')
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(result.stdout, '')
+        self.assertEqual(result.stderr.strip().splitlines(),
+                         [f'Stream Light is already running at http://localhost:{port}; not starting a second instance.'])
+
+    def test_a_new_page_takes_the_bridge_and_each_key_reaches_one_page(self):
+        bridge = serve.Bridge(lambda: [])
+        first = bridge.subscribe()
+        second = bridge.subscribe()
+        bridge.publish('key', CANDIDATE)
+
+        self.assertEqual(drain(first)[-1], ('replaced', {}))
+        self.assertEqual(drain(second)[-1], ('key', CANDIDATE))
+        bridge.unsubscribe(first)
+        bridge.publish('key', CANDIDATE)
+        self.assertEqual(drain(second), [('key', CANDIDATE)])
 
 
 def drain(events):
