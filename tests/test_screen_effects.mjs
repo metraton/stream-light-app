@@ -8,6 +8,7 @@ import { readFileSync } from 'node:fs';
 import {
     SCREEN_EFFECTS, screenEffectById, flashEnvelope,
     PERSISTENCE_MIN, PERSISTENCE_MAX, clampPersistence, trailPersistence, foldAngle, kaleidoRotation,
+    currentFrameWeight, nextHistoryIndex,
 } from '../js/screen-effects.js';
 import { toggleScreenEffect, restoreScreenStack, resetScreenStack } from '../js/screen-stack.js';
 import { runsOnBeat } from '../js/effects-registry.js';
@@ -47,7 +48,7 @@ test('every screen effect default lies within its slider range or among its opti
 
 test('every custom screen fragment shader opens with precision highp float;', () => {
     const fragments = [...SOURCE.matchAll(/const (\w+_FRAGMENT) = `([^`]*)`/g)];
-    assert.deepEqual(fragments.map(([, name]) => name).sort(), ['FLASH_FRAGMENT', 'MIRROR_FRAGMENT', 'TRAILS_FRAGMENT']);
+    assert.deepEqual(fragments.map(([, name]) => name).sort(), ['FLASH_FRAGMENT', 'MIRROR_FRAGMENT']);
     for (const [, name, source] of fragments) {
         assert.ok(source.startsWith('precision highp float;'), `${name} does not open with precision highp float;`);
     }
@@ -99,6 +100,56 @@ test('Estelas al golpe jumps to the longest trail on the beat and falls back to 
         previous = value;
     }
     assert.ok(close(trailPersistence(0.1, 1), PERSISTENCE_MIN), 'the base is clamped too');
+});
+
+// One pixel through TrailsPass.draw: the live frame drawn with alpha
+// currentFrameWeight over the previous trail, the normal blend of an opaque frame.
+const trailFrame = (previous, live, persistence) => {
+    const weight = currentFrameWeight(persistence);
+    return weight * live + (1 - weight) * previous;
+};
+
+test('the live frame gets what persistence leaves, within the clamped range', () => {
+    assert.ok(close(currentFrameWeight(0.8), 0.2));
+    assert.ok(close(currentFrameWeight(1), 1 - PERSISTENCE_MAX));
+    assert.ok(close(currentFrameWeight(0), 1 - PERSISTENCE_MIN));
+});
+
+test('a still pixel stays exactly itself under the trail, so only what moves ghosts', () => {
+    for (const persistence of [PERSISTENCE_MIN, 0.8, PERSISTENCE_MAX]) {
+        let pixel = 0.3;
+        for (let frame = 0; frame < 120; frame++) pixel = trailFrame(pixel, 0.3, persistence);
+        assert.ok(close(pixel, 0.3), `${persistence}: ${pixel}`);
+    }
+});
+
+test('a ghost darker than what replaced it still shows, and fades by persistence each frame', () => {
+    const subject = 0.2;
+    const background = 0.35;
+    let pixel = subject;
+    const ghost = [];
+    for (let frame = 1; frame <= 10; frame++) {
+        pixel = trailFrame(pixel, background, 0.8);
+        ghost.push(background - pixel);
+        assert.ok(close(background - pixel, (background - subject) * 0.8 ** frame));
+    }
+    assert.ok(ghost[0] > 0.1, 'the first ghost must differ visibly from the background');
+    assert.ok(ghost.every((value, i) => i === 0 || value < ghost[i - 1]), 'each frame fades the ghost');
+    let longer = subject;
+    for (let frame = 0; frame < 10; frame++) longer = trailFrame(longer, background, PERSISTENCE_MAX);
+    assert.ok(background - longer > ghost[9], 'a higher persistence keeps the ghost longer');
+});
+
+test('the history textures alternate, and the one written is never the one read', () => {
+    let read = 0;
+    const written = [];
+    for (let frame = 0; frame < 6; frame++) {
+        const write = nextHistoryIndex(read);
+        assert.notEqual(write, read);
+        written.push(write);
+        read = write;
+    }
+    assert.deepEqual(written, [1, 0, 1, 0, 1, 0]);
 });
 
 test('folding puts every angle in half a wedge, mirrors neighbours and repeats every wedge', () => {
