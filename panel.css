@@ -443,37 +443,59 @@
     color: #FFD700;
 }
 
-/* Filter column tabs */
-.filter-tabs {
+/* Color panel chips: "Todos" plus one per color slot */
+.color-chips {
     display: flex;
     gap: 3px;
     margin-bottom: 10px;
 }
 
-.filter-tab {
+.color-chip {
+    position: relative;
     flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
     padding: 4px 0;
     font-size: 10px;
     font-family: monospace;
     border: 1px solid #333;
-    border-bottom: 2px solid #444;
-    border-radius: 3px 3px 0 0;
+    border-radius: 3px;
     cursor: pointer;
     background: #1a1a1a;
     color: #888;
-    text-align: center;
+    user-select: none;
 }
 
-.filter-tab:hover {
+.color-chip:hover {
     background: #252525;
     color: #ccc;
 }
 
-.filter-tab.active {
+.color-chip.active {
     background: #2a2a2a;
     color: #fff;
-    border-color: #555;
-    border-bottom-color: #FFD700;
+    border-color: #FFD700;
+}
+
+.chip-swatch {
+    width: 16px;
+    height: 10px;
+    border-radius: 2px;
+}
+
+.chip-dot {
+    position: absolute;
+    top: 2px;
+    right: 3px;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+}
+
+.chip-dot.on {
+    background: #FFD700;
 }
 
 /* Preset section */
@@ -566,7 +588,7 @@
 .control-panel .effect-buttons button,
 .control-panel .layout-row label,
 .control-panel .layout-row .range-value,
-.control-panel .filter-tab,
+.control-panel .color-chip,
 .control-panel .preset-row button,
 .control-panel .preset-row select,
 .control-panel .preset-row input[type="text"] { font-size: 12px; }

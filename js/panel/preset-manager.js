@@ -1,7 +1,11 @@
 // --- Preset Manager (localStorage) ---
 // Movement, glow and pattern speeds are saved as the app's tweaks (rate,
 // easing, intensity per effect); the shared effect definitions are never written.
+// Filters are saved as `colorFilter` (global + per-slot offsets). A preset from
+// before that model carries `filters` (absolute per-slot values) and is
+// converted on load by migrateLegacyFilters, so its columns look the same.
 import { CONFIG, DEFAULTS } from '../config.js';
+import { restoreColorFilter, migrateLegacyFilters } from '../color-filter.js';
 
 const STORAGE_PREFIX = 'streamlight-preset-';
 
@@ -15,13 +19,7 @@ export function savePreset(name, app) {
             zoom: CONFIG.columns.zoom,
             spread: CONFIG.columns.spread,
         },
-        filters: {
-            brightness:  [...CONFIG.filters.brightness],
-            contrast:    [...CONFIG.filters.contrast],
-            saturation:  [...CONFIG.filters.saturation],
-            hue:         [...CONFIG.filters.hue],
-            temperature: [...CONFIG.filters.temperature],
-        },
+        colorFilter: restoreColorFilter(CONFIG.colorFilter),
         glow: { ...CONFIG.glow },
         tweaks: app.exportTweaks(),
     };
@@ -43,12 +41,10 @@ export function loadPreset(name, app) {
         if (data.columns) {
             Object.assign(CONFIG.columns, data.columns);
         }
-        if (data.filters) {
-            for (const key of Object.keys(CONFIG.filters)) {
-                if (Array.isArray(data.filters[key])) {
-                    CONFIG.filters[key] = [...data.filters[key]];
-                }
-            }
+        if (data.colorFilter) {
+            Object.assign(CONFIG.colorFilter, restoreColorFilter(data.colorFilter));
+        } else if (data.filters) {
+            Object.assign(CONFIG.colorFilter, migrateLegacyFilters(data.filters));
         }
         if (data.glow) {
             Object.assign(CONFIG.glow, data.glow);
@@ -81,9 +77,7 @@ export function resetToDefaults(app) {
     const { rotationSteps } = CONFIG.columns;
     Object.assign(CONFIG.colors, DEFAULTS.colors);
     Object.assign(CONFIG.columns, DEFAULTS.columns, { rotationSteps });
-    for (const key of Object.keys(DEFAULTS.filters)) {
-        CONFIG.filters[key] = [...DEFAULTS.filters[key]];
-    }
+    Object.assign(CONFIG.colorFilter, restoreColorFilter(DEFAULTS.colorFilter));
     Object.assign(CONFIG.glow, DEFAULTS.glow);
     app.resetTweaks();
 }

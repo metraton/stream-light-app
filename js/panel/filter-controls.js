@@ -1,82 +1,103 @@
-// --- Filter Controls (per color + neutral: brightness, contrast, saturation, hue, temperature) ---
-import { CONFIG, DEFAULTS } from '../config.js';
+// --- Color panel: global filter ("Todos") plus a per-color offset ---
+// Click a chip to edit it, Shift+click to add or remove colors from the
+// selection, double click to clear a color's offset (on "Todos": reset the
+// global value). A dot marks a color with its own offset.
+import { CONFIG } from '../config.js';
+import {
+    FILTER_DEFS, NEUTRAL_FILTER, GLOBAL_SELECTION,
+    readSelection, writeSelection, hasOffset, clearOffset,
+} from '../color-filter.js';
+import { colorHex } from './color-controls.js';
 import { createSlider } from './slider.js';
 
-// Ranges keep the values that still look like the camera image; the slider is
-// fine around the neutral default (config.js) and coarse at the ends.
-const FILTER_DEFS = [
-    { key: 'brightness',  label: 'Bright',   min: -30, max: 30,  decimals: 0 },
-    { key: 'contrast',    label: 'Contrast', min: 0.5, max: 1.5, decimals: 2 },
-    { key: 'saturation',  label: 'Saturate', min: 0,   max: 2,   decimals: 2 },
-    { key: 'hue',         label: 'Hue',      min: -90, max: 90,  decimals: 0 },
-    { key: 'temperature', label: 'Temp',     min: -60, max: 60,  decimals: 0 },
-];
-
-const TAB_COLORS = ['#FFD700', '#55AAFF', '#FF4444', '#44FF44', '#FF44FF'];
-
-/** Tab values: ALL writes every color slot, 0-4 one color slot (CONFIG.colorOrder), NEUTRAL the | filter. */
-const ALL = -1;
-const NEUTRAL = 'neutral';
-
-/** Store `value` for filter `key` under `tab`; columnManager.applyFilters() then
- *  gives each column the set of the color it shows. */
-export function writeFilter(tab, key, value) {
-    if (tab === NEUTRAL) {
-        CONFIG.neutralFilter[key] = value;
-    } else if (tab === ALL) {
-        CONFIG.filters[key].fill(value);
-    } else {
-        CONFIG.filters[key][tab] = value;
-    }
+/** Selection after a click on `slot` (null = "Todos"); Shift toggles the color in a multi-selection. */
+function nextSelection(selection, slot, shiftKey) {
+    if (slot === null) return GLOBAL_SELECTION;
+    if (!shiftKey) return [slot];
+    const next = selection.includes(slot) ? selection.filter(s => s !== slot) : [...selection, slot];
+    return next.length === 0 ? GLOBAL_SELECTION : next;
 }
 
-/** The value of filter `key` that `tab` shows; ALL shows the first color slot. */
-export function readFilter(tab, key) {
-    if (tab === NEUTRAL) return CONFIG.neutralFilter[key];
-    return CONFIG.filters[key][tab === ALL ? 0 : tab];
-}
-
+/**
+ * Builds the chip row and the sliders in `sectionEl`.
+ * @returns {Function} refresh: redraws swatches, dots and slider values from CONFIG.
+ */
 export function createFilterControls(sectionEl, app) {
-    let selectedTab = ALL;
+    const model = CONFIG.colorFilter;
+    let selection = GLOBAL_SELECTION;
 
-    const tabBar = document.createElement('div');
-    tabBar.className = 'filter-tabs';
-    tabBar.appendChild(createTab('ALL', ALL));
-    for (let i = 0; i < 5; i++) {
-        tabBar.appendChild(createTab(String(i + 1), i));
-    }
-    const neutralTab = createTab('|', NEUTRAL);
-    neutralTab.style.borderBottomColor = '#888';
-    neutralTab.style.borderStyle = 'dashed';
-    neutralTab.style.borderBottomStyle = 'solid';
-    tabBar.appendChild(neutralTab);
-    sectionEl.appendChild(tabBar);
+    const chipRow = document.createElement('div');
+    chipRow.className = 'color-chips';
+    sectionEl.appendChild(chipRow);
+    const sliderBox = document.createElement('div');
+    sectionEl.appendChild(sliderBox);
 
-    const sliders = FILTER_DEFS.map(({ key, label, min, max, decimals }) => ({
-        key,
-        slider: createSlider(sectionEl, {
-            label, min, max, decimals,
-            defaultValue: DEFAULTS.neutralFilter[key], value: readFilter(selectedTab, key),
-            onChange: v => {
-                writeFilter(selectedTab, key, v);
-                app.columnManager.applyFilters();
-            },
-        }),
-    }));
-
-    function createTab(label, tabValue) {
-        const tab = document.createElement('button');
-        tab.className = 'filter-tab' + (tabValue === ALL ? ' active' : '');
-        tab.textContent = label;
-        if (typeof tabValue === 'number' && tabValue >= 0) {
-            tab.style.borderBottomColor = TAB_COLORS[tabValue];
-        }
-        tab.addEventListener('click', () => {
-            selectedTab = tabValue;
-            tabBar.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
-            tab.classList.add('active');
-            for (const { key, slider } of sliders) slider.show(readFilter(selectedTab, key));
+    const chips = [null, 0, 1, 2, 3, 4].map(slot => {
+        const chip = document.createElement('button');
+        chip.className = 'color-chip';
+        chip.title = 'Shift+clic: varios colores · doble clic: quitar ajuste';
+        const swatch = document.createElement('span');
+        swatch.className = 'chip-swatch';
+        const label = document.createElement('span');
+        label.textContent = slot === null ? 'Todos' : String(slot + 1);
+        const dot = document.createElement('span');
+        dot.className = 'chip-dot';
+        chip.append(swatch, label, dot);
+        chip.addEventListener('click', e => {
+            selection = nextSelection(selection, slot, e.shiftKey);
+            buildSliders();
+            refresh();
         });
-        return tab;
+        chip.addEventListener('dblclick', () => {
+            if (slot === null) Object.assign(model.global, NEUTRAL_FILTER);
+            else clearOffset(model, slot);
+            app.columnManager.applyFilters();
+            buildSliders();
+            refresh();
+        });
+        chipRow.appendChild(chip);
+        return { chip, swatch, dot, slot };
+    });
+
+    let sliders = [];
+
+    // A color's track is centered on the global value, so its double click
+    // clears that setting's offset; "Todos" is centered on the neutral value.
+    function buildSliders() {
+        sliderBox.innerHTML = '';
+        const editing = selection;
+        sliders = FILTER_DEFS.map(({ key, label, min, max, decimals }) => ({
+            key,
+            slider: createSlider(sliderBox, {
+                label, min, max, decimals,
+                defaultValue: editing.length === 0 ? NEUTRAL_FILTER[key] : model.global[key],
+                value: readSelection(model, editing, key),
+                onChange: v => {
+                    writeSelection(model, editing, key, v);
+                    app.columnManager.applyFilters();
+                    refreshChips();
+                },
+            }),
+        }));
     }
+
+    function refreshChips() {
+        for (const { chip, swatch, dot, slot } of chips) {
+            const selected = slot === null ? selection.length === 0 : selection.includes(slot);
+            chip.classList.toggle('active', selected);
+            swatch.style.background = slot === null
+                ? `linear-gradient(90deg,${CONFIG.colorOrder.map(colorHex).join(',')})`
+                : colorHex(CONFIG.colorOrder[slot]);
+            dot.classList.toggle('on', slot !== null && hasOffset(model, slot));
+        }
+    }
+
+    function refresh() {
+        refreshChips();
+        for (const { key, slider } of sliders) slider.show(readSelection(model, selection, key));
+    }
+
+    buildSliders();
+    refresh();
+    return refresh;
 }

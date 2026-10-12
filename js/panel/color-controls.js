@@ -5,6 +5,11 @@ function hexFromInt(val) {
     return '#' + val.toString(16).padStart(6, '0');
 }
 
+/** The CSS hex of color `name` (a CONFIG.colorOrder entry) as it is now. */
+export function colorHex(name) {
+    return hexFromInt(CONFIG.colors[name]);
+}
+
 function intFromHex(hex) {
     return parseInt(hex.slice(1), 16);
 }

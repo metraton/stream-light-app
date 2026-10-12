@@ -1,4 +1,5 @@
 // --- Configuration (single source of truth, mutable for live updates) ---
+import { createColorFilter } from './color-filter.js';
 
 // Deep clone helper
 function deepClone(obj) {
@@ -25,20 +26,7 @@ export const CONFIG = {
         PURPLE: 0xFF00FF,
     },
     colorOrder: ['YELLOW', 'BLUE', 'RED', 'GREEN', 'PURPLE'],
-    filters: {
-        brightness:  [0, 0, 0, 0, 0],       // -50 to +50
-        contrast:    [1, 1, 1, 1, 1],        // 0 to 2
-        saturation:  [1, 1, 1, 1, 1],        // 0 to 3
-        hue:         [0, 0, 0, 0, 0],        // -180 to +180 degrees
-        temperature: [0, 0, 0, 0, 0],        // -100 to +100 (cool to warm)
-    },
-    neutralFilter: {
-        brightness:  0,
-        contrast:    1,
-        saturation:  1,
-        hue:         0,
-        temperature: 0,
-    },
+    colorFilter: createColorFilter(),
     glow: {
         distance: 8,           // UI "Distance" — how far glow extends (px); range 2-25
         outerStrength: 2,      // UI "Strength" — outer glow intensity; range 0-10
@@ -59,7 +47,6 @@ export const CONFIG = {
 export const DEFAULTS = {
     colors: deepClone(CONFIG.colors),
     columns: deepClone(CONFIG.columns),
-    filters: deepClone(CONFIG.filters),
-    neutralFilter: deepClone(CONFIG.neutralFilter),
+    colorFilter: deepClone(CONFIG.colorFilter),
     glow: deepClone(CONFIG.glow),
 };

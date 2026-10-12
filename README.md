@@ -69,7 +69,9 @@ Live state is shown only in the window title, never inside the page, because OBS
 
 Ctrl and Alt combinations are never relayed, so Ctrl+Backspace and similar keep working in other programs while live.
 
-Tests (the file server, the bridge and the Caps Lock logic, without installing the hook): `python -m unittest discover -s tests -v`. Pattern, key-grid and syntax tests, without a browser: `node --test tests/test_patterns.mjs`.
+The panel's Color section adjusts the image like a color-grading panel: the "Todos" chip sets one global brightness, contrast, saturation, hue and temperature for every column, uncolored ones included, and each color chip adds an offset for the columns showing that color (effective value = global + offset, clamped to the slider range). A dot marks a color with an offset; Shift+click edits several colors at once; double click clears a color's offset (on "Todos", resets the global value). Offsets belong to the color slot, not the hex value. Presets saved before this model stored absolute per-color values; on load, `migrateLegacyFilters` in `js/color-filter.js` makes the global value neutral and each color's offset its old value minus neutral, so a loaded preset looks the same as before.
+
+Tests (the file server, the bridge and the Caps Lock logic, without installing the hook): `python -m unittest discover -s tests -v`. Pattern, key-grid and syntax tests, without a browser: `node --test tests/test_patterns.mjs`. Color panel math: `node --test tests/test_color_filter.mjs`.
 
 ## Structure
 
@@ -83,10 +85,12 @@ js/shortcuts.js     resolveShortcut, the single key map, and the keydown listene
 js/live-bridge.js   page side of live mode: reports bound keys, runs relayed keys, sets the window title
 js/glow-map.js      glow quick keys shared by shortcuts and the panel
 js/mood-map.js      the base state and the moods, shared by the app, shortcuts and the panel
+js/color-filter.js  Color panel model: global filter + per-color offsets, effective values, old-preset migration
 js/panel/           control panel sections
 js/*.js             rendering engines: columns, effects, glow, color sequencer, camera, HUD
 tests/test_serve.py    tests for the file server, the bridge and the Caps Lock live-mode logic
 tests/test_patterns.mjs tests for the color patterns, the key grid and JS syntax
+tests/test_color_filter.mjs tests for the Color panel math and the old-preset migration
 ```
 
 ## Ownership

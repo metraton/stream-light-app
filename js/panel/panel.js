@@ -12,7 +12,7 @@ import { createNowPlaying } from './layer-controls.js';
 const SECTION_DEFS = [
     { key: 'sequencer', title: 'Sequencer', open: true },
     { key: 'colors',    title: 'Color Hex', open: false },
-    { key: 'filters',   title: 'Filters',   open: false },
+    { key: 'filters',   title: 'Color',     open: false },
     { key: 'layout',    title: 'Layout',    open: false },
     { key: 'effects',   title: 'Movimiento', open: false },
     { key: 'glow',      title: 'Glow Params', open: false },
