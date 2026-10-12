@@ -170,6 +170,64 @@ test('6 while a cue is staged fills the pending colors and leaves the live combo
     assert.deepEqual(seq.selectedColors, [2]);
 });
 
+const invert = (frame, color) => frame.map(c => (c === -1 ? color : -1));
+
+test('every negative swaps lit and Empty columns of its normal pattern, color by color, for 1 to 5 colors', () => {
+    for (const pattern of ['chase', 'mirror', 'fill', 'sparkle']) {
+        for (const colors of combos([0, 1, 2, 3, 4])) {
+            const expected = colors.flatMap(color => generateFrames(pattern, [color]).map(f => invert(f, color)));
+            assert.deepEqual(generateFrames(pattern, colors, true), expected, `${pattern} ${colors}`);
+        }
+    }
+    assert.deepEqual(generateFrames('chase', [1], true).slice(0, 2), [[-1, 1, 1, 1, 1], [1, -1, 1, 1, 1]]);
+    assert.deepEqual(generateFrames('mirror', [1], true).slice(0, 3),
+        [[1, 1, -1, 1, 1], [1, -1, -1, -1, 1], [-1, -1, -1, -1, -1]]);
+    assert.deepEqual(generateFrames('fill', [2], true).slice(0, 2), [[-1, 2, 2, 2, 2], [-1, -1, 2, 2, 2]]);
+    for (const frame of generateFrames('sparkle', [4], true)) {
+        const dark = frame.filter(c => c === -1).length;
+        assert.ok(dark >= 2 && dark <= 3, `sparkle negative ${frame}`);
+    }
+});
+
+test('carousel reversed plays the normal frames backwards from the same first frame', () => {
+    for (const colors of combos([0, 1, 2, 3, 4])) {
+        const normal = generateFrames('carousel', colors);
+        assert.deepEqual(generateFrames('carousel', colors, true),
+            normal.map((_, step) => normal[(normal.length - step) % normal.length]), `carousel ${colors}`);
+    }
+    assert.deepEqual(generateFrames('carousel', [0, 1, 2], true).slice(0, 2), [[0, 1, 2, 0, 1], [2, 0, 1, 2, 0]]);
+});
+
+test('Shift+W E R T Y play the variant, plain keys the normal pattern, Shift never toggles, Shift+Q is Q', () => {
+    const app = fakeApp();
+    const seq = app.sequencer;
+    seq.selectOnly(1);
+    for (const [key, pattern] of [['W', 'chase'], ['E', 'carousel'], ['R', 'mirror'], ['T', 'fill'], ['Y', 'sparkle']]) {
+        press(app, key, `Key${key}`, true);
+        press(app, key, `Key${key}`, true);
+        assert.deepEqual([seq.pattern, seq.variant], [pattern, true], `Shift+${key} twice`);
+        assert.deepEqual(seq.frames, generateFrames(pattern, [1], true));
+        press(app, key.toLowerCase(), `Key${key}`);
+        assert.deepEqual([seq.pattern, seq.variant], [pattern, false], key);
+        assert.deepEqual(seq.frames, generateFrames(pattern, [1]));
+    }
+    press(app, 'Q', 'KeyQ', true);
+    assert.deepEqual([seq.pattern, seq.variant], ['none', false]);
+    assert.deepEqual(seq.frames, generateFrames('none', [1]));
+});
+
+test('a variant pressed while cueing is staged and goes live on commit', () => {
+    const app = fakeApp();
+    const seq = app.sequencer;
+    seq.startStaging('none');
+    seq.toggleColor(3);
+    press(app, 'R', 'KeyR', true);
+    assert.deepEqual([seq.pattern, seq.variant, seq.pendingPattern, seq.pendingVariant], ['none', false, 'mirror', true]);
+    seq.commitStaged();
+    assert.deepEqual([seq.pattern, seq.variant], ['mirror', true]);
+    assert.deepEqual(seq.frames, generateFrames('mirror', [3], true));
+});
+
 test('a BPM change keeps the beat position continuous', () => {
     const clock = new BeatClock(120, 0);
     const before = clock.beatAt(3210);

@@ -52,8 +52,10 @@ Every row of the key grid has six keys and starts with None:
 
 | Keys | Row | Key 1 to 6 |
 |------|-----|------------|
-| `\|` `1`-`5` `6` | Colors (Shift selects only that one) | Empty, Yellow, Blue, Red, Green, Purple, Rainbow |
-| `Q W E R T Y` | Pattern | None, Chase, Carousel, Mirror, Fill, Sparkle |
+| `\|` `1`-`5` `6` | Colors (Shift selects only that one; `6` and `Shift+6` are the same) | Empty, Yellow, Blue, Red, Green, Purple, Todos al azar (all 5 in a new random order each press; pattern and other layers untouched) |
+| `Q W E R T Y` | Pattern (Shift plays its variant, shown as ⇄) | None, Chase, Carousel, Mirror, Fill, Sparkle |
+
+Pattern variants (`js/color-sequencer.js` `PATTERN_VARIANTS`): Carousel reversed runs the same frames backwards. Chase, Mirror, Fill and Sparkle negative swap lit and Empty columns: each selected color in turn fills the row and the columns the normal pattern lights for that color alone become gaps, so Chase is a full row with a travelling gap and Fill empties the row column by column. None has no variant, so Shift+Q is Q. A plain key always picks the normal pattern; pressing Shift again keeps the variant; moods play the normal pattern.
 | `A S D F G H` | Movement | None, Wave, Expand, Broken, Shake, Equalizer |
 | `Z X C V B N` | Glow | None, Sweep, Breathe, Pulse, Strobe, Alternate |
 | `Shift+Z X C V B N` | Mood (`<` is also None) | None, Calm, Build, Tension, Peak, Mystic |

@@ -6,10 +6,9 @@ import { RATES, RATE_LABELS } from '../tempo.js';
 import { createSlider } from './slider.js';
 import { EASING_MODES, buttonRow, sameCurve } from './layer-controls.js';
 
-// Must match INTENSITY_MIN and INTENSITY_MAX in app.js, which reject a stored
-// intensity outside them: a wider slider would set values presets then drop.
-const INTENSITY_MIN = 0.25;
-const INTENSITY_MAX = 2;
+/** Bounds of the movement intensity slider; app.js importTweaks drops a stored intensity outside them. */
+export const INTENSITY_MIN = 0.25;
+export const INTENSITY_MAX = 2;
 
 /** Builds the section; returns its refresh callback. */
 export function createEffectControls(sectionEl, app) {

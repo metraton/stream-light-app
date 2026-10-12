@@ -16,6 +16,7 @@ import { setupShortcuts } from './shortcuts.js';
 import { connectLiveBridge } from './live-bridge.js';
 import { setupWebcam, createTestPattern, defaultRotationSteps } from './camera.js';
 import { ControlPanel } from './panel/panel.js';
+import { INTENSITY_MIN, INTENSITY_MAX } from './panel/effect-controls.js';
 
 // The stage always renders at 1080p and CSS scales the canvas to the window,
 // so the layout and its pixel-sized margins, gaps and glow never depend on the window.
@@ -25,10 +26,6 @@ const RENDER_HEIGHT = 1080;
 // Frame-rate caps the panel cycles through; 0 is Pixi's "no cap" (the monitor's refresh rate).
 const MAX_FPS_OPTIONS = [30, 60, 0];
 const DEFAULT_MAX_FPS = 60;
-
-// Bounds of the movement intensity multiplier a panel tweak may hold.
-const INTENSITY_MIN = 0.25;
-const INTENSITY_MAX = 2;
 
 /** A stored easing is one curve name or an array of them, each known to EASING_MAP. */
 function isEasing(value) {
@@ -232,10 +229,11 @@ export class StreamLightApp {
             easing: engine.active?.easing ?? null,
             intensity: engine.active?.intensity ?? null,
         });
-        const pattern = this.sequencer.pattern;
+        const { pattern, variant } = this.sequencer;
+        const patternLabel = pattern[0].toUpperCase() + pattern.slice(1) + (variant ? ' ⇄' : '');
         const staticGlow = this.currentGlowMode === 'static' ? 'Static' : 'None';
         return {
-            color: { label: pattern[0].toUpperCase() + pattern.slice(1), rate: this.sequencer.rate, easing: null, intensity: null },
+            color: { label: patternLabel, rate: this.sequencer.rate, easing: null, intensity: null },
             movement: fromEngine(this.effectEngine, EFFECTS[this.currentMovement]?.label ?? 'None'),
             glow: fromEngine(this.glowEngine, this.glowEngine.active?.def.label ?? staticGlow),
         };

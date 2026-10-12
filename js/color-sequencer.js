@@ -21,6 +21,11 @@ export const PATTERNS = ['none', 'chase', 'carousel', 'mirror', 'fill', 'sparkle
 /** Default rate of each pattern in frames per beat (js/tempo.js), chosen at 120 BPM. */
 export const PATTERN_RATES = Object.freeze({ none: 1, chase: 2, carousel: 1, mirror: 1, fill: 2, sparkle: 1 });
 
+/** The variant each pattern plays with Shift (a variant shares its pattern's rate); none has no variant. */
+export const PATTERN_VARIANTS = Object.freeze({
+    chase: 'negative', carousel: 'reversed', mirror: 'negative', fill: 'negative', sparkle: 'negative',
+});
+
 // Removed pattern names mapped to the pattern that now plays instead, so an
 // old name arriving from stored or relayed state still resolves.
 const LEGACY_PATTERNS = { solid: 'none', pingpong: 'chase', alternate: 'carousel' };
@@ -30,10 +35,25 @@ export function canonicalPattern(name) {
     return LEGACY_PATTERNS[name] ?? name;
 }
 
-/** Returns the frames a pattern produces for an ordered color list; [] when no color is selected. */
-export function generateFrames(pattern, colors) {
+/** Whether a pattern has a Shift variant. */
+export function hasVariant(pattern) {
+    return Object.hasOwn(PATTERN_VARIANTS, canonicalPattern(pattern));
+}
+
+/** Returns the frames a pattern, or its variant, produces for an ordered color list; [] when no color is selected. */
+export function generateFrames(pattern, colors, variant = false) {
     if (colors.length === 0) return [];
-    switch (canonicalPattern(pattern)) {
+    const name = canonicalPattern(pattern);
+    if (variant && hasVariant(name)) {
+        return PATTERN_VARIANTS[name] === 'reversed'
+            ? reversedFrames(normalFrames(name, colors))
+            : negativeFrames(name, colors);
+    }
+    return normalFrames(name, colors);
+}
+
+function normalFrames(name, colors) {
+    switch (name) {
         case 'chase': return chaseFrames(colors);
         case 'carousel': return carouselFrames(colors);
         case 'mirror': return mirrorFrames(colors);
@@ -41,6 +61,22 @@ export function generateFrames(pattern, colors) {
         case 'fill': return fillFrames(colors);
         default: return solidFrames(colors);
     }
+}
+
+// negative: each selected color in turn fills the row, and the columns the
+// normal pattern lights for that color alone become its Empty gaps. With one
+// color this is the exact lit/Empty swap of every normal frame. Several colors
+// are inverted one at a time because the normal mirror and fill (and a 5-color
+// chase) light every column, so a whole-frame swap would leave the row dark.
+function negativeFrames(name, colors) {
+    return colors.flatMap(color =>
+        normalFrames(name, [color]).map(frame => frame.map(c => (c === EMPTY ? color : EMPTY))));
+}
+
+// reversed: the normal frames played backwards from the same first frame, so
+// the motion runs the other way.
+function reversedFrames(frames) {
+    return frames.map((_, step) => frames[(frames.length - step) % frames.length]);
 }
 
 function frameOf(colorAt) {
@@ -139,10 +175,11 @@ export class ColorSequencer {
         this.resetToBase();
     }
 
-    /** Return to BASE_STATE: no colors, base pattern and BPM, stopped, no cue in progress. */
+    /** Return to BASE_STATE: no colors, base pattern (no variant) and BPM, stopped, no cue in progress. */
     resetToBase() {
         this.selectedColors = [...BASE_STATE.colors];
         this.pattern = BASE_STATE.pattern;
+        this.variant = false;
         this.setBPM(BASE_STATE.bpm);
         this.isPlaying = BASE_STATE.playing;
 
@@ -153,6 +190,7 @@ export class ColorSequencer {
         this.staging = false;
         this.pendingColors = [];
         this.pendingPattern = BASE_STATE.pattern;
+        this.pendingVariant = false;
         this.pendingFullReset = false;
         this._regenerate();
     }
@@ -210,6 +248,7 @@ export class ColorSequencer {
         this.staging = true;
         this.pendingColors = [];
         this.pendingPattern = canonicalPattern(pattern);
+        this.pendingVariant = false;
         this.pendingFullReset = fullReset;
     }
 
@@ -220,6 +259,7 @@ export class ColorSequencer {
         const fullReset = this.pendingFullReset;
         this.selectedColors = [...this.pendingColors];
         this.pattern = this.pendingPattern;
+        this.variant = this.pendingVariant;
         this.staging = false;
         this.pendingFullReset = false;
         this._regenerate();
@@ -229,13 +269,18 @@ export class ColorSequencer {
 
     // --- Pattern ---
 
-    setPattern(pat) {
+    /** Select a pattern, its Shift variant when `variant` is true; a pattern
+     *  without a variant (none) plays normally either way. */
+    setPattern(pat, variant = false) {
         const pattern = canonicalPattern(pat);
+        const withVariant = variant && hasVariant(pattern);
         if (this.staging) {
             this.pendingPattern = pattern;
+            this.pendingVariant = withVariant;
             return;
         }
         this.pattern = pattern;
+        this.variant = withVariant;
         this._regenerate();
     }
 
@@ -323,7 +368,7 @@ export class ColorSequencer {
     _regenerate() {
         this._syncPatternRate();
         this.currentStep = 0;
-        this.frames = generateFrames(this.pattern, this.selectedColors);
+        this.frames = generateFrames(this.pattern, this.selectedColors, this.variant);
         this._applyCurrentFrame();
     }
 
@@ -344,6 +389,7 @@ export class ColorSequencer {
         return {
             colors: [...this.selectedColors],
             pattern: this.pattern,
+            variant: this.variant,
             bpm: this.bpm,
             isPlaying: this.isPlaying,
             frameCount: this.frames.length,

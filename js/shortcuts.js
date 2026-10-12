@@ -3,6 +3,7 @@
 // Shift+| / Shift+1-5: select only that color
 // 0 / Shift+0: switch camera (Iriun <-> Logitech only)
 // Q W E R T Y: pattern (none/chase/carousel/mirror/fill/sparkle)
+// Shift+W E R T Y: that pattern's variant (color-sequencer.js PATTERN_VARIANTS); Shift+Q is Q
 // A S D F G H: movement (none/wave/expand/broken/shake/equalizer)
 // Z X C V B N: glow (none/sweep/breathe/pulse/strobe/alternate), from js/glow-map.js
 // Shift+Z X C V B N: mood (none/calm/build/tension/peak/mystic), from js/mood-map.js
@@ -79,9 +80,10 @@ export function resolveShortcut(e) {
         }
     }
 
-    if (PATTERN_KEYS[keyLower] && !ctrl && !alt && !shift) {
+    // Shift picks the variant and plain the normal pattern, so a repeated press never toggles.
+    if (PATTERN_KEYS[keyLower] && !ctrl && !alt) {
         return (app) => {
-            app.sequencer.setPattern(PATTERN_KEYS[keyLower]);
+            app.sequencer.setPattern(PATTERN_KEYS[keyLower], shift);
             app.updateHUD();
         };
     }

@@ -312,9 +312,19 @@ export function createSequencerControls(sectionEl, app) {
         }
     }
 
+    // The active pattern's button reads "Word ⇄" while its Shift variant plays.
+    function updatePatternLabels() {
+        const variant = seq.staging ? seq.pendingVariant : seq.variant;
+        for (let i = 0; i < patBtns.length; i++) {
+            const word = variant && shownPattern() === PATTERNS[i] ? `${PATTERN_WORDS[i]} ⇄` : PATTERN_WORDS[i];
+            keyLabel(patBtns[i], PATTERN_KEYS[i], word);
+        }
+    }
+
     function refreshAll() {
         updateColorBtns();
         refreshActiveStates();
+        updatePatternLabels();
         updateTags();
         updateMiniStage();
         updateStepDots();
