@@ -1,6 +1,7 @@
 // --- Keyboard Shortcuts ---
 // |: toggle Empty; 1-5: toggle a color; 6 / Shift+6: all 5 colors in a random order
 // Shift+| / Shift+1-5: select only that color
+// 9: show / hide the text overlay (fades in and out)
 // 0 / Shift+0: switch camera (Iriun <-> Logitech only)
 // Q W E R T Y: pattern (none/chase/carousel/mirror/fill/sparkle)
 // Shift+W E R T Y: that pattern's variant (color-sequencer.js PATTERN_VARIANTS); Shift+Q is Q
@@ -77,6 +78,11 @@ export function resolveShortcut(e) {
                 app.sequencer.selectAllShuffled();
                 app.updateHUD();
             };
+        }
+
+        // Shift+9 stays unbound, so live mode never swallows it from other programs.
+        if (num === 9 && !shift) {
+            return (app) => app.toggleOverlay();
         }
     }
 

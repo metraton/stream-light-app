@@ -541,6 +541,8 @@ export class StreamLightApp {
             this.columnManager.applyGlowIntensities(glowData.intensity);
         }
 
+        this.overlay.tick(now, beat, this.sequencer.selectedColors);
+
         if (this.hud) this.hud.updateFPS(ticker.FPS);
     }
 }

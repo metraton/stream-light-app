@@ -1,6 +1,7 @@
 // --- Configuration (single source of truth, mutable for live updates) ---
 import { createColorFilter } from './color-filter.js';
 import { createEffectStack } from './effect-stack.js';
+import { defaultTextSettings } from './overlay-text.js';
 
 // Deep clone helper
 function deepClone(obj) {
@@ -40,11 +41,8 @@ export const CONFIG = {
         customColor: 0xffffff,
         intensity: 0,          // master alpha (0-1)
     },
-    overlay: {
-        mainText: 'STREAM LIGHT',
-        subText: 'PVLMA',
-        visible: false,
-    },
+    // The key-9 text overlay's look (overlay-text.js); whether it shows lives on the overlay, not here.
+    text: defaultTextSettings(),
 };
 
 // Store defaults for reset
@@ -54,4 +52,5 @@ export const DEFAULTS = {
     colorFilter: deepClone(CONFIG.colorFilter),
     effectStack: deepClone(CONFIG.effectStack),
     glow: deepClone(CONFIG.glow),
+    text: deepClone(CONFIG.text),
 };
