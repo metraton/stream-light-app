@@ -13,7 +13,7 @@ const LAYERS = [
 // Labels match perceived behavior, not the math name: at these rates the
 // ease-in-out curves dwell at each keyframe and read as a pulse, while linear
 // reads as continuous. 'Destello' is Pulse's own flash-and-hold curve.
-const EASING_MODES = [
+export const EASING_MODES = [
     { label: 'Suave',          curve: 'linear' },
     { label: 'Pulsada',        curve: 'easeInOutSine' },
     { label: 'Pulsada fuerte', curve: 'easeInOutCubic' },
@@ -21,9 +21,10 @@ const EASING_MODES = [
     { label: 'Destello',       curve: ['expDecay', 'step'] },
 ];
 
-const sameCurve = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+export const sameCurve = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
-function buttonRow(parent, labels, onPick) {
+/** A wrapping row of buttons; clicking one calls onPick with its index. */
+export function buttonRow(parent, labels, onPick) {
     const row = document.createElement('div');
     row.className = 'effect-buttons';
     row.style.flexWrap = 'wrap';

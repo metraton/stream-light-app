@@ -1,7 +1,15 @@
-// --- Movimiento section: the movement playing now ---
-// Rate and easing for it live in "Sonando ahora" (layer-controls.js); this
-// section names it and stops it. Nothing here writes to EFFECTS.
+// --- Movimiento section: the movement playing now and its controls ---
+// Intensity, easing and rate act on the active movement (app.nowPlaying) and
+// are remembered for it by the app; nothing here writes to EFFECTS.
 import { EFFECTS } from '../effects.js';
+import { RATES, RATE_LABELS } from '../tempo.js';
+import { createSlider } from './slider.js';
+import { EASING_MODES, buttonRow, sameCurve } from './layer-controls.js';
+
+// Must match INTENSITY_MIN and INTENSITY_MAX in app.js, which reject a stored
+// intensity outside them: a wider slider would set values presets then drop.
+const INTENSITY_MIN = 0.25;
+const INTENSITY_MAX = 2;
 
 /** Builds the section; returns its refresh callback. */
 export function createEffectControls(sectionEl, app) {
@@ -14,6 +22,15 @@ export function createEffectControls(sectionEl, app) {
     row.append(label, name);
     sectionEl.appendChild(row);
 
+    const intensity = createSlider(sectionEl, {
+        label: 'Intensidad', min: INTENSITY_MIN, max: INTENSITY_MAX, defaultValue: 1, decimals: 2,
+        onChange: v => app.setMovementIntensity(v),
+    });
+    const easingBtns = buttonRow(sectionEl, EASING_MODES.map(m => m.label),
+        i => app.setLayerEasing('movement', EASING_MODES[i].curve));
+    const rateBtns = buttonRow(sectionEl, RATES.map(r => RATE_LABELS.get(r)),
+        i => app.setLayerRate('movement', RATES[i]));
+
     const buttons = document.createElement('div');
     buttons.className = 'effect-buttons';
     const stopBtn = document.createElement('button');
@@ -22,8 +39,24 @@ export function createEffectControls(sectionEl, app) {
     buttons.appendChild(stopBtn);
     sectionEl.appendChild(buttons);
 
+    /** Highlight the active choice; with no movement playing, disable the row. */
+    function mark(btns, isOn, idle) {
+        btns.forEach((btn, i) => {
+            const on = !idle && isOn(i);
+            btn.disabled = idle;
+            btn.style.background = on ? '#FFD700' : '#333';
+            btn.style.color = on ? '#000' : (idle ? '#555' : '#aaa');
+        });
+    }
+
     function refresh() {
+        const playing = app.nowPlaying().movement;
+        const idle = playing.rate === null;
         name.textContent = EFFECTS[app.currentMovement]?.label ?? 'None';
+        intensity.setDisabled(idle);
+        intensity.show(playing.intensity ?? 1);
+        mark(easingBtns, i => sameCurve(EASING_MODES[i].curve, playing.easing), idle);
+        mark(rateBtns, i => RATES[i] === playing.rate, idle);
     }
 
     refresh();
