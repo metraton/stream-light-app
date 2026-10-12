@@ -1,5 +1,6 @@
 // --- Configuration (single source of truth, mutable for live updates) ---
 import { createColorFilter } from './color-filter.js';
+import { createEffectStack } from './effect-stack.js';
 
 // Deep clone helper
 function deepClone(obj) {
@@ -27,6 +28,7 @@ export const CONFIG = {
     },
     colorOrder: ['YELLOW', 'BLUE', 'RED', 'GREEN', 'PURPLE'],
     colorFilter: createColorFilter(),
+    effectStack: createEffectStack(),
     glow: {
         distance: 8,           // UI "Distance" — how far glow extends (px); range 2-25
         outerStrength: 2,      // UI "Strength" — outer glow intensity; range 0-10
@@ -48,5 +50,6 @@ export const DEFAULTS = {
     colors: deepClone(CONFIG.colors),
     columns: deepClone(CONFIG.columns),
     colorFilter: deepClone(CONFIG.colorFilter),
+    effectStack: deepClone(CONFIG.effectStack),
     glow: deepClone(CONFIG.glow),
 };

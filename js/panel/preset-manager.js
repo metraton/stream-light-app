@@ -4,8 +4,10 @@
 // Filters are saved as `colorFilter` (global + per-slot offsets). A preset from
 // before that model carries `filters` (absolute per-slot values) and is
 // converted on load by migrateLegacyFilters, so its columns look the same.
+// Effects are saved as `effectStack`; a preset without one loads with no effects.
 import { CONFIG, DEFAULTS } from '../config.js';
 import { restoreColorFilter, migrateLegacyFilters } from '../color-filter.js';
+import { restoreEffectStack } from '../effect-stack.js';
 import { activeLayoutDefault } from '../layout-default.js';
 
 const STORAGE_PREFIX = 'streamlight-preset-';
@@ -21,6 +23,7 @@ export function savePreset(name, app) {
             spread: CONFIG.columns.spread,
         },
         colorFilter: restoreColorFilter(CONFIG.colorFilter),
+        effectStack: restoreEffectStack(CONFIG.effectStack),
         glow: { ...CONFIG.glow },
         tweaks: app.exportTweaks(),
     };
@@ -47,6 +50,7 @@ export function loadPreset(name, app) {
         } else if (data.filters) {
             Object.assign(CONFIG.colorFilter, migrateLegacyFilters(data.filters));
         }
+        Object.assign(CONFIG.effectStack, restoreEffectStack(data.effectStack));
         if (data.glow) {
             Object.assign(CONFIG.glow, data.glow);
         }
@@ -72,7 +76,7 @@ export function deletePreset(name) {
     localStorage.removeItem(STORAGE_PREFIX + name);
 }
 
-/** Restore colors, filters, glow look and every speed tweak to their factory
+/** Restore colors, filters, effects, glow look and every speed tweak to their factory
  *  values, and the layout to the active layout default: the user's saved one
  *  ("Guardar como default" in Layout) when it exists, otherwise factory. The
  *  rotation is kept: the camera sets it, not the defaults. */
@@ -81,6 +85,7 @@ export function resetToDefaults(app, storage = localStorage) {
     Object.assign(CONFIG.colors, DEFAULTS.colors);
     Object.assign(CONFIG.columns, DEFAULTS.columns, activeLayoutDefault(storage), { rotationSteps });
     Object.assign(CONFIG.colorFilter, restoreColorFilter(DEFAULTS.colorFilter));
+    Object.assign(CONFIG.effectStack, restoreEffectStack(DEFAULTS.effectStack));
     Object.assign(CONFIG.glow, DEFAULTS.glow);
     app.resetTweaks();
 }

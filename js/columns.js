@@ -1,6 +1,8 @@
 // --- Column Manager (layout, creation, color management) ---
 import { CONFIG } from './config.js';
 import { effectiveFilter, isNeutral } from './color-filter.js';
+import { resolveEffects, chainKey } from './effect-stack.js';
+import { effectById } from './effects-registry.js';
 
 // ============================================================================
 // UNIFIED MOVEMENT MARGIN RULE  (single source of truth â€” tune here)
@@ -28,6 +30,26 @@ const EDGE_RESERVE_FLOOR = 2;       // px hard floor at the screen edge (marginâ
  *  from the current layout margin. One rule, used by translation AND scale. */
 function edgeReserve() {
     return Math.max(EDGE_RESERVE_FLOOR, CONFIG.columns.margin * EDGE_RESERVE_FRACTION);
+}
+
+/** Load `cm` with the color adjust `settings`, replacing what it held. */
+function loadColorMatrix(cm, settings) {
+    cm.reset();
+    const { brightness: b, contrast: c, saturation: s, hue: h, temperature: t } = settings;
+    let chained = false;
+    if (b !== 0) { cm.brightness(1 + b / 100, chained); chained = true; }
+    if (c !== 1) { cm.contrast(c - 1, chained); chained = true; }
+    if (s !== 1) { cm.saturate(s - 1, chained); chained = true; }
+    if (h !== 0) { cm.hue(h, chained); chained = true; }
+    if (t !== 0) {
+        const tn = t / 100;
+        cm._loadMatrix([
+            1 + tn * 0.15, 0, 0, 0, tn * 0.02,
+            0, 1 + tn * 0.03, 0, 0, 0,
+            0, 0, 1 - tn * 0.15, 0, -tn * 0.02,
+            0, 0, 0, 1, 0,
+        ], chained);
+    }
 }
 
 export class ColumnManager {
@@ -151,6 +173,9 @@ export class ColumnManager {
                 sprite,
                 maskGfx,
                 colorMatrix,
+                // Effect filters by id, created on first use and kept while the column lives.
+                effectFilters: new Map(),
+                filterKey: null,
                 glowContainer,
                 glowGfx,
                 glowFilter,
@@ -174,6 +199,7 @@ export class ColumnManager {
             col.container.destroy({ children: true });
             col.glowContainer.destroy({ children: true });
             col.colorMatrix.destroy();
+            for (const filter of col.effectFilters.values()) filter.destroy();
             col.glowFilter.destroy();
         }
         this.columns = [];
@@ -186,42 +212,48 @@ export class ColumnManager {
         // default white tint, which is overwritten synchronously by the frame.
     }
 
-    // --- Filters (global + per-color offset: brightness, contrast, saturation, hue, temperature) ---
+    // --- Filters: color adjust (global + per-color offset), then the color's effects ---
     /**
-     * Apply to every column the effective filter of the color it currently shows.
-     * Offsets are looked up by color slot in CONFIG.colorOrder, not by column
-     * position, because the sequencer moves colors between columns.
+     * Give every column the filter chain of the color it currently shows:
+     * [color adjust, ...effects]. Adjust and effects are looked up by color slot
+     * in CONFIG.colorOrder, not by column position, because the sequencer moves
+     * colors between columns. The `filters` array is replaced only when the chain
+     * changes; otherwise the existing filters get new uniforms. Each filter is a
+     * render pass, so a neutral adjust is left out and an empty chain is null.
      */
     applyFilters() {
         for (let i = 0; i < this.columns.length; i++) {
-            // An uncolored ('NEUTRAL') column has slot -1 and gets the global value alone.
-            const slot = CONFIG.colorOrder.indexOf(this.columnColors[i]);
+            const col = this.columns[i];
+            const colorName = this.columnColors[i];
+            // An uncolored ('NEUTRAL') column has slot -1 and gets the global values alone.
+            const slot = CONFIG.colorOrder.indexOf(colorName);
             const settings = effectiveFilter(CONFIG.colorFilter, slot);
-            // An all-neutral matrix is the identity, so the filter pass would only cost GPU time.
-            if (isNeutral(settings)) {
-                this.columns[i].sprite.filters = null;
-                continue;
-            }
+            const adjust = !isNeutral(settings);
+            if (adjust) loadColorMatrix(col.colorMatrix, settings);
 
-            const cm = this.columns[i].colorMatrix;
-            cm.reset();
-            const { brightness: b, contrast: c, saturation: s, hue: h, temperature: t } = settings;
-            let chained = false;
-            if (b !== 0) { cm.brightness(1 + b / 100, chained); chained = true; }
-            if (c !== 1) { cm.contrast(c - 1, chained); chained = true; }
-            if (s !== 1) { cm.saturate(s - 1, chained); chained = true; }
-            if (h !== 0) { cm.hue(h, chained); chained = true; }
-            if (t !== 0) {
-                const tn = t / 100;
-                cm._loadMatrix([
-                    1 + tn * 0.15, 0, 0, 0, tn * 0.02,
-                    0, 1 + tn * 0.03, 0, 0, 0,
-                    0, 0, 1 - tn * 0.15, 0, -tn * 0.02,
-                    0, 0, 0, 1, 0,
-                ], chained);
-            }
-            this.columns[i].sprite.filters = [cm];
+            const effects = resolveEffects(CONFIG.effectStack, slot);
+            const context = { color: slot === -1 ? null : CONFIG.colors[colorName] };
+            const effectFilters = effects.map(({ id, params }) => this._effectFilter(col, id, params, context));
+
+            const key = (adjust ? 'adjust+' : '') + chainKey(effects);
+            if (key === col.filterKey) continue;
+            col.filterKey = key;
+            const chain = adjust ? [col.colorMatrix, ...effectFilters] : effectFilters;
+            col.sprite.filters = chain.length > 0 ? chain : null;
         }
+    }
+
+    /** The column's filter for effect `id`, created on first use, with `params` applied. */
+    _effectFilter(col, id, params, context) {
+        const effect = effectById(id);
+        let filter = col.effectFilters.get(id);
+        if (filter) {
+            effect.update(filter, params, context);
+        } else {
+            filter = effect.create(params, context);
+            col.effectFilters.set(id, filter);
+        }
+        return filter;
     }
 
     // --- Glow ---
