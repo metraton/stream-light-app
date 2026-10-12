@@ -366,6 +366,27 @@ test('effect definitions are frozen and every default and mood rate is a rate bu
     }
 });
 
+test('every mood easing is a panel easing; tension glow plays Pulsada fuerte', async () => {
+    const { EASING_MODES, sameCurve } = await import('../js/panel/layer-controls.js');
+    const { EASING_MAP } = await import('../js/easing.js');
+    for (const [name, mood] of Object.entries(MOODS)) {
+        for (const [layer, easing] of Object.entries(mood.easings ?? {})) {
+            assert.ok(['movement', 'glow'].includes(layer), `${name} ${layer}`);
+            assert.ok(Object.hasOwn(EASING_MAP, easing), `${name} ${layer} ${easing}`);
+            assert.ok(EASING_MODES.some(m => sameCurve(m.curve, easing)), `${name} ${layer} ${easing}`);
+        }
+    }
+
+    const { tension } = MOODS;
+    const name = GLOW_MODE_SEQUENCE[tension.glow] ?? tension.glow;
+    const def = GLOW_SEQUENCES[name];
+    const engine = new GlowEngine();
+    engine.play(name, def, { rate: tension.rates.glow, easing: tension.easings.glow ?? def.easing, intensity: 1 }, 0, true);
+    const highlighted = EASING_MODES.find(m => sameCurve(m.curve, engine.active.easing));
+    assert.equal(highlighted.label, 'Pulsada fuerte');
+    assert.notEqual(def.easing, tension.easings.glow, 'the mood overrides pulse\'s own curve');
+});
+
 const jsFiles = readdirSync(join(ROOT, 'js'), { recursive: true })
     .filter(file => file.endsWith('.js'))
     .map(file => join('js', file));

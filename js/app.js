@@ -270,12 +270,13 @@ export class StreamLightApp {
 
     // --- Public API (called by shortcuts) ---
 
-    /** Play a movement effect (independent from color); rate overrides its own. */
-    playMovement(effectName, rate = null) {
+    /** Play a movement effect (independent from color); rate and easing override its own. */
+    playMovement(effectName, rate = null, easing = null) {
         const def = EFFECTS[effectName];
         if (!def) return;
         const settings = this._settingsFor('movement', effectName, def);
         if (rate) settings.rate = rate;
+        if (easing) settings.easing = easing;
         this.effectEngine.play(effectName, def, settings, this._beatNow());
         this.currentMovement = effectName;
         this.currentMood = null;           // manual change drops the mood highlight
@@ -291,8 +292,8 @@ export class StreamLightApp {
     }
 
     /** Set the glow layer to a quick mode (glow-map.js); removed mode names are
-     *  translated. rate overrides the sequence's own. */
-    setGlowMode(requestedMode, rate = null) {
+     *  translated. rate and easing override the sequence's own. */
+    setGlowMode(requestedMode, rate = null, easing = null) {
         const mode = canonicalGlowMode(requestedMode);
         this.currentGlowMode = mode;
         this.currentMood = null; // manual change drops the mood highlight
@@ -303,16 +304,17 @@ export class StreamLightApp {
             this.glowEngine.stop();
             this.columnManager.setAllGlow(CONFIG.glow.outerStrength > 0 ? 1 : 0.8);
         } else {
-            this.playGlowEffect(GLOW_MODE_SEQUENCE[mode] ?? mode, rate);
+            this.playGlowEffect(GLOW_MODE_SEQUENCE[mode] ?? mode, rate, easing);
         }
     }
 
     /** Glows are locked to the beat grid, so flashes land on the beat. */
-    playGlowEffect(name, rate = null) {
+    playGlowEffect(name, rate = null, easing = null) {
         const def = GLOW_SEQUENCES[name];
         if (!def) return;
         const settings = this._settingsFor('glow', name, def);
         if (rate) settings.rate = rate;
+        if (easing) settings.easing = easing;
         this.glowEngine.play(name, def, settings, this._beatNow(), true);
     }
 
@@ -324,8 +326,8 @@ export class StreamLightApp {
     }
 
     /** Apply a mood (mood-map.js): colors, pattern, movement, glow, BPM and a
-     *  rate per layer. Every layer starts at once, the color rotation from
-     *  frame 0 even when it was paused.
+     *  rate per layer, plus the movement and glow easings it names. Every layer
+     *  starts at once, the color rotation from frame 0 even when it was paused.
      *  @param {object} mood - mood definition
      *  @param {string|null} moodKey - mood name, for the active-state highlight */
     applyMood(mood, moodKey = null) {
@@ -337,13 +339,13 @@ export class StreamLightApp {
         this.sequencer.play(true);
 
         if (mood.movement && mood.movement !== 'none') {
-            this.playMovement(mood.movement, mood.rates.movement);
+            this.playMovement(mood.movement, mood.rates.movement, mood.easings?.movement);
         } else {
             this.stopEffect();
         }
 
         if (mood.glow && mood.glow !== 'none') {
-            this.setGlowMode(mood.glow, mood.rates.glow);
+            this.setGlowMode(mood.glow, mood.rates.glow, mood.easings?.glow);
         } else {
             this.stopGlowEffect();
         }

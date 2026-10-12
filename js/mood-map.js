@@ -20,19 +20,23 @@ export const BASE_STATE = Object.freeze({
 });
 
 // A mood's speed is its BPM plus one rate per layer, in steps per beat from
-// the rate buttons (tempo.js RATES); applying a mood does not change the rate
-// an effect is remembered with.
+// the rate buttons (tempo.js RATES). The optional `easings` sets a movement or
+// glow curve, which must be a panel easing (layer-controls.js EASING_MODES) or
+// its button never highlights; a layer it omits plays the effect's own curve.
+// Applying a mood does not change the rate or easing an effect is remembered with.
 export const MOODS = {
     calm:    { colors: [1],             pattern: 'none',     movement: 'wave',      glow: 'breathe',   bpm: 80,
-               rates: { color: 1, movement: 1, glow: 1 } },
+               rates: { color: 1, movement: 1, glow: 0.5 } },
     build:   { colors: [2, 0],          pattern: 'fill',     movement: 'broken',    glow: 'sweep',     bpm: 130,
                rates: { color: 2, movement: 1, glow: 2 } },
     tension: { colors: [2, 4],          pattern: 'mirror',   movement: 'shake',     glow: 'pulse',     bpm: 140,
-               rates: { color: 1, movement: 2, glow: 4 } },
+               rates: { color: 1, movement: 2, glow: 4 },
+               easings: { glow: 'easeInOutCubic' } },
     peak:    { colors: [0, 1, 2, 3, 4], pattern: 'carousel', movement: 'shake',     glow: 'alternate', bpm: 175,
                rates: { color: 1, movement: 1, glow: 1 } },
     mystic:  { colors: [4],             pattern: 'none',     movement: 'equalizer', glow: 'sweep',     bpm: 85,
-               rates: { color: 1, movement: 1, glow: 0.5 } },
+               rates: { color: 1, movement: 1, glow: 2 },
+               easings: { glow: 'linear' } },
 };
 
 /** Mood keys in panel order; each is pressed with Shift. mood null is None, which clears the active mood. */
