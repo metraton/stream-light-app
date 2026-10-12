@@ -420,44 +420,6 @@ const rgbSplit = {
     },
 };
 
-// --- Pixelado ---
-
-/** Block-size multipliers one bar (4 beats) each, looping. */
-export const PIXEL_BAR_STEPS = [1, 2, 3, 2];
-const BEATS_PER_BAR = 4;
-const MIN_PIXEL = 2;
-
-/** The block size during the bar holding `beatIndex`: `size` times that bar's step, at least MIN_PIXEL. */
-export function pixelBarSize(size, beatIndex) {
-    const bar = Math.floor(beatIndex / BEATS_PER_BAR);
-    const step = PIXEL_BAR_STEPS[((bar % PIXEL_BAR_STEPS.length) + PIXEL_BAR_STEPS.length) % PIXEL_BAR_STEPS.length];
-    return Math.max(MIN_PIXEL, Math.round(size * step));
-}
-
-const pixelate = {
-    id: 'pixelate',
-    label: 'Pixelado',
-    defaults: { size: 10, sync: FIXED },
-    params: [
-        { key: 'size', label: 'Bloque', min: MIN_PIXEL, max: 60, decimals: 0 },
-        {
-            key: 'sync',
-            label: 'Ritmo',
-            options: [{ value: FIXED, label: 'Fijo' }, { value: 'bar', label: 'Por compás' }],
-        },
-    ],
-    create(params) {
-        return new PIXI.filters.PixelateFilter(params.size);
-    },
-    update(filter, params) {
-        filter.size = params.size;
-    },
-    tick(filter, params, { beatIndex }) {
-        const size = pixelBarSize(params.size, beatIndex);
-        if (filter.sizeX !== size) filter.size = size;
-    },
-};
-
 // --- Semitono ---
 
 const halftone = {
@@ -482,40 +444,6 @@ const halftone = {
         filter.scale = params.scale;
         filter.angle = params.angle;
         filter.grayscale = params.tone === 'gray';
-    },
-};
-
-// --- Glitch ---
-
-// The beat index each Al golpe glitch last re-rolled on; kept outside the Pixi filter object.
-const glitchBeats = new WeakMap();
-
-const glitch = {
-    id: 'glitch',
-    label: 'Glitch',
-    defaults: { slices: 8, offset: 60, sync: FIXED },
-    params: [
-        { key: 'slices', label: 'Franjas', min: 2, max: 30, decimals: 0 },
-        { key: 'offset', label: 'Desplazamiento', min: 0, max: 300, decimals: 0 },
-        {
-            key: 'sync',
-            label: 'Ritmo',
-            options: [{ value: FIXED, label: 'Fijo' }, { value: 'beat', label: 'Al golpe' }],
-        },
-    ],
-    create(params) {
-        return new PIXI.filters.GlitchFilter({ slices: params.slices, offset: params.offset });
-    },
-    update(filter, params) {
-        filter.slices = params.slices;
-        filter.offset = params.offset;
-    },
-    // A new beat gets new slice sizes and offsets (refresh) and a new noise seed.
-    tick(filter, params, { beatIndex }) {
-        if (glitchBeats.get(filter) === beatIndex) return;
-        glitchBeats.set(filter, beatIndex);
-        filter.seed = Math.random();
-        filter.refresh();
     },
 };
 
@@ -698,7 +626,7 @@ const neon = {
     },
 };
 
-export const EFFECTS = [ascii, xray, rgbSplit, pixelate, halftone, glitch, thermalEffect, posterizeEffect, neon];
+export const EFFECTS = [ascii, xray, rgbSplit, halftone, thermalEffect, posterizeEffect, neon];
 
 /** The definition registered under `id`, undefined when there is none. */
 export function effectById(id) {

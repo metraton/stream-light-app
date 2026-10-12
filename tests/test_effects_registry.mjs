@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
     EFFECTS, effectById, ASCII_RAMP, LUMA_WEIGHTS, asciiLevel, glyphIndex, xrayNegative,
-    beatEnvelope, runsOnBeat, PIXEL_BAR_STEPS, pixelBarSize, THERMAL_STOPS, thermalColor, posterize,
+    beatEnvelope, runsOnBeat, THERMAL_STOPS, thermalColor, posterize,
 } from '../js/effects-registry.js';
 import { restoreEffectStack } from '../js/effect-stack.js';
 
@@ -49,12 +49,16 @@ test('only an effect with tick() and a non-fixed sync runs on the beat', () => {
     }
 });
 
-test('Pixelado por compás holds one size per 4-beat bar and loops through the steps', () => {
-    for (let beat = 0; beat < 4; beat++) assert.equal(pixelBarSize(10, beat), 10 * PIXEL_BAR_STEPS[0]);
-    assert.equal(pixelBarSize(10, 4), 10 * PIXEL_BAR_STEPS[1]);
-    const loop = PIXEL_BAR_STEPS.length * 4;
-    for (let beat = 0; beat < loop; beat++) assert.equal(pixelBarSize(10, beat), pixelBarSize(10, beat + loop));
-    assert.ok(new Set(PIXEL_BAR_STEPS).size > 1, 'the size never changes');
+test('Pixelado and Glitch are removed, and a stack still holding them loads without them', () => {
+    assert.equal(effectById('pixelate'), undefined);
+    assert.equal(effectById('glitch'), undefined);
+    const model = restoreEffectStack({
+        global: [{ id: 'pixelate', params: { size: 10, sync: 'bar' } }, { id: 'rgbsplit', params: { amount: 12 } }],
+        slots: [[{ id: 'glitch', params: { slices: 8 } }], [{ id: 'glitch', params: {} }, { id: 'thermal', params: { mix: 0.5 } }]],
+    });
+    assert.deepEqual(model.global.map(e => e.id), ['rgbsplit']);
+    assert.deepEqual(model.slots[0], []);
+    assert.deepEqual(model.slots[1].map(e => e.id), ['thermal']);
 });
 
 const near = (actual, expected) => actual.every((v, i) => Math.abs(v - expected[i]) < 1e-9);
@@ -91,11 +95,6 @@ test('Posterizado levels run 2-8 and Contorno neón offers Columna or Blanco', (
     assert.deepEqual([levels.min, levels.max, levels.decimals], [2, 8, 0]);
     const color = effectById('neon').params.find(p => p.key === 'color');
     assert.deepEqual(color.options.map(o => o.value), ['column', 'white']);
-});
-
-test('Pixelado por compás never drops below a 2px block, even before beat 0', () => {
-    assert.ok(pixelBarSize(effectById('pixelate').params[0].min, 0) >= 2);
-    assert.ok(Number.isInteger(pixelBarSize(7, -3)) && pixelBarSize(7, -3) >= 2);
 });
 
 const GLYPHS = ASCII_RAMP.length;
