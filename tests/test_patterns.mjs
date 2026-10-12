@@ -310,7 +310,8 @@ test('rate and BPM changes keep every movement and glow position continuous', ()
 
 // Peak displacement each movement may reach at intensity 1, in 1080p px or in
 // scaleY, agreed with the user so the movements read as one family: Wave and
-// Expand set the 15 px reference.
+// Expand set the 15 px reference. The extra movements are checked in
+// tests/test_movements_extra.mjs.
 const MOVEMENT_PEAK_BOUNDS = {
     wave:      { px: [14, 15] },
     expand:    { px: [14, 15] },
@@ -318,10 +319,11 @@ const MOVEMENT_PEAK_BOUNDS = {
     shake:     { px: [1.5, 2] },
     equalizer: { scale: [0.035, 0.04] },
 };
+const KEYED_MOVEMENTS = Object.entries(EFFECTS).filter(([, def]) => !def.extra);
 
-test('every movement peaks within its agreed bounds', () => {
-    assert.deepEqual(Object.keys(MOVEMENT_PEAK_BOUNDS).sort(), Object.keys(EFFECTS).sort());
-    for (const [name, def] of Object.entries(EFFECTS)) {
+test('every keyed movement peaks within its agreed bounds', () => {
+    assert.deepEqual(Object.keys(MOVEMENT_PEAK_BOUNDS).sort(), KEYED_MOVEMENTS.map(([name]) => name).sort());
+    for (const [name, def] of KEYED_MOVEMENTS) {
         const engine = new EffectEngine();
         engine.play(name, def, { rate: 1, easing: 'linear', intensity: 1 }, 0);
         let px = 0;

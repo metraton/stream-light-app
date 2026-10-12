@@ -367,65 +367,48 @@ export class ColumnManager {
             const maxOy = (screenH - reserve) - (col.baseY + col.height); // bottom edge
             oy = Math.max(minOy, Math.min(maxOy, oy));
 
-            col.container.x = col.baseX + ox;
-            col.container.y = col.baseY + oy;
-            if (col.glowContainer) {
-                col.glowContainer.x = col.baseX + ox;
-                col.glowContainer.y = col.baseY + oy;
-            }
-
-            // Scale Y: scale from center
-            let sy = offsets.scaleY?.[i] || 0;
+            // Scale from the center: scaleY (Equalizer) grows the height alone,
+            // scale (Golpe de zoom) both sides. Growing from the center adds
+            // size*(scale-1)/2 beyond each edge, and the grown edge stops at the
+            // same edge reserve as translation, at any margin value.
+            const zoom = offsets.scale?.[i] || 0;
+            let sy = (offsets.scaleY?.[i] || 0) + zoom;
+            let sx = 0;
             if (sy !== 0) {
-                // Scaling from the vertical center grows the column by
-                // height*(scale-1)/2 beyond EACH end. It uses the SAME edge
-                // reserve as translation: the grown edge may breathe toward the
-                // screen edge but must stop `reserve` px short of it. Because
-                // the reserve is a fraction of the margin, Equalizer now leaves
-                // the same proportional breathing room as Wave/Broken at ANY
-                // margin value — it can no longer slam the top/bottom edges.
-                const topRoom = (col.baseY + oy) - reserve;                       // px above to reserve line
-                const botRoom = (screenH - reserve) - (col.baseY + oy + col.height); // px below to reserve line
+                const topRoom = (col.baseY + oy) - reserve;
+                const botRoom = (screenH - reserve) - (col.baseY + oy + col.height);
                 const room = Math.max(0, Math.min(topRoom, botRoom));
-                const maxGrow = col.height > 0 ? (2 * room) / col.height : 0;     // max (scale-1)
+                const maxGrow = col.height > 0 ? (2 * room) / col.height : 0;
                 if (sy > maxGrow) sy = maxGrow; // only positive growth can clip
-                const scale = 1 + sy;
-                col.container.pivot.y = col.height / 2;
-                col.container.y = col.baseY + oy + col.height / 2;
-                col.container.scale.y = scale;
-                if (col.glowContainer) {
-                    col.glowContainer.pivot.y = col.height / 2;
-                    col.glowContainer.y = col.baseY + oy + col.height / 2;
-                    col.glowContainer.scale.y = scale;
-                }
-            } else {
-                col.container.pivot.y = 0;
-                col.container.scale.y = 1;
-                if (col.glowContainer) {
-                    col.glowContainer.pivot.y = 0;
-                    col.glowContainer.scale.y = 1;
+                if (zoom !== 0) {
+                    // The zoom keeps the column's proportions, so the tighter clamp sets both axes.
+                    const leftRoom = (col.baseX + ox) - reserve;
+                    const rightRoom = (screenW - reserve) - (col.baseX + ox + col.width);
+                    const sideRoom = Math.max(0, Math.min(leftRoom, rightRoom));
+                    sx = sy = Math.min(sy, col.width > 0 ? (2 * sideRoom) / col.width : 0);
                 }
             }
+            this._place(col.container, col, ox, oy, sx, sy);
+            if (col.glowContainer) this._place(col.glowContainer, col, ox, oy, sx, sy);
         }
+    }
+
+    /** Put `target` (a column or its glow) at offset (ox, oy), scaled by (1 + sx, 1 + sy) about the column's center. */
+    _place(target, col, ox, oy, sx, sy) {
+        const pivotX = sx !== 0 ? col.width / 2 : 0;
+        const pivotY = sy !== 0 ? col.height / 2 : 0;
+        target.pivot.set(pivotX, pivotY);
+        target.position.set(col.baseX + ox + pivotX, col.baseY + oy + pivotY);
+        target.scale.set(1 + sx, 1 + sy);
     }
 
     resetOffsets() {
         for (const col of this.columns) {
             col.offsetX = 0;
             col.offsetY = 0;
-            col.container.x = col.baseX;
-            col.container.y = col.baseY;
-            col.container.pivot.y = 0;
-            col.container.scale.y = 1;
-            if (col.glowContainer) {
-                // Reset glow position too (not just pivot/scale) — otherwise a
-                // glow left on after a movement stops stays at its last-moved
-                // spot and looks misaligned / "half" relative to the column.
-                col.glowContainer.x = col.baseX;
-                col.glowContainer.y = col.baseY;
-                col.glowContainer.pivot.y = 0;
-                col.glowContainer.scale.y = 1;
-            }
+            this._place(col.container, col, 0, 0, 0, 0);
+            // The glow resets with its column, or it stays at its last moved spot.
+            if (col.glowContainer) this._place(col.glowContainer, col, 0, 0, 0, 0);
         }
     }
 }

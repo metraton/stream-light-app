@@ -7,9 +7,10 @@ export class EffectEngine extends SequencePlayer {
     }
 
     /**
-     * Per-column movement at `beat`: { offsetX, offsetY, scaleY }, or null when
-     * no effect plays. Pixel values are 1080p references scaled by scaleFactor;
-     * every value is multiplied by the effect's intensity.
+     * Per-column movement at `beat`: { offsetX, offsetY, scaleY, scale }, or null
+     * when no effect plays. scale, a uniform scale about the column's center, is
+     * null unless Golpe de zoom plays. Pixel values are 1080p references scaled
+     * by scaleFactor; every value is multiplied by the effect's intensity.
      */
     compute(columnCount, scaleFactor, beat) {
         if (!this.active) return null;
@@ -20,6 +21,11 @@ export class EffectEngine extends SequencePlayer {
         const offsetX = new Array(columnCount).fill(0);
         const offsetY = new Array(columnCount).fill(0);
         const scaleY = new Array(columnCount).fill(0);
+        let scale = null;
+        if (axis === 'scale') {
+            // A one-phase sequence: every step starts at the full punch and its easing carries it to rest.
+            scale = new Array(columnCount).fill(from * (1 - weight) * intensity);
+        }
         for (let i = 0; i < columnCount; i++) {
             if (axis === 'xy') {
                 offsetX[i] = blend(from.x[i], to.x[i]) * scaleFactor;
@@ -28,10 +34,10 @@ export class EffectEngine extends SequencePlayer {
                 scaleY[i] = blend(from[i], to[i]);
             } else if (axis === 'x') {
                 offsetX[i] = blend(from[i], to[i]) * scaleFactor;
-            } else {
+            } else if (axis === 'y') {
                 offsetY[i] = blend(from[i], to[i]) * scaleFactor;
             }
         }
-        return { offsetX, offsetY, scaleY };
+        return { offsetX, offsetY, scaleY, scale };
     }
 }

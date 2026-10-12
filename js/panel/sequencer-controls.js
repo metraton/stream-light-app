@@ -4,6 +4,7 @@ import { ColorSequencer } from '../color-sequencer.js';
 import { GLOW_QUICK } from '../glow-map.js';
 import { MOODS, MOOD_QUICK } from '../mood-map.js';
 import { colorHex } from './color-controls.js';
+import { EFFECTS } from '../effects.js';
 
 // Every button group uses the same two-line "KEY over WORD" layout via keyLabel(),
 // and every row of the 6-key grid starts with None.
@@ -18,9 +19,12 @@ const PATTERNS = ['none', 'chase', 'carousel', 'mirror', 'fill', 'sparkle'];
 const PATTERN_KEYS = ['Q', 'W', 'E', 'R', 'T', 'Y'];
 const PATTERN_WORDS = ['None', 'Chase', 'Carousel', 'Mirror', 'Fill', 'Sparkle'];
 
-const MOVEMENTS = ['none', 'wave', 'expand', 'broken', 'shake', 'equalizer'];
-const MOVEMENT_KEYS = ['A', 'S', 'D', 'F', 'G', 'H'];
-const MOVEMENT_WORDS = ['None', 'Wave', 'Expand', 'Broken', 'Shake', 'Equalizer'];
+// The extra movements (EFFECTS marked `extra`) follow the keyed six; their key slot reads "extra".
+const EXTRA_MOVEMENTS = Object.keys(EFFECTS).filter(name => EFFECTS[name].extra);
+const MOVEMENTS = ['none', 'wave', 'expand', 'broken', 'shake', 'equalizer', ...EXTRA_MOVEMENTS];
+const MOVEMENT_KEYS = ['A', 'S', 'D', 'F', 'G', 'H', ...EXTRA_MOVEMENTS.map(() => 'extra')];
+const MOVEMENT_WORDS = ['None', 'Wave', 'Expand', 'Broken', 'Shake', 'Equalizer',
+    ...EXTRA_MOVEMENTS.map(name => EFFECTS[name].label)];
 
 /** The hex of a color slot (0-4) as CONFIG.colors holds it now. */
 function slotHex(slot) {

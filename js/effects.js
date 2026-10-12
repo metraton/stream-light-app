@@ -78,6 +78,19 @@ export const EFFECTS = {
         axis: 'xy',
         easing: 'linear',
     },
+    zoomPulse: {
+        label: 'Golpe de zoom',
+        // `extra` movements have a panel button and no key. Each step opens at
+        // the full punch, a 4% scale about the column's center, and the step's
+        // easing carries it to rest. With one phase only the first curve of
+        // Destello is ever used: expDecay drops ~95% in the first third.
+        extra: true,
+        phases: { PUNCH: 0.04 },
+        sequence: ['PUNCH'],
+        rate: 1,
+        axis: 'scale',
+        easing: ['expDecay', 'step'],
+    },
 };
 
 for (const def of Object.values(EFFECTS)) Object.freeze(def);
