@@ -11,6 +11,7 @@ import { BASE_STATE, MOODS, MOOD_QUICK } from '../js/mood-map.js';
 import { GLOW_QUICK, GLOW_MODE_SEQUENCE, canonicalGlowMode } from '../js/glow-map.js';
 import { GLOW_SEQUENCES } from '../js/glow-sequences.js';
 import { EFFECTS } from '../js/effects.js';
+import { resolveShortcut } from '../js/shortcuts.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const COLUMN_COUNT = 5;
@@ -105,6 +106,18 @@ test('base state and every mood name a real button, so their highlights match', 
         assert.ok(state.movement === 'none' || EFFECTS[state.movement], `${name} movement ${state.movement}`);
     }
     assert.deepEqual(MOOD_QUICK.slice(1).map(m => m.mood).sort(), Object.keys(MOODS).sort());
+});
+
+test('Q W E R T Y resolve to the patterns in panel order: T is Fill, Y is Sparkle', () => {
+    const patternFor = (key) => {
+        let pattern = null;
+        const app = { sequencer: { setPattern: (p) => { pattern = p; } }, updateHUD() {} };
+        resolveShortcut({ key, code: `Key${key.toUpperCase()}`, shiftKey: false, ctrlKey: false, altKey: false })(app);
+        return pattern;
+    };
+    assert.deepEqual(['q', 'w', 'e', 'r', 't', 'y'].map(patternFor), PATTERNS);
+    assert.equal(patternFor('t'), 'fill');
+    assert.equal(patternFor('y'), 'sparkle');
 });
 
 const jsFiles = readdirSync(join(ROOT, 'js'), { recursive: true })

@@ -53,7 +53,7 @@ Every row of the key grid has six keys and starts with None:
 | Keys | Row | Key 1 to 6 |
 |------|-----|------------|
 | `\|` `1`-`5` `6` | Colors (Shift selects only that one) | Empty, Yellow, Blue, Red, Green, Purple, Rainbow |
-| `Q W E R T Y` | Pattern | None, Chase, Carousel, Mirror, Sparkle, Fill |
+| `Q W E R T Y` | Pattern | None, Chase, Carousel, Mirror, Fill, Sparkle |
 | `A S D F G H` | Movement | None, Wave, Expand, Broken, Shake, Equalizer |
 | `Z X C V B N` | Glow | None, Sweep, Breathe, Pulse, Strobe, Alternate |
 | `Shift+Z X C V B N` | Mood (`<` is also None) | None, Calm, Build, Tension, Peak, Mystic |

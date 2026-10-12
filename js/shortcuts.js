@@ -2,7 +2,7 @@
 // |: toggle Empty; 1-5: toggle a color; 6: rainbow (all 5 + carousel)
 // Shift+| / Shift+1-5: select only that color
 // 0 / Shift+0: switch camera (Iriun <-> Logitech only)
-// Q W E R T Y: pattern (none/chase/carousel/mirror/sparkle/fill)
+// Q W E R T Y: pattern (none/chase/carousel/mirror/fill/sparkle)
 // A S D F G H: movement (none/wave/expand/broken/shake/equalizer)
 // Z X C V B N: glow (none/sweep/breathe/pulse/strobe/alternate), from js/glow-map.js
 // Shift+Z X C V B N: mood (none/calm/build/tension/peak/mystic), from js/mood-map.js
@@ -20,7 +20,7 @@ import { GLOW_KEY_TO_MODE } from './glow-map.js';
 import { MOODS, MOOD_KEY_TO_NAME } from './mood-map.js';
 import { nextCameraId } from './camera.js';
 
-const PATTERN_KEYS = { q: 'none', w: 'chase', e: 'carousel', r: 'mirror', t: 'sparkle', y: 'fill' };
+const PATTERN_KEYS = { q: 'none', w: 'chase', e: 'carousel', r: 'mirror', t: 'fill', y: 'sparkle' };
 const MOVEMENT_KEYS = { a: 'none', s: 'wave', d: 'expand', f: 'broken', g: 'shake', h: 'equalizer' };
 
 /**

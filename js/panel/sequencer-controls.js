@@ -11,9 +11,9 @@ const COLOR_WORDS = ['Empty', 'Yellow', 'Blue', 'Red', 'Green', 'Purple', 'Rainb
 const COLOR_HEX = ['#444', '#ffff00', '#55aaff', '#ff0000', '#00ff00', '#ff00ff', 'linear-gradient(90deg,#ff0,#55f,#f00,#0f0,#f0f)'];
 const COLOR_EMOJIS = ['⬛', '🟨', '🟦', '🟥', '🟩', '🟪'];
 
-const PATTERNS = ['none', 'chase', 'carousel', 'mirror', 'sparkle', 'fill'];
+const PATTERNS = ['none', 'chase', 'carousel', 'mirror', 'fill', 'sparkle'];
 const PATTERN_KEYS = ['Q', 'W', 'E', 'R', 'T', 'Y'];
-const PATTERN_WORDS = ['None', 'Chase', 'Carousel', 'Mirror', 'Sparkle', 'Fill'];
+const PATTERN_WORDS = ['None', 'Chase', 'Carousel', 'Mirror', 'Fill', 'Sparkle'];
 
 const MOVEMENTS = ['none', 'wave', 'expand', 'broken', 'shake', 'equalizer'];
 const MOVEMENT_KEYS = ['A', 'S', 'D', 'F', 'G', 'H'];

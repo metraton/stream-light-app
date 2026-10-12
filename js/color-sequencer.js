@@ -14,7 +14,7 @@ const CENTER_COLUMN = Math.floor(COLUMN_COUNT / 2);
 const SPARKLE_FRAME_COUNT = 16;
 
 /** Pattern names in key order (Q W E R T Y). */
-export const PATTERNS = ['none', 'chase', 'carousel', 'mirror', 'sparkle', 'fill'];
+export const PATTERNS = ['none', 'chase', 'carousel', 'mirror', 'fill', 'sparkle'];
 
 // Removed pattern names mapped to the pattern that now plays instead, so an
 // old name arriving from stored or relayed state still resolves.
