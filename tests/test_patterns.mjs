@@ -266,7 +266,7 @@ test('rate and BPM changes keep every movement and glow position continuous', ()
 const MOVEMENT_PEAK_BOUNDS = {
     wave:      { px: [14, 15] },
     expand:    { px: [14, 15] },
-    broken:    { px: [7, 8] },
+    broken:    { px: [11, 12] },
     shake:     { px: [1.5, 2] },
     equalizer: { scale: [0.035, 0.04] },
 };
@@ -286,6 +286,14 @@ test('every movement peaks within its agreed bounds', () => {
         const { px: pxBounds = [0, 0], scale: scaleBounds = [0, 0] } = MOVEMENT_PEAK_BOUNDS[name];
         assert.ok(px >= pxBounds[0] - 1e-9 && px <= pxBounds[1] + 1e-9, `${name} peaks at ${px} px`);
         assert.ok(scale >= scaleBounds[0] - 1e-9 && scale <= scaleBounds[1] + 1e-9, `${name} peaks at scale ${scale}`);
+    }
+});
+
+test('every non-flat broken phase is a staircase, monotonic across the columns', () => {
+    for (const [name, offsets] of Object.entries(EFFECTS.broken.phases)) {
+        if (offsets.every(v => v === 0)) continue;
+        const steps = offsets.slice(1).map((v, i) => v - offsets[i]);
+        assert.ok(steps.every(s => s > 0) || steps.every(s => s < 0), `broken ${name} is not monotonic: ${offsets}`);
     }
 });
 

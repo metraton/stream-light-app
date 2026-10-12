@@ -33,15 +33,15 @@ export const EFFECTS = {
     },
     broken: {
         label: 'Broken',
-        // Neighbouring columns move in opposite vertical directions, a zigzag
-        // that Expand's symmetric horizontal spread never produces. +/-8 px puts
-        // 16 px between neighbours, the 15 px Wave and Expand reach.
+        // A staircase, not a zigzag: offsets step linearly across the row
+        // around a still center, so as one end rises the other sinks. The row
+        // tilts, flattens, then tilts the opposite way.
         phases: {
-            MAIN: [0, 0, 0, 0, 0],
-            ZIG:  [-8, 8, -8, 8, -8],
-            ZAG:  [8, -8, 8, -8, 8],
+            MAIN:   [0, 0, 0, 0, 0],
+            TILT_A: [-12, -6, 0, 6, 12],
+            TILT_B: [12, 6, 0, -6, -12],
         },
-        sequence: ['ZIG', 'MAIN', 'ZAG', 'MAIN'],
+        sequence: ['TILT_A', 'MAIN', 'TILT_B', 'MAIN'],
         rate: 1,
         axis: 'y',
         easing: 'linear',
