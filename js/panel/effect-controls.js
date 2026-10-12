@@ -3,6 +3,7 @@
 // (app.nowPlaying) and are remembered for it by the app; nothing here writes
 // to the effect definitions.
 import { RATES, RATE_LABELS } from '../tempo.js';
+import { EFFECTS } from '../effects.js';
 import { createSlider } from './slider.js';
 import { EASING_MODES, activeLine, buttonRow, sameCurve } from './layer-controls.js';
 
@@ -56,10 +57,21 @@ export function createLayerTweaks(parent, app, layer, onStop) {
 export function createEffectControls(sectionEl, app) {
     const setName = activeLine(sectionEl, 'Movimiento');
     const refreshTweaks = createLayerTweaks(sectionEl, app, 'movement', () => app.stopEffect());
+    // One row of option buttons per movement with def.options, shown while that movement plays.
+    const optionRows = Object.entries(EFFECTS).filter(([, def]) => def.options).map(([name, { options }]) => {
+        const btns = buttonRow(sectionEl, options.map(o => o.label), i => app.setMovementOption(options[i].value));
+        return { name, options, btns, row: btns[0].parentElement };
+    });
 
     function refresh() {
-        setName(app.nowPlaying().movement.label);
+        const playing = app.nowPlaying().movement;
+        setName(playing.label);
         refreshTweaks();
+        for (const { name, options, btns, row } of optionRows) {
+            const shown = app.currentMovement === name;
+            row.style.display = shown ? '' : 'none';
+            if (shown) markChoice(btns, i => options[i].value === playing.option);
+        }
     }
 
     refresh();

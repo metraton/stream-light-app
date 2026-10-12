@@ -91,6 +91,21 @@ export const EFFECTS = {
         axis: 'scale',
         easing: ['expDecay', 'step'],
     },
+    freeze: {
+        label: 'Congelado',
+        // A frozen column holds the camera frame from the start of its step for
+        // the first HOLD of the step, then snaps back to live; intensity scales
+        // HOLD, so at 2 the freeze fills the step. A step lasts 1/rate beats.
+        // The option picks who freezes: one column per step in turn, or all.
+        // The easing has nothing to shape: a freeze is a cut.
+        extra: true,
+        phases: { HOLD: 0.5 },
+        sequence: ['HOLD'],
+        rate: 1,
+        axis: 'freeze',
+        easing: 'step',
+        options: [{ value: 'turns', label: 'Por turnos' }, { value: 'all', label: 'Todas' }],
+    },
 };
 
 for (const def of Object.values(EFFECTS)) Object.freeze(def);

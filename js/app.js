@@ -183,7 +183,12 @@ export class StreamLightApp {
     /** What `name` plays with: the panel's tweak over the definition's defaults. */
     _settingsFor(layer, name, def) {
         const tweak = this.tweaks[layer][name] ?? {};
-        return { rate: tweak.rate ?? def.rate, easing: tweak.easing ?? def.easing, intensity: tweak.intensity ?? 1 };
+        return {
+            rate: tweak.rate ?? def.rate,
+            easing: tweak.easing ?? def.easing,
+            intensity: tweak.intensity ?? 1,
+            option: tweak.option,
+        };
     }
 
     _setTweak(layer, name, field, value) {
@@ -221,14 +226,24 @@ export class StreamLightApp {
         this._setTweak(layer, engine.active.name, 'intensity', intensity);
     }
 
-    /** Per layer, the label of what actually plays and its rate, easing and
-     *  intensity; null where the layer has nothing that moves. */
+    /** Pick one of the playing movement's def.options; it keeps that option the next time it plays. */
+    setMovementOption(option) {
+        const { active } = this.effectEngine;
+        if (!active?.def.options?.some(o => o.value === option)) return;
+        this.effectEngine.setOption(option);
+        this._setTweak('movement', active.name, 'option', option);
+        this.updateHUD();
+    }
+
+    /** Per layer, the label of what actually plays and its rate, easing,
+     *  intensity and option; null where the layer has nothing that moves. */
     nowPlaying() {
         const fromEngine = (engine, label) => ({
             label,
             rate: engine.active?.phase.rate ?? null,
             easing: engine.active?.easing ?? null,
             intensity: engine.active?.intensity ?? null,
+            option: engine.active?.option ?? null,
         });
         const { pattern, variant } = this.sequencer;
         const patternLabel = pattern[0].toUpperCase() + pattern.slice(1) + (variant ? ' ⇄' : '');
@@ -255,6 +270,9 @@ export class StreamLightApp {
                 if (isEasing(tweak.easing)) this._setTweak(layer, name, 'easing', tweak.easing);
                 if (Number.isFinite(tweak.intensity) && tweak.intensity >= INTENSITY_MIN && tweak.intensity <= INTENSITY_MAX) {
                     this._setTweak(layer, name, 'intensity', tweak.intensity);
+                }
+                if (layer === 'movement' && EFFECTS[name]?.options?.some(o => o.value === tweak.option)) {
+                    this._setTweak(layer, name, 'option', tweak.option);
                 }
             }
         }

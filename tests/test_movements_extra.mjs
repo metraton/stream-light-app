@@ -44,3 +44,37 @@ test('golpe de zoom follows intensity, the rate buttons and the easing buttons',
     const shown = EASING_MODES.find(mode => sameCurve(mode.curve, EFFECTS.zoomPulse.easing));
     assert.equal(shown?.label, 'Destello', 'the default easing lights a panel button');
 });
+
+const live = () => new Array(COLUMN_COUNT).fill(null);
+
+test('congelado por turnos freezes one column per step, walking the row, for the first `hold` of the step', async () => {
+    const { frozenSteps } = await import('../js/effect-engine.js');
+    for (let step = 0; step < 12; step++) {
+        const turn = live();
+        turn[step % COLUMN_COUNT] = step;
+        assert.deepEqual(frozenSteps(step + 0.25, COLUMN_COUNT, 'turns', 0.5), turn, `step ${step}`);
+        assert.deepEqual(frozenSteps(step + 0.75, COLUMN_COUNT, 'turns', 0.5), live(), `live after the hold, step ${step}`);
+    }
+});
+
+test('congelado todas freezes every column on the same step, then all go live together', async () => {
+    const { frozenSteps } = await import('../js/effect-engine.js');
+    for (let step = 0; step < 6; step++) {
+        assert.deepEqual(frozenSteps(step + 0.1, COLUMN_COUNT, 'all', 0.5), new Array(COLUMN_COUNT).fill(step));
+        assert.deepEqual(frozenSteps(step + 0.5, COLUMN_COUNT, 'all', 0.5), live());
+    }
+    assert.deepEqual(frozenSteps(4.99, COLUMN_COUNT, 'all', 1), new Array(COLUMN_COUNT).fill(4), 'a full hold never goes live');
+});
+
+test('congelado in the engine: option, intensity as hold, and a freeze of 1/rate beats', () => {
+    assert.equal(playing('freeze').active.option, 'turns', 'the first option is the default');
+    assert.deepEqual(playing('freeze').compute(COLUMN_COUNT, 1, 3.4).frozen, [null, null, null, 3, null]);
+    assert.deepEqual(playing('freeze').compute(COLUMN_COUNT, 1, 3.6).frozen, live(), 'HOLD 0.5 at intensity 1');
+    assert.deepEqual(playing('freeze', { intensity: 2 }).compute(COLUMN_COUNT, 1, 3.9).frozen, [null, null, null, 3, null]);
+    assert.deepEqual(playing('freeze', { option: 'all' }).compute(COLUMN_COUNT, 1, 2.2).frozen, new Array(COLUMN_COUNT).fill(2));
+    const slow = playing('freeze', { rate: 0.25 });
+    assert.deepEqual(slow.compute(COLUMN_COUNT, 1, 5.9).frozen, [null, 1, null, null, null], 'at rate 1/4 column 1 holds beats 4-6');
+    assert.deepEqual(slow.compute(COLUMN_COUNT, 1, 6.1).frozen, live());
+    const { offsetX, offsetY, scaleY, scale } = slow.compute(COLUMN_COUNT, 1, 5);
+    assert.ok([...offsetX, ...offsetY, ...scaleY].every(v => v === 0) && scale === null, 'the freeze moves nothing');
+});
