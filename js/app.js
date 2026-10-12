@@ -13,6 +13,15 @@ import { connectLiveBridge } from './live-bridge.js';
 import { setupWebcam, createTestPattern, defaultRotationSteps } from './camera.js';
 import { ControlPanel } from './panel/panel.js';
 
+// The stage always renders at 1080p and CSS scales the canvas to the window,
+// so the layout and its pixel-sized margins, gaps and glow never depend on the window.
+const RENDER_WIDTH = 1920;
+const RENDER_HEIGHT = 1080;
+
+// Frame-rate caps the panel cycles through; 0 is Pixi's "no cap" (the monitor's refresh rate).
+const MAX_FPS_OPTIONS = [30, 60, 0];
+const DEFAULT_MAX_FPS = 60;
+
 export class StreamLightApp {
     constructor() {
         this.pixiApp = null;
@@ -25,6 +34,7 @@ export class StreamLightApp {
         this.overlay = null;
         this.hud = null;
         this.panel = null;
+        this.maxFPS = DEFAULT_MAX_FPS;
         // Persistent active-state, single source of truth for the panel's
         // highlight sync. Mirrors currentGlowMode so movement/glow are symmetric.
         this.currentGlowMode = 'none';
@@ -82,29 +92,27 @@ export class StreamLightApp {
     async createPixiApp() {
         this.pixiApp = new PIXI.Application();
         await this.pixiApp.init({
-            resizeTo: window,
+            width: RENDER_WIDTH,
+            height: RENDER_HEIGHT,
             backgroundColor: 0x000000,
             antialias: true,
             resolution: 1,
         });
+        this.setMaxFPS(this.maxFPS);
         document.getElementById('app').appendChild(this.pixiApp.canvas);
+    }
 
-        let resizeTimeout;
-        window.addEventListener('resize', () => {
-            clearTimeout(resizeTimeout);
-            resizeTimeout = setTimeout(() => {
-                if (this.columnManager && this.columnManager.count > 0) {
-                    this.columnManager.rebuild();
-                    if (this.overlay) this.overlay.moveToTop();
-                    // Re-apply the ColorSequencer's current frame synchronously,
-                    // in the SAME tick as rebuild(), so the live combo (e.g.
-                    // calm = solid blue) is restored with NO rainbow flash.
-                    // rebuild() leaves sprites white; this overwrites them before
-                    // the next render, so no intermediate colors are ever shown.
-                    this.reapplyColors();
-                }
-            }, 100);
-        });
+    /** Cap rendering at `fps` frames per second; 0 renders at the monitor's refresh rate. */
+    setMaxFPS(fps) {
+        this.maxFPS = fps;
+        this.pixiApp.ticker.maxFPS = fps;
+    }
+
+    /** Step the frame-rate cap 30 -> 60 -> Monitor -> 30. Returns the new cap. */
+    cycleMaxFPS() {
+        const next = MAX_FPS_OPTIONS[(MAX_FPS_OPTIONS.indexOf(this.maxFPS) + 1) % MAX_FPS_OPTIONS.length];
+        this.setMaxFPS(next);
+        return next;
     }
 
     // --- Color Frame Application ---
@@ -404,11 +412,9 @@ export class StreamLightApp {
     }
 
     // --- Main Loop ---
+    // The video texture is not uploaded here: Pixi 8's VideoSource auto-updates
+    // itself from requestVideoFrameCallback, once per new camera frame.
     update(ticker) {
-        if (this.videoTexture && this.videoTexture.source) {
-            this.videoTexture.source.update();
-        }
-
         // Update color sequencer timing
         this.sequencer.update(performance.now());
 

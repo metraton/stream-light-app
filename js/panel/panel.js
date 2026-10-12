@@ -175,6 +175,26 @@ export class ControlPanel {
         rotRow.appendChild(rotLabel);
         rotRow.appendChild(rotBtn);
         sectionEl.appendChild(rotRow);
+
+        // FPS cap: single button cycling 30 / 60 / Monitor (uncapped), displaying the current cap.
+        const fpsRow = document.createElement('div');
+        fpsRow.className = 'layout-row';
+
+        const fpsLabel = document.createElement('label');
+        fpsLabel.textContent = 'FPS cap';
+
+        const fpsBtn = document.createElement('button');
+        fpsBtn.className = 'rotate-btn';
+        const fpsText = () => (this.app.maxFPS === 0 ? 'Monitor' : `${this.app.maxFPS}`);
+        fpsBtn.textContent = fpsText();
+        fpsBtn.addEventListener('click', () => {
+            this.app.cycleMaxFPS();
+            fpsBtn.textContent = fpsText();
+        });
+
+        fpsRow.appendChild(fpsLabel);
+        fpsRow.appendChild(fpsBtn);
+        sectionEl.appendChild(fpsRow);
     }
 
     toggle() {

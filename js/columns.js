@@ -108,9 +108,8 @@ export class ColumnManager {
             sprite.x = scaledW / 2 - panOffset;
             sprite.y = columnHeight / 2;
 
-            // Color filter (brightness, contrast, saturation)
+            // Color filter (brightness, contrast, saturation); applyFilters() attaches it.
             const colorMatrix = new PIXI.ColorMatrixFilter();
-            sprite.filters = [colorMatrix];
 
             container.addChild(sprite);
 
@@ -140,7 +139,7 @@ export class ColumnManager {
             glowGfx.filters = [glowFilter];
 
             glowContainer.addChild(glowGfx);
-            glowContainer.alpha = g.intensity;
+            this._setGlowAlpha(glowContainer, g.intensity);
 
             // Glow goes behind column
             this.pixiApp.stage.addChild(glowContainer);
@@ -166,10 +165,15 @@ export class ColumnManager {
         this.applyFilters();
     }
 
+    /** Recreate every column for the current layout, releasing the old columns' GPU resources but not the shared video texture. */
     rebuild() {
         for (const col of this.columns) {
-            this.pixiApp.stage.removeChild(col.container);
-            if (col.glowContainer) this.pixiApp.stage.removeChild(col.glowContainer);
+            this.pixiApp.stage.removeChild(col.container, col.glowContainer);
+            // destroy() keeps sprite textures unless asked ({ texture: true }), so the video survives.
+            col.container.destroy({ children: true });
+            col.glowContainer.destroy({ children: true });
+            col.colorMatrix.destroy();
+            col.glowFilter.destroy();
         }
         this.columns = [];
         this.create();
@@ -214,14 +218,24 @@ export class ColumnManager {
                     0, 0, 0, 1, 0,
                 ], chained);
             }
+
+            // An all-neutral matrix is the identity, so the filter pass would only cost GPU time.
+            const isIdentity = !chained && t === 0;
+            this.columns[i].sprite.filters = isIdentity ? null : [cm];
         }
     }
 
     // --- Glow ---
+    /** Set a glow layer's opacity, clamped to 0-1, and skip drawing it entirely while it is 0. */
+    _setGlowAlpha(glowContainer, intensity) {
+        glowContainer.alpha = Math.max(0, Math.min(1, intensity));
+        glowContainer.visible = glowContainer.alpha > 0;
+    }
+
     setGlow(index, intensity) {
         const col = this.columns[index];
         if (!col || !col.glowContainer) return;
-        col.glowContainer.alpha = Math.max(0, Math.min(1, intensity));
+        this._setGlowAlpha(col.glowContainer, intensity);
     }
 
     setAllGlow(intensity) {
@@ -234,7 +248,7 @@ export class ColumnManager {
         for (let i = 0; i < this.columns.length; i++) {
             const col = this.columns[i];
             if (!col.glowContainer) continue;
-            col.glowContainer.alpha = Math.max(0, Math.min(1, intensities[i] || 0));
+            this._setGlowAlpha(col.glowContainer, intensities[i] || 0);
         }
     }
 
@@ -262,7 +276,7 @@ export class ColumnManager {
             if (!col.glowFilter) continue;
             col.glowFilter.outerStrength = g.outerStrength;
             col.glowFilter.innerStrength = g.innerStrength;
-            col.glowContainer.alpha = g.intensity;
+            this._setGlowAlpha(col.glowContainer, g.intensity);
         }
         this.updateGlowColors();
     }
