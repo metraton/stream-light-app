@@ -106,6 +106,23 @@ export const EFFECTS = {
         easing: 'step',
         options: [{ value: 'turns', label: 'Por turnos' }, { value: 'all', label: 'Todas' }],
     },
+    timeDelay: {
+        label: 'Desfase',
+        // Each column shows the camera rank x step rendered frames ago, so the
+        // row reads as a staircase in time. The step is in frames, not beat
+        // fractions, so every column's ring has a fixed depth whatever the BPM.
+        // It breathes between DEEP and SHALLOW; maxStep is DEEP at the top
+        // intensity (2, INTENSITY_MAX in panel/effect-controls.js), caps the
+        // step and sizes the rings, so changing either means changing it.
+        extra: true,
+        phases: { DEEP: 2, SHALLOW: 1 },
+        sequence: ['DEEP', 'SHALLOW'],
+        maxStep: 4,
+        rate: 0.5,
+        axis: 'delay',
+        easing: 'easeInOutSine',
+        options: [{ value: 'ltr', label: 'Izq → der' }, { value: 'center', label: 'Centro → afuera' }],
+    },
 };
 
 for (const def of Object.values(EFFECTS)) Object.freeze(def);

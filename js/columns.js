@@ -4,6 +4,7 @@ import { effectiveFilter, isNeutral } from './color-filter.js';
 import { resolveEffects, chainKey } from './effect-stack.js';
 import { effectById, runsOnBeat } from './effects-registry.js';
 import { ScreenLayer } from './screen-layer.js';
+import { ringReadSlot, ringWriteSlot } from './effect-engine.js';
 
 // ============================================================================
 // UNIFIED MOVEMENT MARGIN RULE  (single source of truth — tune here)
@@ -143,8 +144,39 @@ class FrozenFrames extends HeldFrames {
     }
 }
 
+/** Desfase: every frame each column writes its live crop into its ring and shows the frame offsets.delay[i] back. */
+class DelayedFrames extends HeldFrames {
+    /** Follow offsets.delay and offsets.delayRings (EffectEngine.compute); new ring lengths reallocate the rings. */
+    sync(columns, { delay, delayRings }) {
+        if (!delay) return this.release(columns);
+        const key = delayRings.join();
+        if (key !== this.key) {
+            this.release(columns);
+            this._allocate(columns, delayRings);
+            this.key = key;
+            this.newest = -1;
+        }
+        this.newest++;
+        for (const col of columns) {
+            const ring = this.textures[col.index];
+            if (ring.length === 0) {
+                this._show(col, null);
+                continue;
+            }
+            this._capture(col, ring[ringWriteSlot(this.newest, ring.length)]);
+            const frames = delay[col.index];
+            this._show(col, frames === 0 ? null : ring[ringReadSlot(this.newest, frames, ring.length)]);
+        }
+    }
+
+    release(columns) {
+        super.release(columns);
+        this.key = null;
+    }
+}
+
 /** The frame-history movements; each reads its own field of EffectEngine.compute()'s result. */
-const FRAME_MOVEMENTS = [FrozenFrames];
+const FRAME_MOVEMENTS = [FrozenFrames, DelayedFrames];
 
 export class ColumnManager {
     constructor(pixiApp) {

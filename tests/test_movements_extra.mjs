@@ -78,3 +78,48 @@ test('congelado in the engine: option, intensity as hold, and a freeze of 1/rate
     const { offsetX, offsetY, scaleY, scale } = slow.compute(COLUMN_COUNT, 1, 5);
     assert.ok([...offsetX, ...offsetY, ...scaleY].every(v => v === 0) && scale === null, 'the freeze moves nothing');
 });
+
+test('desfase ranks grow left to right from a live column 0, or outward from a live center', async () => {
+    const { delayRanks } = await import('../js/effect-engine.js');
+    assert.deepEqual(delayRanks(5, 'ltr'), [0, 1, 2, 3, 4]);
+    assert.deepEqual(delayRanks(5, 'center'), [2, 1, 0, 1, 2]);
+});
+
+test('desfase rings fit each column\'s deepest delay, never past MAX_RING_FRAMES, none for a live column', async () => {
+    const { ringLengths, MAX_RING_FRAMES } = await import('../js/effect-engine.js');
+    assert.equal(MAX_RING_FRAMES, 20);
+    assert.deepEqual(ringLengths([0, 1, 2, 3, 4], 4), [0, 5, 9, 13, 17]);
+    assert.deepEqual(ringLengths([2, 1, 0, 1, 2], 4), [9, 5, 0, 5, 9]);
+    assert.deepEqual(ringLengths([0, 10], 4), [0, MAX_RING_FRAMES]);
+});
+
+test('desfase ring index math wraps around and never reads deeper than the ring or the frames written', async () => {
+    const { ringReadSlot, ringWriteSlot } = await import('../js/effect-engine.js');
+    for (const length of [1, 5, 17, 20]) {
+        // writtenAt[slot] is the frame number last written to that slot.
+        const writtenAt = [];
+        for (let newest = 0; newest < 3 * length + 2; newest++) {
+            writtenAt[ringWriteSlot(newest, length)] = newest;
+            for (let delay = 0; delay < length + 3; delay++) {
+                const expected = newest - Math.min(delay, newest, length - 1);
+                assert.equal(writtenAt[ringReadSlot(newest, delay, length)], expected, `length ${length}, newest ${newest}, delay ${delay}`);
+            }
+        }
+    }
+});
+
+test('desfase in the engine: a staircase that breathes with the sequence and intensity over fixed rings', () => {
+    const def = EFFECTS.timeDelay;
+    assert.equal(def.maxStep, def.phases.DEEP * 2, 'maxStep is DEEP at the top intensity, 2');
+    const engine = playing('timeDelay');
+    assert.equal(engine.active.option, 'ltr', 'the first option is the default');
+    const start = engine.compute(COLUMN_COUNT, 1, 0);
+    assert.deepEqual(start.delay, [0, 2, 4, 6, 8]);
+    assert.deepEqual(start.delayRings, [0, 5, 9, 13, 17]);
+    assert.deepEqual(engine.compute(COLUMN_COUNT, 1, 2).delay, [0, 1, 2, 3, 4], 'SHALLOW one step (two beats at rate 1/2) later');
+    const deep = playing('timeDelay', { intensity: 2 }).compute(COLUMN_COUNT, 1, 0);
+    assert.deepEqual(deep.delay, [0, 4, 8, 12, 16]);
+    assert.deepEqual(deep.delayRings, start.delayRings, 'intensity never reallocates the rings');
+    deep.delay.forEach((frames, i) => assert.ok(frames < Math.max(1, deep.delayRings[i]), `column ${i} fits its ring`));
+    assert.deepEqual(playing('timeDelay', { option: 'center' }).compute(COLUMN_COUNT, 1, 0).delay, [4, 2, 0, 2, 4]);
+});
