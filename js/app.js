@@ -56,8 +56,7 @@ export class StreamLightApp {
     }
 
     async init(deviceId) {
-        await this.createPixiApp();
-        const { videoElement, videoTexture } = await setupWebcam(deviceId);
+        const [, { videoElement, videoTexture }] = await Promise.all([this.createPixiApp(), setupWebcam(deviceId)]);
         this.videoElement = videoElement;
         this.videoTexture = videoTexture;
         this._applyCameraRotation();
@@ -79,6 +78,11 @@ export class StreamLightApp {
 
         this.overlay = new Overlay(this.pixiApp);
         this.overlay.create();
+        // The overlay first draws in the fallback face; startup never waits on the font,
+        // since a stalled font request never settles.
+        loadOverlayFont().then(faces => {
+            if (faces.length > 0) this.overlay.refresh();
+        });
 
         this.hud = new HUD();
         this.updateHUD();
@@ -112,8 +116,6 @@ export class StreamLightApp {
         });
         this.setMaxFPS(this.maxFPS);
         document.getElementById('app').appendChild(this.pixiApp.canvas);
-        // Both start paths run this before setup(), so the overlay's first render already has its font.
-        await loadOverlayFont();
     }
 
     /** Cap rendering at `fps` frames per second; 0 renders at the monitor's refresh rate. */

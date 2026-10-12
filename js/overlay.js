@@ -18,9 +18,18 @@ const MAX_WIDTH_SHARE = 0.94;
 
 const fontSpec = size => `${TEXT_FONT_WEIGHT} ${size}px "${TEXT_FONT_FAMILY}", sans-serif`;
 
-/** Resolves once the overlay font is ready, so the first render never shows a fallback face.
- *  Offline it resolves anyway and the text falls back to sans-serif. */
-export function loadOverlayFont() {
+/** Resolves with the overlay font's loaded faces, or [] when loading fails.
+ *  A stalled request never settles, so callers must not gate startup on it. */
+export async function loadOverlayFont() {
+    // index.html loads this stylesheet non-blocking, so its @font-face may not exist yet;
+    // loading before it does would resolve [] at once.
+    const link = document.querySelector('link[href*="family=Fredoka"]');
+    if (link && !link.sheet) {
+        await new Promise(resolve => {
+            link.addEventListener('load', resolve, { once: true });
+            link.addEventListener('error', resolve, { once: true });
+        });
+    }
     return document.fonts.load(fontSpec(100)).catch(() => []);
 }
 

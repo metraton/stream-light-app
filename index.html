@@ -8,10 +8,11 @@
     <meta http-equiv="Expires" content="0">
     <title>Stream Light</title>
     <link rel="stylesheet" href="panel.css">
-    <!-- Fredoka 600 is the text overlay's face (js/overlay-text.js TEXT_FONT_FAMILY); the app awaits it before rendering text. -->
+    <!-- Fredoka 600 is the text overlay's face (js/overlay-text.js TEXT_FONT_FAMILY). media="print" keeps the
+         stylesheet from blocking rendering; the overlay redraws once the face loads (js/app.js setup). -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600&display=block">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600&display=swap" media="print" onload="this.media='all'">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         html, body {
