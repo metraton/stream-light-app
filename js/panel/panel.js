@@ -1,5 +1,6 @@
 // --- Control Panel Orchestrator ---
-import { CONFIG } from '../config.js';
+import { CONFIG, DEFAULTS } from '../config.js';
+import { createSlider } from './slider.js';
 import { createSequencerControls } from './sequencer-controls.js';
 import { createColorControls } from './color-controls.js';
 import { createFilterControls } from './filter-controls.js';
@@ -118,49 +119,27 @@ export class ControlPanel {
     }
 
     createLayoutControls(sectionEl) {
+        // Ranges keep the values that read as a layout change on a 1080p stage;
+        // the slider is fine around the default (config.js) and coarse at the ends.
         const layouts = [
-            { key: 'gap', label: 'Gap', min: 0, max: 50, step: 1 },
-            { key: 'margin', label: 'Margin', min: 0, max: 50, step: 1 },
-            { key: 'cornerRadius', label: 'Radius', min: 0, max: 40, step: 1 },
-            { key: 'zoom', label: 'Zoom', min: 0.5, max: 2.0, step: 0.05 },
-            { key: 'spread', label: 'Spread', min: 0, max: 2.0, step: 0.05 },
+            { key: 'gap', label: 'Gap', min: 0, max: 40, decimals: 0 },
+            { key: 'margin', label: 'Margin', min: 0, max: 60, decimals: 0 },
+            { key: 'cornerRadius', label: 'Radius', min: 0, max: 30, decimals: 0 },
+            { key: 'zoom', label: 'Zoom', min: 0.8, max: 1.5, decimals: 2 },
+            { key: 'spread', label: 'Spread', min: 0.5, max: 1.5, decimals: 2 },
         ];
 
-        this.layoutSliders = {};
-
-        for (const { key, label, min, max, step } of layouts) {
-            const row = document.createElement('div');
-            row.className = 'layout-row';
-
-            const lbl = document.createElement('label');
-            lbl.textContent = label;
-
-            const slider = document.createElement('input');
-            slider.type = 'range';
-            slider.min = min;
-            slider.max = max;
-            slider.step = step;
-            slider.value = CONFIG.columns[key];
-
-            const val = document.createElement('span');
-            val.className = 'range-value';
-            val.textContent = CONFIG.columns[key];
-
-            slider.addEventListener('input', () => {
-                const v = parseFloat(slider.value);
-                CONFIG.columns[key] = v;
-                val.textContent = Number.isInteger(v) ? v : v.toFixed(2);
-                this.app.columnManager.rebuild();
-                this.app.reapplyColors();
-                if (this.app.overlay) this.app.overlay.moveToTop();
+        for (const { key, label, min, max, decimals } of layouts) {
+            createSlider(sectionEl, {
+                label, min, max, decimals,
+                defaultValue: DEFAULTS.columns[key], value: CONFIG.columns[key],
+                onChange: v => {
+                    CONFIG.columns[key] = v;
+                    this.app.columnManager.rebuild();
+                    this.app.reapplyColors();
+                    if (this.app.overlay) this.app.overlay.moveToTop();
+                },
             });
-
-            this.layoutSliders[key] = { slider, val };
-
-            row.appendChild(lbl);
-            row.appendChild(slider);
-            row.appendChild(val);
-            sectionEl.appendChild(row);
         }
 
         // Rotate: single button cycling 0°/90°/180°/270°, displaying current angle.
