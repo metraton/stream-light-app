@@ -1,5 +1,7 @@
 // --- Effect Definitions (phase data + metadata) ---
 // Offset values are reference at 1080p, auto-scaled to viewport by the engine.
+// phaseDuration is the default ms per sequence step and speedRange bounds the
+// panel slider; easing 'linear' is what the panel calls "Suave".
 
 export const EFFECTS = {
     wave: {
@@ -12,10 +14,10 @@ export const EFFECTS = {
             BOTTOM: [14, 8, 0, 7, 14],
         },
         sequence: ['UP', 'PEAK', 'UP', 'MAIN', 'DOWN', 'BOTTOM', 'DOWN', 'MAIN'],
-        phaseDuration: 550,            // per-phase ms (smoothing = linear/"Suave")
+        phaseDuration: 550,
         speedRange: [100, 1200],
         axis: 'y',
-        easing: 'linear',              // smoothing = "Suave" (= linear)
+        easing: 'linear',
         looping: true,
     },
     expand: {
@@ -26,66 +28,64 @@ export const EFFECTS = {
             E2:   [-15, -7, 0, 7, 15],
         },
         sequence: ['E1', 'MAIN', 'E2', 'MAIN'],
-        phaseDuration: 700,            // per-phase ms (smoothing = linear/"Suave")
+        phaseDuration: 700,
         speedRange: [100, 1200],
         axis: 'x',
-        easing: 'linear',              // smoothing = "Suave" (= linear)
+        easing: 'linear',
         looping: true,
     },
     broken: {
         label: 'Broken',
-        // Diagonal staircase: columns break diagonally, center stays as pivot
+        // Neighbouring columns jump in opposite vertical directions, a zigzag
+        // that Expand's symmetric horizontal spread never produces.
         phases: {
-            MAIN:        [0, 0, 0, 0, 0],
-            STAIR_RIGHT: [-12, -6, 0, 6, 12],    // left up, right down (descending stairs)
-            STAIR_LEFT:  [12, 6, 0, -6, -12],     // left down, right up (ascending stairs)
+            MAIN: [0, 0, 0, 0, 0],
+            ZIG:  [-20, 20, -20, 20, -20],
+            ZAG:  [20, -20, 20, -20, 20],
         },
-        sequence: ['STAIR_RIGHT', 'MAIN', 'STAIR_LEFT', 'MAIN'],
-        phaseDuration: 700,            // per-phase ms (smoothing = linear/"Suave")
+        sequence: ['ZIG', 'MAIN', 'ZAG', 'MAIN'],
+        phaseDuration: 500,
         speedRange: [100, 1000],
         axis: 'y',
-        easing: 'linear',              // smoothing = "Suave" (= linear)
+        easing: 'linear',
         looping: true,
     },
     equalizer: {
         label: 'Equalizer',
-        // Smooth equalizer GRADIENT (not jumpy bars). Two fixes vs the old
-        // ±0.065 alternating-sign version that felt brusque:
-        //  (1) peak magnitude reduced to ±0.04 (gentler grow/shrink), and
-        //  (2) adjacent columns differ by only ~0.02 and share sign, so the
-        //      profile reads as a soft travelling hump rather than neighbours
-        //      lurching opposite directions. A travelling gradient across the
-        //      5 columns gives an organic, smooth equalizer feel.
+        // Every column follows the same +/-10% height sine, 72 degrees behind
+        // its left neighbour, so the bars rise and fall out of phase.
         phases: {
-            MAIN: [0, 0, 0, 0, 0],
-            G1:   [0.04, 0.02, 0.00, -0.02, -0.04],
-            G2:   [0.02, 0.04, 0.02, 0.00, -0.02],
-            G3:   [0.00, 0.02, 0.04, 0.02, 0.00],
-            G4:   [-0.02, 0.00, 0.02, 0.04, 0.02],
-            G5:   [-0.04, -0.02, 0.00, 0.02, 0.04],
+            E0: [0.00, 0.10, 0.06, -0.06, -0.10],
+            E1: [0.07, 0.09, -0.02, -0.10, -0.05],
+            E2: [0.10, 0.03, -0.08, -0.08, 0.03],
+            E3: [0.07, -0.05, -0.10, -0.02, 0.09],
+            E4: [0.00, -0.10, -0.06, 0.06, 0.10],
+            E5: [-0.07, -0.09, 0.02, 0.10, 0.05],
+            E6: [-0.10, -0.03, 0.08, 0.08, -0.03],
+            E7: [-0.07, 0.05, 0.10, 0.02, -0.09],
         },
-        sequence: ['G1', 'G2', 'G3', 'G4', 'G5', 'G4', 'G3', 'G2'],
-        phaseDuration: 500,            // per-phase ms (smoothing = linear/"Suave")
+        sequence: ['E0', 'E1', 'E2', 'E3', 'E4', 'E5', 'E6', 'E7'],
+        phaseDuration: 180,
         speedRange: [50, 800],
         axis: 'scaleY',
-        easing: 'linear',              // smoothing = "Suave" (= linear)
+        easing: 'linear',
         looping: true,
     },
     shake: {
         label: 'Shake',
-        // Subtle high-speed tremor on both axes — tension/buzzing feel
+        // A real jitter: +/-4 px on both axes, a new position every 50 ms.
         phases: {
-            MAIN: { x: [0, 0, 0, 0, 0],    y: [0, 0, 0, 0, 0] },
-            S1:   { x: [-2, 1, 0, -1, 2],   y: [1, -2, 1, 2, -1] },
-            S2:   { x: [1, -1, 0, 1, -1],   y: [-2, 1, -1, -1, 2] },
-            S3:   { x: [2, -2, 0, 2, -2],   y: [-1, 2, -2, 1, -2] },
-            S4:   { x: [-1, 2, 0, -2, 1],   y: [2, -1, 2, -2, 1] },
+            MAIN: { x: [0, 0, 0, 0, 0],     y: [0, 0, 0, 0, 0] },
+            S1:   { x: [-4, 2, 0, -2, 4],   y: [2, -4, 2, 4, -2] },
+            S2:   { x: [2, -2, 0, 2, -2],   y: [-4, 2, -2, -2, 4] },
+            S3:   { x: [4, -4, 0, 4, -4],   y: [-2, 4, -4, 2, -4] },
+            S4:   { x: [-2, 4, 0, -4, 2],   y: [4, -2, 4, -4, 2] },
         },
         sequence: ['S1', 'S2', 'S3', 'S4', 'S2', 'S1', 'S4', 'S3'],
-        phaseDuration: 460,            // per-phase ms (smoothing = linear/"Suave")
-        speedRange: [10, 600],         //460 default is within range
+        phaseDuration: 50,
+        speedRange: [10, 600],
         axis: 'xy',
-        easing: 'linear',              // smoothing = "Suave" (= linear)
+        easing: 'linear',
         looping: true,
     },
 };

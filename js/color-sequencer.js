@@ -1,26 +1,140 @@
 // --- Color Sequencer: pattern-based color cycling for columns ---
-// Manages selected colors, generates frames based on pattern, cycles at BPM rate.
-// Independent layer from movement and glow.
+// Owns the selected colors and the pattern, turns them into frames (one color
+// index per column) and steps through the frames at the BPM rate. Independent
+// of the movement and glow layers.
 
 import { CONFIG } from './config.js';
+import { BASE_STATE } from './mood-map.js';
 
-// Color indices: -1=empty, 0=YELLOW, 1=BLUE, 2=RED, 3=GREEN, 4=PURPLE
+// Color indices: -1=empty (neutral column), 0=YELLOW, 1=BLUE, 2=RED, 3=GREEN, 4=PURPLE
 const COLOR_NAMES = ['YELLOW', 'BLUE', 'RED', 'GREEN', 'PURPLE'];
+const EMPTY = -1;
+const COLUMN_COUNT = 5;
+const CENTER_COLUMN = Math.floor(COLUMN_COUNT / 2);
+const SPARKLE_FRAME_COUNT = 16;
+
+/** Pattern names in key order (Q W E R T Y). */
+export const PATTERNS = ['none', 'chase', 'carousel', 'mirror', 'sparkle', 'fill'];
+
+// Removed pattern names mapped to the pattern that now plays instead, so an
+// old name arriving from stored or relayed state still resolves.
+const LEGACY_PATTERNS = { solid: 'none', pingpong: 'chase', alternate: 'carousel' };
+
+/** Returns the current name for a pattern, translating removed names. */
+export function canonicalPattern(name) {
+    return LEGACY_PATTERNS[name] ?? name;
+}
+
+/** Returns the frames a pattern produces for an ordered color list; [] when no color is selected. */
+export function generateFrames(pattern, colors) {
+    if (colors.length === 0) return [];
+    switch (canonicalPattern(pattern)) {
+        case 'chase': return chaseFrames(colors);
+        case 'carousel': return carouselFrames(colors);
+        case 'mirror': return mirrorFrames(colors);
+        case 'sparkle': return sparkleFrames(colors);
+        case 'fill': return fillFrames(colors);
+        default: return [spreadFrame(colors)];
+    }
+}
+
+function frameOf(colorAt) {
+    return Array.from({ length: COLUMN_COUNT }, (_, col) => colorAt(col));
+}
+
+// none: the colors split the row into equal blocks, left to right, and hold still.
+function spreadFrame(colors) {
+    return frameOf(col => colors[Math.floor(col * colors.length / COLUMN_COUNT)]);
+}
+
+// chase: the colors travel together left to right, wrapping, over empty columns.
+function chaseFrames(colors) {
+    return Array.from({ length: COLUMN_COUNT }, (_, offset) => {
+        const frame = new Array(COLUMN_COUNT).fill(EMPTY);
+        colors.forEach((color, i) => { frame[(offset + i) % COLUMN_COUNT] = color; });
+        return frame;
+    });
+}
+
+// carousel: the colors repeat across every column and rotate one step per beat.
+// A single color has nothing to rotate against, so it alternates with empty columns.
+function carouselFrames(colors) {
+    const cycle = colors.length === 1 ? [colors[0], EMPTY] : colors;
+    return cycle.map((_, offset) => frameOf(col => cycle[(col + offset) % cycle.length]));
+}
+
+// mirror and fill paint each color over the one before it; a single color is
+// painted over empty columns, so every cycle restarts visibly.
+function colorBeneath(colors, i) {
+    return colors.length === 1 ? EMPTY : colors[(i - 1 + colors.length) % colors.length];
+}
+
+// mirror: each color grows from the center column out to both edges.
+function mirrorFrames(colors) {
+    return colors.flatMap((color, i) => {
+        const beneath = colorBeneath(colors, i);
+        return Array.from({ length: CENTER_COLUMN + 1 }, (_, reach) =>
+            frameOf(col => (Math.abs(col - CENTER_COLUMN) <= reach ? color : beneath)));
+    });
+}
+
+// fill: each color fills the row left to right, one column per beat.
+function fillFrames(colors) {
+    return colors.flatMap((color, i) => {
+        const beneath = colorBeneath(colors, i);
+        return Array.from({ length: COLUMN_COUNT }, (_, filled) =>
+            frameOf(col => (col <= filled ? color : beneath)));
+    });
+}
+
+/** Returns a seeded PRNG (mulberry32) yielding [0, 1): one seed, one sequence. */
+function seededRandom(seed) {
+    let state = seed >>> 0;
+    return () => {
+        state = (state + 0x6D2B79F5) >>> 0;
+        let t = Math.imul(state ^ (state >>> 15), state | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+}
+
+// sparkle: each beat lights 2-3 shuffled columns with random selected colors.
+// The seed comes from the ordered colors, so a combo always sparkles the same way.
+function sparkleFrames(colors) {
+    const random = seededRandom(colors.reduce((seed, color) => seed * 7 + color + 2, 1));
+    return Array.from({ length: SPARKLE_FRAME_COUNT }, () => {
+        const columns = [...Array(COLUMN_COUNT).keys()];
+        for (let i = columns.length - 1; i > 0; i--) {
+            const j = Math.floor(random() * (i + 1));
+            [columns[i], columns[j]] = [columns[j], columns[i]];
+        }
+        const litCount = 2 + Math.floor(random() * 2);
+        const frame = new Array(COLUMN_COUNT).fill(EMPTY);
+        for (const col of columns.slice(0, litCount)) {
+            frame[col] = colors[Math.floor(random() * colors.length)];
+        }
+        return frame;
+    });
+}
 
 export class ColorSequencer {
     // Maximum number of colors that can accumulate into the combination list.
     static MAX_COMBINATIONS = 5;
 
     constructor() {
-        this.selectedColors = [];   // ordered array of color indices (-1, 0-4)
-        this.pattern = 'solid';     // default at startup so 'R Solid' shows active;
-                                    // 'solid','alternate','chase','carousel','pingpong'
-        this.frames = [];           // generated frames: each is [c0,c1,c2,c3,c4]
+        this.frames = [];           // each frame is one color index per column
         this.currentStep = 0;
-        this.bpm = 120;
-        this.isPlaying = false;
         this._lastStepTime = 0;
         this._onFrameChange = null; // callback(frame, stepIndex)
+        this.resetToBase();
+    }
+
+    /** Return to BASE_STATE: no colors, base pattern and BPM, stopped, no cue in progress. */
+    resetToBase() {
+        this.selectedColors = [...BASE_STATE.colors];
+        this.pattern = BASE_STATE.pattern;
+        this.bpm = BASE_STATE.bpm;
+        this.isPlaying = BASE_STATE.playing;
 
         // --- DJ cue/staging model ---
         // While `staging` is true, color/pattern presses build a PENDING combo
@@ -28,11 +142,12 @@ export class ColorSequencer {
         // untouched. Play (commit) copies pending -> live and restarts from 0.
         this.staging = false;
         this.pendingColors = [];
-        this.pendingPattern = 'solid';
+        this.pendingPattern = BASE_STATE.pattern;
         this.pendingFullReset = false;
+        this._regenerate();
     }
 
-    // --- Color Selection ---
+    // --- Colors ---
 
     /** The list color presses accumulate into: pending while staging, else live. */
     get _editTarget() {
@@ -45,11 +160,9 @@ export class ColorSequencer {
         if (pos !== -1) {
             list.splice(pos, 1);
         } else {
-            // Cap at MAX_COMBINATIONS: ignore presses beyond the cap.
             if (list.length >= ColorSequencer.MAX_COMBINATIONS) return;
             list.push(colorIdx);
         }
-        // While staging, only the pending buffer changes — live keeps rotating.
         if (!this.staging) this._regenerate();
     }
 
@@ -62,14 +175,11 @@ export class ColorSequencer {
         this._regenerate();
     }
 
-    /** REAL rainbow: all 5 colors AND the carousel pattern, which generates the
-     *  cyclic-shift frames [0,1,2,3,4] -> [1,2,3,4,0] -> ... so every column shows
-     *  a DISTINCT color and the rainbow marches across columns on Play.
-     *  (Reuses _genCarousel — no dedicated generator needed.)
-     *  Toggle: if rainbow is already active (all 5 + carousel), clear it. */
+    /** Rainbow: all 5 colors with the carousel pattern, so every column shows a
+     *  distinct color and the rainbow marches across the columns on Play.
+     *  Pressing it again while the rainbow is active clears the colors. */
     selectRainbow() {
         if (this.staging) {
-            // Stage the marching rainbow (all 5 + carousel) for the next combo.
             const allFive = this.pendingColors.length === 5 &&
                 [0, 1, 2, 3, 4].every(c => this.pendingColors.includes(c));
             if (allFive && this.pendingPattern === 'carousel') {
@@ -86,37 +196,25 @@ export class ColorSequencer {
             this.selectedColors = [];
         } else {
             this.selectedColors = [0, 1, 2, 3, 4];
-            this.pattern = 'carousel'; // marching rainbow, not all-same-color cycling
+            this.pattern = 'carousel';
         }
-        this._regenerate();
-    }
-
-    clearColors() {
-        this.selectedColors = [];
-        this.isPlaying = false;
-        this.staging = false;    // empty reset (Escape) exits staging too
-        this.pendingColors = [];
         this._regenerate();
     }
 
     // --- Staging (DJ cue) ---
 
-    /** Begin staging a NEW combo in the background. The LIVE rotation is left
-     *  untouched and keeps playing. Color/pattern presses now build pending.
-     *  @param {string|null} pattern - the pending pattern to start from. */
-    startStaging(pattern = 'solid', fullReset = false) {
+    /** Begin staging a NEW combo in the background; the LIVE rotation keeps
+     *  playing. fullReset asks the commit to also reset movement/glow/mood,
+     *  layers the sequencer does not own, so it is returned by commitStaged(). */
+    startStaging(pattern = BASE_STATE.pattern, fullReset = false) {
         this.staging = true;
         this.pendingColors = [];
-        this.pendingPattern = pattern;
-        // When true (Cue total), commit also resets movement/glow/mood to
-        // baseline. The sequencer can't touch those layers itself, so it just
-        // flags the intent; the app reads it via commitStaged()'s return.
+        this.pendingPattern = canonicalPattern(pattern);
         this.pendingFullReset = fullReset;
     }
 
     /** COMMIT the staged combo: pending -> live, regenerate, play from frame 0.
-     *  @returns {object|false} false if not staging; else
-     *    { fullReset } so the caller can also reset movement/glow/mood. */
+     *  @returns {object|false} false if not staging; else { fullReset }. */
     commitStaged() {
         if (!this.staging) return false;
         const fullReset = this.pendingFullReset;
@@ -124,19 +222,20 @@ export class ColorSequencer {
         this.pattern = this.pendingPattern;
         this.staging = false;
         this.pendingFullReset = false;
-        this._regenerate();   // build frames from the committed combo
-        this.play(true);      // (re)start the new combo from frame 0
+        this._regenerate();
+        this.play(true);
         return { fullReset };
     }
 
-    // --- Pattern Selection ---
+    // --- Pattern ---
 
     setPattern(pat) {
+        const pattern = canonicalPattern(pat);
         if (this.staging) {
-            this.pendingPattern = pat; // stage the pattern for the next combo
+            this.pendingPattern = pattern;
             return;
         }
-        this.pattern = pat;
+        this.pattern = pattern;
         this._regenerate();
     }
 
@@ -162,9 +261,7 @@ export class ColorSequencer {
         this.currentStep = 0;
     }
 
-    /** Space / Play. In the DJ cue model:
-     *  - If a combo is being STAGED, commit it (pending -> live, play from 0).
-     *  - Else toggle the live rotation play/stop. */
+    /** Space / Play: commit a staged combo, else toggle the live rotation. */
     togglePlay() {
         if (this.staging) {
             this.commitStaged();
@@ -196,156 +293,24 @@ export class ColorSequencer {
         this._onFrameChange = callback;
     }
 
-    // --- Frame Generation ---
-
+    /** Rebuild the frames and paint frame 0. Never starts playback: nothing
+     *  auto-plays, Space does. If already playing, the ticker keeps cycling. */
     _regenerate() {
         this.currentStep = 0;
-        const sel = this.selectedColors.filter(c => c >= 0 && c <= 4);
-        const hasEmpty = this.selectedColors.includes(-1);
-
-        if (sel.length === 0 && !hasEmpty) {
-            this.frames = [];
-            this._applyCurrentFrame();
-            return;
-        }
-
-        const allSel = [...this.selectedColors]; // includes -1 if selected
-
-        switch (this.pattern) {
-            case 'solid':
-                this.frames = this._genSolid(allSel);
-                break;
-            case 'alternate':
-                this.frames = this._genAlternate(allSel);
-                break;
-            case 'chase':
-                this.frames = this._genChase(allSel);
-                break;
-            case 'carousel':
-                this.frames = this._genCarousel(allSel);
-                break;
-            case 'pingpong':
-                this.frames = this._genPingPong(allSel);
-                break;
-            default:
-                // No pattern selected: just show solid first color
-                if (allSel.length > 0) {
-                    this.frames = this._genSolid(allSel);
-                } else {
-                    this.frames = [];
-                }
-        }
-
+        this.frames = generateFrames(this.pattern, this.selectedColors);
         this._applyCurrentFrame();
-
-        // "Nothing auto-plays" model: _regenerate ONLY rebuilds frames and paints
-        // the current static frame. It never starts playback. The user starts
-        // cycling explicitly with SPACE (togglePlay), and a cue commit plays via
-        // commitStaged's explicit play(true). If already playing when colors are
-        // edited live, isPlaying stays true so the ticker keeps cycling the new
-        // frames (currentStep was reset to 0 above).
     }
 
     _applyCurrentFrame() {
         if (this._onFrameChange) {
-            const frame = this.frames.length > 0
-                ? this.frames[this.currentStep % this.frames.length]
-                : [-1, -1, -1, -1, -1];
-            this._onFrameChange(frame, this.currentStep);
+            this._onFrameChange(this.currentFrame, this.currentStep);
         }
-    }
-
-    // --- Pattern: Solid ---
-    // Each selected color fills ALL 5 columns as its own frame
-    _genSolid(sel) {
-        if (sel.length === 0) return [[-1,-1,-1,-1,-1]];
-        return sel.map(c => [c, c, c, c, c]);
-    }
-
-    // --- Pattern: Alternate ---
-    // Each color gets its own frame with vacíos
-    // First color → positions 0,2,4 (dominant, 3 cols)
-    // Second color → positions 1,3 (response, 2 cols)
-    // Third → 0,2,4 again, etc.
-    _genAlternate(sel) {
-        if (sel.length === 0) return [[-1,-1,-1,-1,-1]];
-        return sel.map((color, idx) => {
-            const frame = [-1, -1, -1, -1, -1];
-            const positions = (idx % 2 === 0) ? [0, 2, 4] : [1, 3];
-            positions.forEach(p => { frame[p] = color; });
-            return frame;
-        });
-    }
-
-    // --- Pattern: Chase ---
-    // Colors travel together L→R, wrapping around
-    _genChase(sel) {
-        if (sel.length === 0) return [[-1,-1,-1,-1,-1]];
-        const frames = [];
-        for (let offset = 0; offset < 5; offset++) {
-            const frame = [-1, -1, -1, -1, -1];
-            sel.forEach((color, ci) => {
-                const pos = (offset + ci) % 5;
-                frame[pos] = color;
-            });
-            frames.push(frame);
-        }
-        return frames;
-    }
-
-    // --- Pattern: Carousel ---
-    // All 5 columns filled, colors rotate positions
-    _genCarousel(sel) {
-        if (sel.length === 0) return [[-1,-1,-1,-1,-1]];
-        if (sel.length === 1) return [[sel[0], sel[0], sel[0], sel[0], sel[0]]];
-
-        const numFrames = sel.length;
-        const frames = [];
-        for (let offset = 0; offset < numFrames; offset++) {
-            const frame = [];
-            for (let i = 0; i < 5; i++) {
-                frame.push(sel[(i + offset) % sel.length]);
-            }
-            frames.push(frame);
-        }
-        return frames;
-    }
-
-    // --- Pattern: Ping-Pong ---
-    // Group of colors bounces left→right→left
-    _genPingPong(sel) {
-        if (sel.length === 0) return [[-1,-1,-1,-1,-1]];
-        const groupSize = Math.min(sel.length, 5);
-        const maxPos = 5 - groupSize;
-
-        if (maxPos <= 0) {
-            return [sel.slice(0, 5)];
-        }
-
-        const frames = [];
-        // Forward
-        for (let pos = 0; pos <= maxPos; pos++) {
-            const frame = [-1, -1, -1, -1, -1];
-            for (let ci = 0; ci < groupSize; ci++) {
-                frame[pos + ci] = sel[ci];
-            }
-            frames.push(frame);
-        }
-        // Backward (skip endpoints)
-        for (let pos = maxPos - 1; pos >= 1; pos--) {
-            const frame = [-1, -1, -1, -1, -1];
-            for (let ci = 0; ci < groupSize; ci++) {
-                frame[pos + ci] = sel[ci];
-            }
-            frames.push(frame);
-        }
-        return frames;
     }
 
     // --- Helpers ---
 
     get currentFrame() {
-        if (this.frames.length === 0) return [-1, -1, -1, -1, -1];
+        if (this.frames.length === 0) return new Array(COLUMN_COUNT).fill(EMPTY);
         return this.frames[this.currentStep % this.frames.length];
     }
 
@@ -369,7 +334,7 @@ export class ColorSequencer {
 
     /** Convert color index to hex value for PixiJS tint */
     static colorHex(idx) {
-        if (idx === -1) return null; // empty = no tint change
+        if (idx === -1) return null;
         const name = COLOR_NAMES[idx];
         return name ? CONFIG.colors[name] : null;
     }

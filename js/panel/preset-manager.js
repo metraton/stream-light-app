@@ -87,9 +87,12 @@ export function deletePreset(name) {
     localStorage.removeItem(STORAGE_PREFIX + name);
 }
 
+/** Restore colors, layout, filters, glow look and movement timings to their
+ *  defaults. The rotation is kept: the camera sets it, not the defaults. */
 export function resetToDefaults() {
+    const { rotationSteps } = CONFIG.columns;
     Object.assign(CONFIG.colors, DEFAULTS.colors);
-    Object.assign(CONFIG.columns, DEFAULTS.columns);
+    Object.assign(CONFIG.columns, DEFAULTS.columns, { rotationSteps });
     for (const key of Object.keys(DEFAULTS.filters)) {
         CONFIG.filters[key] = [...DEFAULTS.filters[key]];
     }
@@ -111,6 +114,7 @@ export function createPresetControls(sectionEl, app) {
     resetBtn.style.flex = '1';
     resetBtn.addEventListener('click', () => {
         resetToDefaults();
+        app.resetToBase();
         app.columnManager.rebuild();
         app.reapplyColors();
         if (app.overlay) app.overlay.moveToTop();

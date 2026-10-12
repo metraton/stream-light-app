@@ -1,35 +1,27 @@
-// --- Keyboard Shortcuts (Sequencer layout) ---
-// Numbers 1-6: toggle color selection; |: toggle Empty
-// Shift+number / Shift+|: select only that color
+// --- Keyboard Shortcuts ---
+// |: toggle Empty; 1-5: toggle a color; 6: rainbow (all 5 + carousel)
+// Shift+| / Shift+1-5: select only that color
 // 0 / Shift+0: switch camera (Iriun <-> Logitech only)
-// QWERT: pattern (chase/pingpong/alternate/solid/carousel)
-// ASDFGH: movement (none/wave/expand/broken/shake/equalizer)
-// Z X C V B N M , : glow (off/sweep/breathe/pulse/strobe/bounce/cascade/alternate)
-//   (single source of truth: js/glow-map.js)
-// Shift+ZXCVB: moods (calm/build/tension/peak/mystic)
-// Backspace / Shift+Backspace: cue a new combo while the live one keeps playing
-// Space: commit the cue (movement/glow/mood reset to None), else play/stop
+// Q W E R T Y: pattern (none/chase/carousel/mirror/sparkle/fill)
+// A S D F G H: movement (none/wave/expand/broken/shake/equalizer)
+// Z X C V B N: glow (none/sweep/breathe/pulse/strobe/alternate), from js/glow-map.js
+// Shift+Z X C V B N: mood (none/calm/build/tension/peak/mystic), from js/mood-map.js
+// <: mood None
+// Backspace: cue a new combo while the live one keeps playing
+// Space: commit the cue (movement/glow/mood back to the base state), else play/stop
 // + / ´: BPM up / down
-// <: mood None, Escape: empty reset, J: HUD, P: panel
+// Escape: back to the base state; J: HUD; P: panel
 //
 // resolveShortcut is the only key map: the keydown listener and the live
 // bridge (js/live-bridge.js) both run it, and serve.py suppresses a key
 // globally only when resolveShortcut binds it.
 
 import { GLOW_KEY_TO_MODE } from './glow-map.js';
+import { MOODS, MOOD_KEY_TO_NAME } from './mood-map.js';
 import { nextCameraId } from './camera.js';
 
-const PATTERN_KEYS = { q: 'chase', w: 'pingpong', e: 'alternate', r: 'solid', t: 'carousel' };
+const PATTERN_KEYS = { q: 'none', w: 'chase', e: 'carousel', r: 'mirror', t: 'sparkle', y: 'fill' };
 const MOVEMENT_KEYS = { a: 'none', s: 'wave', d: 'expand', f: 'broken', g: 'shake', h: 'equalizer' };
-const MOOD_KEYS = { z: 'calm', x: 'build', c: 'tension', v: 'peak', b: 'mystic' };
-
-const MOODS = {
-    calm:    { colors: [1],         pattern: 'solid',    movement: 'wave',      glow: 'breathe',   bpm: 80 },
-    build:   { colors: [2, 0],      pattern: 'carousel', movement: 'none',      glow: 'cascade',   bpm: 110 },
-    tension: { colors: [2],         pattern: 'solid',    movement: 'expand',    glow: 'strobe',    bpm: 150 },
-    peak:    { colors: [0,1,2,3,4], pattern: 'carousel', movement: 'wave',      glow: 'alternate', bpm: 180 },
-    mystic:  { colors: [4],         pattern: 'solid',    movement: 'equalizer', glow: 'sweep',     bpm: 90 },
-};
 
 /**
  * Returns the action bound to a keystroke as `(app) => void`, or null when the
@@ -79,7 +71,6 @@ export function resolveShortcut(e) {
             };
         }
 
-        // 6 = rainbow (all 5 colors + carousel). Shift has no distinct mode.
         if (num === 6) {
             return (app) => {
                 app.sequencer.selectRainbow();
@@ -107,27 +98,29 @@ export function resolveShortcut(e) {
         };
     }
 
-    // Glow and moods are gated separately so Shift fires only on real mood
-    // keys (ZXCVB) and never swallows Shift+N/M/comma, which have no shift glow.
-    const glowMode = !shift ? GLOW_KEY_TO_MODE[keyLower] : undefined;
-    const moodName = shift ? MOOD_KEYS[keyLower] : undefined;
-    if (moodName !== undefined && !ctrl && !alt) {
+    // Glow and moods share keys: without Shift a key is a glow, with Shift a mood.
+    if (shift && Object.hasOwn(MOOD_KEY_TO_NAME, keyLower) && !ctrl && !alt) {
+        const moodName = MOOD_KEY_TO_NAME[keyLower];
         return (app) => {
-            app.applyMood(MOODS[moodName], moodName);
+            if (moodName === null) {
+                app.clearMood();
+            } else {
+                app.applyMood(MOODS[moodName], moodName);
+            }
             app.updateHUD();
         };
     }
-    if (glowMode !== undefined && !ctrl && !alt) {
+    if (!shift && Object.hasOwn(GLOW_KEY_TO_MODE, keyLower) && !ctrl && !alt) {
+        const glowMode = GLOW_KEY_TO_MODE[keyLower];
         return (app) => {
             app.setGlowMode(glowMode);
             app.updateHUD();
         };
     }
 
-    // Cue (DJ staging model): neither form pauses; the live rotation keeps
-    // playing while a new combo is staged. Shift stages from a Solid baseline.
-    if (key === 'Backspace') {
-        return (app) => (shift ? app.totalReset() : app.cueReset());
+    // The cue never pauses: the live rotation keeps playing while a new combo is staged.
+    if (key === 'Backspace' && !shift) {
+        return (app) => app.cue();
     }
 
     if (key === ' ') {
@@ -141,9 +134,8 @@ export function resolveShortcut(e) {
         };
     }
 
-    // Empty reset: distinct from totalReset, which keeps a Solid baseline.
     if (key === 'Escape') {
-        return (app) => app.emptyReset();
+        return (app) => app.resetToBase();
     }
 
     if (key === '+') {

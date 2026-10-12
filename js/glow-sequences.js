@@ -1,10 +1,12 @@
 // --- Glow Sequence Definitions (per-column intensity keyframes) ---
-// Each phase is an array of 5 intensity values [0-1] for columns 1-5.
-// The engine interpolates between phases using the sequence order + easing.
+// Each phase is an array of 5 intensity values [0-1] for columns 1-5. The
+// engine interpolates from each sequence step to the next with the easing.
+// phaseDuration is the default ms per step and speedRange bounds the panel
+// slider; easing 'linear' is what the panel calls "Suave".
 
 export const GLOW_SEQUENCES = {
     'sweep-right': {
-        label: 'Sweep \u2192',
+        label: 'Sweep →',
         phases: {
             OFF: [0, 0, 0, 0, 0],
             C1:  [1, 0, 0, 0, 0],
@@ -15,14 +17,14 @@ export const GLOW_SEQUENCES = {
             TAIL:[0, 0, 0, 0, 0.3],
         },
         sequence: ['C1', 'C2', 'C3', 'C4', 'C5', 'TAIL', 'OFF'],
-        phaseDuration: 300,            // default speed (uniform 300ms)
+        phaseDuration: 300,
         speedRange: [30, 400],
-        easing: 'linear',              // default easing = "Suave"
+        easing: 'linear',
         looping: true,
     },
 
     'sweep-left': {
-        label: 'Sweep \u2190',
+        label: 'Sweep ←',
         phases: {
             OFF: [0, 0, 0, 0, 0],
             C5:  [0, 0, 0, 0, 1],
@@ -33,58 +35,37 @@ export const GLOW_SEQUENCES = {
             TAIL:[0.3, 0, 0, 0, 0],
         },
         sequence: ['C5', 'C4', 'C3', 'C2', 'C1', 'TAIL', 'OFF'],
-        phaseDuration: 300,            // default speed (uniform 300ms)
+        phaseDuration: 300,
         speedRange: [30, 400],
-        easing: 'linear',              // default easing = "Suave"
-        looping: true,
-    },
-
-    'bounce': {
-        label: 'Bounce',
-        phases: {
-            OFF: [0, 0, 0, 0, 0],
-            L1:  [1, 0, 0, 0, 0],
-            L2:  [0.3, 1, 0, 0, 0],
-            M:   [0, 0.3, 1, 0.3, 0],
-            R2:  [0, 0, 0, 1, 0.3],
-            R1:  [0, 0, 0, 0, 1],
-            R2B: [0, 0, 0, 1, 0.3],
-            MB:  [0, 0.3, 1, 0.3, 0],
-            L2B: [0.3, 1, 0, 0, 0],
-        },
-        sequence: ['L1', 'L2', 'M', 'R2', 'R1', 'R2B', 'MB', 'L2B'],
-        phaseDuration: 300,            // default speed (uniform 300ms)
-        speedRange: [30, 400],
-        easing: 'linear',              // default easing = "Suave"
+        easing: 'linear',
         looping: true,
     },
 
     'breathe': {
         label: 'Breathe',
         phases: {
-            OFF:  [0, 0, 0, 0, 0],
             LOW:  [0.15, 0.15, 0.15, 0.15, 0.15],
-            MID:  [0.5, 0.5, 0.5, 0.5, 0.5],
             HIGH: [1, 1, 1, 1, 1],
         },
-        sequence: ['LOW', 'MID', 'HIGH', 'MID', 'LOW', 'OFF'],
-        phaseDuration: 300,            // default speed (uniform 300ms)
+        sequence: ['LOW', 'HIGH'],
+        phaseDuration: 700,
         speedRange: [200, 1500],
-        easing: 'linear',              // default easing = "Suave"
+        easing: 'easeInOutSine',
         looping: true,
     },
 
+    // A flash that decays fast, then darkness until the next flash: ON->OFF
+    // decays exponentially, OFF holds and cuts straight back to ON.
     'pulse': {
         label: 'Pulse',
         phases: {
             OFF: [0, 0, 0, 0, 0],
-            ON:  [0.9, 0.9, 0.9, 0.9, 0.9],
-            DIM: [0.2, 0.2, 0.2, 0.2, 0.2],
+            ON:  [1, 1, 1, 1, 1],
         },
-        sequence: ['ON', 'DIM', 'ON', 'DIM', 'ON', 'OFF'],
-        phaseDuration: 300,            // default speed (uniform 300ms)
-        speedRange: [40, 400],
-        easing: 'linear',              // default easing = "Suave"
+        sequence: ['ON', 'OFF'],
+        phaseDuration: 250,
+        speedRange: [40, 600],
+        easing: ['expDecay', 'step'],
         looping: true,
     },
 
@@ -95,27 +76,9 @@ export const GLOW_SEQUENCES = {
             ON:  [1, 1, 1, 1, 1],
         },
         sequence: ['ON', 'OFF'],
-        phaseDuration: 60,             // strobe stays fast (60ms)
+        phaseDuration: 60,
         speedRange: [20, 200],
-        easing: 'linear',              // default easing = "Suave"
-        looping: true,
-    },
-
-    'cascade': {
-        label: 'Cascade',
-        phases: {
-            OFF:  [0, 0, 0, 0, 0],
-            S1:   [0.8, 0, 0, 0, 0],
-            S2:   [0.8, 0.8, 0, 0, 0],
-            S3:   [0.8, 0.8, 0.8, 0, 0],
-            S4:   [0.8, 0.8, 0.8, 0.8, 0],
-            FULL: [1, 1, 1, 1, 1],
-            HOLD: [1, 1, 1, 1, 1],
-        },
-        sequence: ['S1', 'S2', 'S3', 'S4', 'FULL', 'HOLD', 'OFF'],
-        phaseDuration: 300,            // default speed (uniform 300ms)
-        speedRange: [80, 600],
-        easing: 'linear',              // default easing = "Suave"
+        easing: 'linear',
         looping: true,
     },
 
@@ -126,9 +89,9 @@ export const GLOW_SEQUENCES = {
             B: [0, 0.9, 0, 0.9, 0],
         },
         sequence: ['A', 'B'],
-        phaseDuration: 300,            // default speed (uniform 300ms)
+        phaseDuration: 300,
         speedRange: [60, 600],
-        easing: 'linear',              // default easing = "Suave"
+        easing: 'step',
         looping: true,
     },
 };

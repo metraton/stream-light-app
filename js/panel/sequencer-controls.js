@@ -1,27 +1,23 @@
-// --- Sequencer Controls (visual panel + color selection, pattern, movement, glow) ---
-import { CONFIG } from '../config.js';
+// --- Sequencer Controls (visual panel + color selection, pattern, movement, glow, moods) ---
 import { ColorSequencer } from '../color-sequencer.js';
 import { GLOW_QUICK } from '../glow-map.js';
+import { MOODS, MOOD_QUICK } from '../mood-map.js';
 
-// Every button group uses the same two-line "KEY over WORD" layout via keyLabel().
+// Every button group uses the same two-line "KEY over WORD" layout via keyLabel(),
+// and every row of the 6-key grid starts with None.
 const COLOR_INDICES = [-1, 0, 1, 2, 3, 4, 99];
 const COLOR_KEYS = ['|', '1', '2', '3', '4', '5', '6'];
 const COLOR_WORDS = ['Empty', 'Yellow', 'Blue', 'Red', 'Green', 'Purple', 'Rainbow'];
 const COLOR_HEX = ['#444', '#ffff00', '#55aaff', '#ff0000', '#00ff00', '#ff00ff', 'linear-gradient(90deg,#ff0,#55f,#f00,#0f0,#f0f)'];
-const COLOR_EMOJIS = ['\u2B1B', '\uD83D\uDFE8', '\uD83D\uDFE6', '\uD83D\uDFE5', '\uD83D\uDFE9', '\uD83D\uDFEA'];
+const COLOR_EMOJIS = ['⬛', '🟨', '🟦', '🟥', '🟩', '🟪'];
 
-const PATTERNS = ['chase', 'pingpong', 'alternate', 'solid', 'carousel'];
-const PATTERN_KEYS = ['Q', 'W', 'E', 'R', 'T'];
-const PATTERN_WORDS = ['Chase', 'Ping-Pong', 'Alternate', 'Solid', 'Carousel'];
+const PATTERNS = ['none', 'chase', 'carousel', 'mirror', 'sparkle', 'fill'];
+const PATTERN_KEYS = ['Q', 'W', 'E', 'R', 'T', 'Y'];
+const PATTERN_WORDS = ['None', 'Chase', 'Carousel', 'Mirror', 'Sparkle', 'Fill'];
 
 const MOVEMENTS = ['none', 'wave', 'expand', 'broken', 'shake', 'equalizer'];
 const MOVEMENT_KEYS = ['A', 'S', 'D', 'F', 'G', 'H'];
 const MOVEMENT_WORDS = ['None', 'Wave', 'Expand', 'Broken', 'Shake', 'Equalizer'];
-
-// Glow quick buttons derive from the shared single source of truth
-// (js/glow-map.js): GLOW_QUICK is the ONE ordered list of {key, mode, label}
-// for both the panel buttons and the keyboard handler, so glyph/label/mode can
-// never drift. Keys are shown uppercase on the buttons.
 
 /** Build the uniform two-line button content: key glyph on top, word below. */
 function keyLabel(btn, key, word) {
@@ -36,31 +32,12 @@ function keyLabel(btn, key, word) {
     btn.appendChild(w);
 }
 
-const MOOD_DEFS = [
-    { key: null,      hotkey: '—', word: 'None' },   // clears the active mood (no preset)
-    { key: 'calm',    hotkey: 'Z', word: 'Calm' },
-    { key: 'build',   hotkey: 'X', word: 'Build' },
-    { key: 'tension', hotkey: 'C', word: 'Tension' },
-    { key: 'peak',    hotkey: 'V', word: 'Peak' },
-    { key: 'mystic',  hotkey: 'B', word: 'Mystic' },
-];
-
-const MOODS = {
-    calm:    { colors: [1],         pattern: 'solid',    movement: 'wave',      glow: 'breathe',   bpm: 80 },
-    build:   { colors: [2, 0],      pattern: 'carousel', movement: 'none',      glow: 'cascade',   bpm: 110 },
-    tension: { colors: [2],         pattern: 'solid',    movement: 'expand',    glow: 'strobe',    bpm: 150 },
-    peak:    { colors: [0,1,2,3,4], pattern: 'carousel', movement: 'wave',      glow: 'alternate', bpm: 180 },
-    mystic:  { colors: [4],         pattern: 'solid',    movement: 'equalizer', glow: 'sweep',     bpm: 90 },
-};
-
 /**
  * Creates sequencer controls and returns a refresh callback for live updates.
  * @returns {Function} refresh callback
  */
 export function createSequencerControls(sectionEl, app) {
     const seq = app.sequencer;
-    // Active-state is derived from the single sources of truth (seq + app),
-    // not a local mirror — see refreshActiveStates() below.
 
     // === Layer Tags ===
     const tagsRow = document.createElement('div');
@@ -97,10 +74,10 @@ export function createSequencerControls(sectionEl, app) {
     patternPreview.textContent = 'Select colors and a pattern';
     sectionEl.appendChild(patternPreview);
 
-    // === Color Selection ===
+    // === Colors ===
     const colorHeader = document.createElement('div');
     colorHeader.className = 'effect-name';
-    colorHeader.textContent = 'Color Selection (0-6)';
+    colorHeader.textContent = 'Colors (| 1-6)';
     sectionEl.appendChild(colorHeader);
 
     const colorRow = document.createElement('div');
@@ -131,34 +108,21 @@ export function createSequencerControls(sectionEl, app) {
     }
     sectionEl.appendChild(colorRow);
 
-    // Cue button (= Backspace): start staging a new combo; LIVE keeps playing.
-    // Press Play to commit. Does NOT pause.
-    const resetBtn = document.createElement('button');
-    resetBtn.textContent = '\u29c9 Cue'; // stage-new glyph + label
-    resetBtn.style.marginTop = '4px';
-    resetBtn.style.width = '100%';
-    resetBtn.addEventListener('click', () => {
-        app.cueReset();
+    // Cue (= Backspace): stage a new combo while the live one keeps playing; Play commits it.
+    const cueBtn = document.createElement('button');
+    cueBtn.textContent = '⧉ Cue (Backspace)';
+    cueBtn.style.marginTop = '4px';
+    cueBtn.style.width = '100%';
+    cueBtn.addEventListener('click', () => {
+        app.cue();
         refreshAll();
     });
-    sectionEl.appendChild(resetBtn);
-
-    // Cue total button (= Shift+Backspace / "<"): stage a new combo with the
-    // Solid baseline; LIVE keeps playing. Press Play to commit.
-    const totalResetBtn = document.createElement('button');
-    totalResetBtn.textContent = '\u29c9 Cue total'; // stage-new + label
-    totalResetBtn.style.marginTop = '4px';
-    totalResetBtn.style.width = '100%';
-    totalResetBtn.addEventListener('click', () => {
-        app.totalReset();
-        refreshAll();
-    });
-    sectionEl.appendChild(totalResetBtn);
+    sectionEl.appendChild(cueBtn);
 
     // === Pattern Selection ===
     const patHeader = document.createElement('div');
     patHeader.className = 'effect-name';
-    patHeader.textContent = 'Pattern (QWERT)';
+    patHeader.textContent = 'Pattern (Q W E R T Y)';
     patHeader.style.marginTop = '10px';
     sectionEl.appendChild(patHeader);
 
@@ -184,7 +148,7 @@ export function createSequencerControls(sectionEl, app) {
     // === Movement Selection ===
     const movHeader = document.createElement('div');
     movHeader.className = 'effect-name';
-    movHeader.textContent = 'Movement (ASDFGH)';
+    movHeader.textContent = 'Movement (A S D F G H)';
     movHeader.style.marginTop = '10px';
     sectionEl.appendChild(movHeader);
 
@@ -215,7 +179,7 @@ export function createSequencerControls(sectionEl, app) {
     // === Glow Mode ===
     const glowHeader = document.createElement('div');
     glowHeader.className = 'effect-name';
-    glowHeader.textContent = 'Glow — Modo rápido (Z X C V B N M ,)';
+    glowHeader.textContent = 'Glow (Z X C V B N)';
     glowHeader.style.marginTop = '10px';
     sectionEl.appendChild(glowHeader);
 
@@ -225,8 +189,7 @@ export function createSequencerControls(sectionEl, app) {
     glowRow.style.gap = '4px';
 
     const glowBtns = [];
-    for (let i = 0; i < GLOW_QUICK.length; i++) {
-        const { key, mode, label } = GLOW_QUICK[i];
+    for (const { key, mode, label } of GLOW_QUICK) {
         const btn = document.createElement('button');
         keyLabel(btn, key.toUpperCase(), label);
         btn.addEventListener('click', () => {
@@ -242,7 +205,7 @@ export function createSequencerControls(sectionEl, app) {
     // === Moods ===
     const moodHeader = document.createElement('div');
     moodHeader.className = 'effect-name';
-    moodHeader.textContent = 'Moods (Shift+ZXCVB)';
+    moodHeader.textContent = 'Moods (Shift+Z X C V B N)';
     moodHeader.style.marginTop = '10px';
     sectionEl.appendChild(moodHeader);
 
@@ -252,15 +215,14 @@ export function createSequencerControls(sectionEl, app) {
     moodRow.style.gap = '4px';
 
     const moodBtns = [];
-    for (const { key, hotkey, word } of MOOD_DEFS) {
+    for (const { key, mood, label } of MOOD_QUICK) {
         const btn = document.createElement('button');
-        keyLabel(btn, hotkey, word);
-        btn.dataset.moodKey = key === null ? '' : key;
+        keyLabel(btn, key.toUpperCase(), label);
         btn.addEventListener('click', () => {
-            if (key === null) {
-                app.clearMood();   // None: just clears the active-mood highlight
+            if (mood === null) {
+                app.clearMood();
             } else {
-                app.applyMood(MOODS[key], key);
+                app.applyMood(MOODS[mood], mood);
             }
             refreshAll();
             app.updateHUD();
@@ -305,10 +267,10 @@ export function createSequencerControls(sectionEl, app) {
     transportRow.style.marginTop = '6px';
 
     const playBtn = document.createElement('button');
-    playBtn.textContent = '\u25B6 Play';
+    playBtn.textContent = '▶ Play';
     playBtn.addEventListener('click', () => {
         if (seq.staging) {
-            app.commitCue();   // commit the staged cue (+ baseline reset if Cue total)
+            app.commitCue();
         } else {
             seq.play();
         }
@@ -317,7 +279,7 @@ export function createSequencerControls(sectionEl, app) {
     });
 
     const stopBtn = document.createElement('button');
-    stopBtn.textContent = '\u25A0 Stop';
+    stopBtn.textContent = '■ Stop';
     stopBtn.addEventListener('click', () => {
         seq.stop();
         app.updateHUD();
@@ -329,20 +291,17 @@ export function createSequencerControls(sectionEl, app) {
 
     // === Refresh functions ===
 
-    // Single declarative table: each button group maps to (a) the buttons,
-    // (b) the value identifying each button, and (c) the predicate that decides
-    // "active", all derived from the single sources of truth (seq + app).
-    // Adding a new group later = add one entry here; nothing else changes.
+    // Each button bank, with the predicate that decides "active", read from the
+    // single sources of truth (seq + app) rather than a local mirror.
     function activeStateGroups() {
         return [
             { btns: patBtns,  isActive: i => shownPattern() === PATTERNS[i] },
             { btns: movBtns,  isActive: i => app.currentMovement === MOVEMENTS[i] },
             { btns: glowBtns, isActive: i => app.currentGlowMode === GLOW_QUICK[i].mode },
-            { btns: moodBtns, isActive: i => app.currentMood === MOOD_DEFS[i].key },
+            { btns: moodBtns, isActive: i => app.currentMood === MOOD_QUICK[i].mood },
         ];
     }
 
-    // One routine applies the gold/active style for ALL grouped button banks.
     function refreshActiveStates() {
         for (const { btns, isActive } of activeStateGroups()) {
             for (let i = 0; i < btns.length; i++) {
@@ -354,8 +313,8 @@ export function createSequencerControls(sectionEl, app) {
     }
 
     function refreshAll() {
-        updateColorBtns();        // colors use per-button hex, handled separately
-        refreshActiveStates();    // pattern + movement + glow + moods, unified
+        updateColorBtns();
+        refreshActiveStates();
         updateTags();
         updateMiniStage();
         updateStepDots();
@@ -383,10 +342,6 @@ export function createSequencerControls(sectionEl, app) {
             colorBtns[i].style.color = selected ? '#000' : '#aaa';
         }
     }
-
-    // Pattern/movement/glow/mood highlighting is handled by refreshActiveStates()
-    // (the unified routine above). These groups read the single sources of truth:
-    // seq.pattern, app.currentMovement, app.currentGlowMode, app.currentMood.
 
     function updateTags() {
         const colorNames = seq.selectedColors.map(c => ColorSequencer.colorName(c)?.substring(0, 3) || '?').join(', ');
@@ -438,7 +393,7 @@ export function createSequencerControls(sectionEl, app) {
     }
 
     const sqEmoji = (c) => c === -1 ? COLOR_EMOJIS[0]
-        : (c >= 0 && c <= 4) ? COLOR_EMOJIS[c + 1] : '\u2B1C';
+        : (c >= 0 && c <= 4) ? COLOR_EMOJIS[c + 1] : '⬜';
 
     function updatePatternPreview() {
         // While staging, the preview shows the PENDING combo being cued (one row
@@ -446,7 +401,7 @@ export function createSequencerControls(sectionEl, app) {
         if (seq.staging) {
             const pend = seq.pendingColors;
             if (pend.length === 0) {
-                patternPreview.textContent = 'Cue: elige colores\u2026 (Play para activar)';
+                patternPreview.textContent = 'Cue: elige colores… (Play para activar)';
                 return;
             }
             patternPreview.innerHTML = pend.map(c =>
@@ -465,10 +420,9 @@ export function createSequencerControls(sectionEl, app) {
         }).join('');
     }
 
-    // Initial state
     refreshAll();
 
-    // Return refresh callback for external updates (called from panel.refreshSequencerUI)
+    // Called from panel.refreshSequencerUI on every external state change.
     return refreshAll;
 }
 

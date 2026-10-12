@@ -50,7 +50,9 @@ export class GlowEngine {
         const phaseIndex = Math.floor(time / phaseDuration);
         const phaseProgress = (time % phaseDuration) / phaseDuration;
 
-        const easingFn = EASING_MAP[easing] || EASING_MAP.easeInOutSine;
+        // easing is one curve for every phase, or an array with one curve per sequence step.
+        const easingName = Array.isArray(easing) ? easing[phaseIndex] : easing;
+        const easingFn = EASING_MAP[easingName] || EASING_MAP.easeInOutSine;
         const easedProgress = easingFn(phaseProgress);
 
         const currentPhaseName = sequence[phaseIndex];

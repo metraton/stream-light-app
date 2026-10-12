@@ -4,6 +4,8 @@ import { EFFECTS } from './effects.js';
 import { EffectEngine } from './effect-engine.js';
 import { GlowEngine } from './glow-engine.js';
 import { GLOW_SEQUENCES } from './glow-sequences.js';
+import { GLOW_MODE_SEQUENCE, canonicalGlowMode } from './glow-map.js';
+import { BASE_STATE } from './mood-map.js';
 import { ColorSequencer } from './color-sequencer.js';
 import { ColumnManager } from './columns.js';
 import { Overlay } from './overlay.js';
@@ -35,11 +37,10 @@ export class StreamLightApp {
         this.hud = null;
         this.panel = null;
         this.maxFPS = DEFAULT_MAX_FPS;
-        // Persistent active-state, single source of truth for the panel's
-        // highlight sync. Mirrors currentGlowMode so movement/glow are symmetric.
-        this.currentGlowMode = 'none';
-        this.currentMovement = 'none';
-        this.currentMood = null;
+        // Active layer names, the single source of truth for the panel's highlights.
+        this.currentGlowMode = BASE_STATE.glow;
+        this.currentMovement = BASE_STATE.movement;
+        this.currentMood = BASE_STATE.mood;
     }
 
     async init(deviceId) {
@@ -78,9 +79,8 @@ export class StreamLightApp {
             this._applyColorFrame(frame);
         });
 
-        // Paint the initial colors from the sequencer's current frame (neutral
-        // at startup, since no colors are selected yet). Replaces the legacy
-        // setRainbow() startup call — colors are sequencer-driven now.
+        // Paint the sequencer's current frame: neutral at startup, since the
+        // base state selects no colors.
         this.reapplyColors();
 
         setupShortcuts(this);
@@ -165,7 +165,7 @@ export class StreamLightApp {
         const def = EFFECTS[effectName];
         if (!def) return;
         this.effectEngine.play(effectName, def);
-        this.currentMovement = effectName; // persistent active-state (lowercase key)
+        this.currentMovement = effectName;
         this.currentMood = null;           // manual change drops the mood highlight
         this.updateHUD();
     }
@@ -178,8 +178,9 @@ export class StreamLightApp {
         this.updateHUD();
     }
 
-    /** Set glow mode from sequencer keyboard */
-    setGlowMode(mode) {
+    /** Set the glow layer to a quick mode (glow-map.js); removed mode names are translated. */
+    setGlowMode(requestedMode) {
+        const mode = canonicalGlowMode(requestedMode);
         this.currentGlowMode = mode;
         this.currentMood = null; // manual change drops the mood highlight
         if (mode === 'none') {
@@ -189,23 +190,8 @@ export class StreamLightApp {
             this.glowEngine.stop();
             this.columnManager.setAllGlow(CONFIG.glow.outerStrength > 0 ? 1 : 0.8);
         } else {
-            // Map sequencer glow names to glow-sequences.js names
-            const glowMap = {
-                breathe: 'breathe',
-                pulse: 'pulse',
-                strobe: 'strobe',
-                sweep: 'sweep-right',        // 'sweep' alias -> the sweep-right sequence
-                'sweep-right': 'sweep-right',
-            };
-            const seqName = glowMap[mode] || mode;
-            if (seqName && this._hasGlowSequence(seqName)) {
-                this.playGlowEffect(seqName);
-            }
+            this.playGlowEffect(GLOW_MODE_SEQUENCE[mode] ?? mode);
         }
-    }
-
-    _hasGlowSequence(name) {
-        return !!GLOW_SEQUENCES[name];
     }
 
     playGlowEffect(name) {
@@ -221,59 +207,47 @@ export class StreamLightApp {
         this.currentMood = null;
     }
 
-    /** Apply a mood preset (sets colors + pattern + movement + glow + bpm).
+    /** Apply a mood (mood-map.js): colors, pattern, movement, glow and BPM.
+     *  The color rotation does not start until Space ("nothing auto-plays");
+     *  movement and glow are continuous layers and start at once.
      *  @param {object} mood - mood definition
      *  @param {string|null} moodKey - mood name, for the active-state highlight */
     applyMood(mood, moodKey = null) {
-        // Moods set up the combo LIVE but do NOT auto-cycle ("nothing auto-plays"
-        // model): selectedColors/pattern are set and the static frame is painted,
-        // but the color rotation only starts when the user presses SPACE. There is
-        // intentionally NO sequencer.play() call here. (Movement/Glow are separate
-        // continuous layers and still start, matching their own quick-key behavior.)
         this.sequencer.staging = false;
         this.sequencer.selectedColors = [...mood.colors];
         this.sequencer.setBPM(mood.bpm);
         this.sequencer.setPattern(mood.pattern);
 
-        // Movement
         if (mood.movement && mood.movement !== 'none') {
             this.playMovement(mood.movement);
         } else {
             this.stopEffect();
         }
 
-        // Glow
         if (mood.glow && mood.glow !== 'none') {
             this.setGlowMode(mood.glow);
         } else {
             this.stopGlowEffect();
         }
 
-        // Set mood AFTER the layer calls (they clear currentMood) so the mood
-        // button highlights; the full refresh below re-syncs every button bank.
+        // Set after the layer calls, which clear currentMood, so the mood button highlights.
         this.currentMood = moodKey;
         this.updateHUD();
     }
 
-    /** Mood "None": clear only the active-mood highlight (no preset selected).
-     *  Consistent with the cue model — does NOT revert the live colors/pattern/
-     *  movement/glow, which the user can change via their own None buttons. */
+    /** Mood None: clear only the active-mood highlight. The live layers stay as
+     *  they are; each has its own None button. */
     clearMood() {
         this.currentMood = null;
         this.updateHUD();
     }
 
-    /** CUE (Backspace): identical to the total cue. */
-    cueReset() {
-        this.totalReset();
-    }
-
-    /** TOTAL CUE (Shift+Backspace / panel button): stage a new combo while the
-     *  live rotation keeps playing. On commit the live state becomes the cued
-     *  colors, the pattern pressed while staging (Solid if none), and Movement,
-     *  Glow and Mood None; BPM is kept. */
-    totalReset() {
-        this.sequencer.startStaging('solid', true);
+    /** CUE (Backspace / panel Cue): stage a new combo while the live rotation
+     *  keeps playing. On commit the live state becomes the cued colors, the
+     *  pattern pressed while staging (the base pattern if none), and the base
+     *  movement, glow and mood; BPM is kept. */
+    cue() {
+        this.sequencer.startStaging(BASE_STATE.pattern, true);
         this.updateHUD();
     }
 
@@ -281,35 +255,33 @@ export class StreamLightApp {
      *  from 0, and reset movement/glow/mood when the cue asked for it. */
     commitCue() {
         const res = this.sequencer.commitStaged();
-        if (res && res.fullReset) {
-            this.stopEffect();          // Movement -> None
-            this.setGlowMode('none');   // Glow -> None
-            this.currentMood = null;    // Mood -> None
+        if (res && res.fullReset) this._resetLayersToBase();
+        this.updateHUD();
+    }
+
+    /** Return every performance layer to BASE_STATE, BPM and stopped playback
+     *  included (Escape, Reset to Defaults). Layout, filters, rotation and the
+     *  FPS cap are not performance layers and stay as they are. */
+    resetToBase() {
+        this.sequencer.resetToBase();
+        this._resetLayersToBase();
+        this.updateHUD();
+    }
+
+    /** Movement, glow and mood to BASE_STATE; the sequencer resets itself. */
+    _resetLayersToBase() {
+        if (BASE_STATE.movement === 'none') {
+            this.stopEffect();
+        } else {
+            this.playMovement(BASE_STATE.movement);
         }
-        this.updateHUD();               // re-sync highlights (Solid gold, A None, Z None, no mood)
+        this.setGlowMode(BASE_STATE.glow);
+        this.currentMood = BASE_STATE.mood;
     }
 
-    /** EMPTY RESET (Escape): brutal clean slate. Colors -> empty (visible
-     *  neutral), Movement=None, Glow=None, Mood=None, playback STOPPED, staging
-     *  cancelled. Pattern resets to the 'solid' baseline (not null) so the
-     *  resulting "listening" state shows a real active pattern (R highlighted,
-     *  HUD consistent) — matching the total-cue baseline and avoiding the old
-     *  pattern=null limbo. After Escape the user builds a fresh combo and
-     *  presses SPACE to play (nothing auto-plays). */
-    emptyReset() {
-        this.sequencer.clearColors();            // empty: columns neutral, stops playback, exits staging
-        this.sequencer.setPattern('solid');      // Pattern -> Solid baseline (clean listening state)
-        this.stopEffect();                       // Movement -> None
-        this.setGlowMode('none');                // Glow -> None
-        this.currentMood = null;                 // Mood -> None
-        this.updateHUD();                        // re-sync highlights
-    }
-
-    /** Re-render columns from the ColorSequencer's current frame. Single source
-     *  of truth for column colors — used at startup, after a rebuild (resize /
-     *  layout change), and after a color-value or preset change. Replaces the
-     *  legacy setRainbow()/setAllColors()/refreshColors() path that snapped
-     *  back to a stale "color mode" (the cause of the resize rainbow flash). */
+    /** Re-render columns from the ColorSequencer's current frame, the single
+     *  source of truth for column colors: at startup, after a rebuild (resize /
+     *  layout change), and after a color-value or preset change. */
     reapplyColors() {
         if (this.sequencer) this.sequencer._applyCurrentFrame();
     }
