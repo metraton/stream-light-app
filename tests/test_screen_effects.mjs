@@ -6,9 +6,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-    SCREEN_EFFECTS, screenEffectById, flashEnvelope,
-    PERSISTENCE_MIN, PERSISTENCE_MAX, clampPersistence, trailPersistence, foldAngle, kaleidoRotation,
-    currentFrameWeight, nextHistoryIndex,
+    SCREEN_EFFECTS, screenEffectById, flashEnvelope, foldAngle, kaleidoRotation,
 } from '../js/screen-effects.js';
 import { toggleScreenEffect, restoreScreenStack, resetScreenStack } from '../js/screen-stack.js';
 import { runsOnBeat } from '../js/effects-registry.js';
@@ -75,81 +73,10 @@ test('Ritmo 1/2 and 1/4 flash two and four times per beat, and a long duration i
     assert.equal(flashEnvelope(-1, 1, 0.25), 1);
 });
 
-test('the flash ticks every frame; Estelas and Espejo cost nothing per frame at their defaults', () => {
+test('the flash ticks every frame; Espejo costs nothing per frame at its defaults', () => {
     const tickers = SCREEN_EFFECTS.filter(effect => runsOnBeat(effect, effect.defaults)).map(e => e.id);
     assert.ok(tickers.includes('flash'));
-    assert.ok(!tickers.includes('trails') && !tickers.includes('mirror'));
-});
-
-test('persistence is held to 0.5-0.95 so a trail always fades and never freezes', () => {
-    assert.deepEqual([PERSISTENCE_MIN, PERSISTENCE_MAX], [0.5, 0.95]);
-    assert.equal(clampPersistence(0.1), 0.5);
-    assert.equal(clampPersistence(1), 0.95);
-    assert.equal(clampPersistence(0.7), 0.7);
-    const slider = screenEffectById('trails').params.find(p => p.key === 'persistence');
-    assert.deepEqual([slider.min, slider.max], [PERSISTENCE_MIN, PERSISTENCE_MAX]);
-});
-
-test('Estelas al golpe jumps to the longest trail on the beat and falls back to the base', () => {
-    assert.equal(trailPersistence(0.6, 0), PERSISTENCE_MAX);
-    assert.ok(close(trailPersistence(0.6, 1), 0.6));
-    let previous = 2;
-    for (let phase = 0; phase <= 1; phase += 0.05) {
-        const value = trailPersistence(0.6, phase);
-        assert.ok(value <= previous && value >= PERSISTENCE_MIN && value <= PERSISTENCE_MAX);
-        previous = value;
-    }
-    assert.ok(close(trailPersistence(0.1, 1), PERSISTENCE_MIN), 'the base is clamped too');
-});
-
-// One pixel through TrailsPass.draw: the live frame drawn with alpha
-// currentFrameWeight over the previous trail, the normal blend of an opaque frame.
-const trailFrame = (previous, live, persistence) => {
-    const weight = currentFrameWeight(persistence);
-    return weight * live + (1 - weight) * previous;
-};
-
-test('the live frame gets what persistence leaves, within the clamped range', () => {
-    assert.ok(close(currentFrameWeight(0.8), 0.2));
-    assert.ok(close(currentFrameWeight(1), 1 - PERSISTENCE_MAX));
-    assert.ok(close(currentFrameWeight(0), 1 - PERSISTENCE_MIN));
-});
-
-test('a still pixel stays exactly itself under the trail, so only what moves ghosts', () => {
-    for (const persistence of [PERSISTENCE_MIN, 0.8, PERSISTENCE_MAX]) {
-        let pixel = 0.3;
-        for (let frame = 0; frame < 120; frame++) pixel = trailFrame(pixel, 0.3, persistence);
-        assert.ok(close(pixel, 0.3), `${persistence}: ${pixel}`);
-    }
-});
-
-test('a ghost darker than what replaced it still shows, and fades by persistence each frame', () => {
-    const subject = 0.2;
-    const background = 0.35;
-    let pixel = subject;
-    const ghost = [];
-    for (let frame = 1; frame <= 10; frame++) {
-        pixel = trailFrame(pixel, background, 0.8);
-        ghost.push(background - pixel);
-        assert.ok(close(background - pixel, (background - subject) * 0.8 ** frame));
-    }
-    assert.ok(ghost[0] > 0.1, 'the first ghost must differ visibly from the background');
-    assert.ok(ghost.every((value, i) => i === 0 || value < ghost[i - 1]), 'each frame fades the ghost');
-    let longer = subject;
-    for (let frame = 0; frame < 10; frame++) longer = trailFrame(longer, background, PERSISTENCE_MAX);
-    assert.ok(background - longer > ghost[9], 'a higher persistence keeps the ghost longer');
-});
-
-test('the history textures alternate, and the one written is never the one read', () => {
-    let read = 0;
-    const written = [];
-    for (let frame = 0; frame < 6; frame++) {
-        const write = nextHistoryIndex(read);
-        assert.notEqual(write, read);
-        written.push(write);
-        read = write;
-    }
-    assert.deepEqual(written, [1, 0, 1, 0, 1, 0]);
+    assert.ok(!tickers.includes('mirror'));
 });
 
 test('folding puts every angle in half a wedge, mirrors neighbours and repeats every wedge', () => {
@@ -214,6 +141,18 @@ test('a preset saves the Pantalla effects and loads them back into the same list
     assert.equal(loadPreset('round-trip', app), true);
     assert.equal(CONFIG.screenEffects, list, 'the screen layer holds this array; it must not be replaced');
     assert.deepEqual(list, saved);
+});
+
+test('a preset saved with the removed Estelas loads with the rest of its effects and without it', () => {
+    resetScreenStack(CONFIG.screenEffects);
+    const screenEffects = [
+        { id: 'flash', params: { ...screenEffectById('flash').defaults } },
+        { id: 'trails', params: { persistence: 0.8, sync: 'fixed' } },
+        { id: 'mirror', params: { ...screenEffectById('mirror').defaults } },
+    ];
+    storage.set('streamlight-preset-with-trails', JSON.stringify({ colors: { ...CONFIG.colors }, screenEffects }));
+    assert.equal(loadPreset('with-trails', app), true);
+    assert.deepEqual(CONFIG.screenEffects.map(e => e.id), ['flash', 'mirror']);
 });
 
 test('a preset from before Pantalla loads with no screen effect on', () => {

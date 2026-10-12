@@ -4,8 +4,7 @@
 // plus an optional tick(filter, params, { beatPhase, beatIndex }) called every
 // frame while runsOnBeat(effect, params) holds: always for an effect with no
 // `sync` param, and unless `sync` is 'fixed' for one with it.
-// `context` is { width, height }, the stage size the filters cover. Estelas'
-// create() returns a TrailsPass rather than a filter: the screen layer draws it.
+// `context` is { width, height }, the stage size the filters cover.
 // SCREEN_EFFECTS order is the order the passes run in, whatever order they were turned on.
 import { glFilter, beatEnvelope } from './effects-registry.js';
 
@@ -84,123 +83,6 @@ const flash = {
     },
     tick(filter, params, { beatPhase, beatIndex }) {
         filter.resources.flashUniforms.uniforms.uAmount = flashEnvelope(beatIndex + beatPhase, params.rate, params.duration);
-    },
-};
-
-// --- Estelas ---
-
-export const PERSISTENCE_MIN = 0.5;
-export const PERSISTENCE_MAX = 0.95;
-
-/** `value` held to the Persistencia range: below it a trail is gone in a few frames, above it the trail never clears. */
-export function clampPersistence(value) {
-    return Math.min(PERSISTENCE_MAX, Math.max(PERSISTENCE_MIN, value));
-}
-
-/**
- * The persistence Al golpe fades by at `beatPhase`: PERSISTENCE_MAX on the
- * beat, falling back to the clamped `base` along beatEnvelope, so each hit
- * leaves a long smear that shortens before the next one.
- */
-export function trailPersistence(base, beatPhase) {
-    const held = clampPersistence(base);
-    return held + (PERSISTENCE_MAX - held) * beatEnvelope(beatPhase);
-}
-
-/** The live frame's weight in each frame's mix: what persistence leaves to it. */
-export function currentFrameWeight(persistence) {
-    return 1 - clampPersistence(persistence);
-}
-
-/** The history texture written this frame: the one not read, so a frame never samples its own target. */
-export function nextHistoryIndex(read) {
-    return 1 - read;
-}
-
-const OPAQUE_BLACK = [0, 0, 0, 1];
-let trailsFailureReported = false;
-
-/**
- * Estelas as an explicit feedback loop: each frame `source` is rendered into
- * `current`, then mix(current, previous trail, persistence) into the history
- * texture not read, which `sprite` shows, and the two swap.
- *
- * A plain mix, not max() nor a difference weighting: an unchanged pixel mixes
- * with itself and stays crisp, so only what moved leaves ghosts, and a ghost
- * shows whether it is brighter than what replaced it or not. max() hid every
- * ghost darker than the frame over it, which in a dim room was nearly all.
- * Both frames are cleared to opaque black so the mix also fades the gaps
- * between columns, over the black stage.
- *
- * GPU memory: three RGBA8 textures at the stage size, 1920 x 1080 x 4 B =
- * 7.9 MiB each, 23.7 MiB in all, allocated on enable and freed by destroy().
- */
-export class TrailsPass {
-    constructor(width, height) {
-        this.persistence = PERSISTENCE_MAX;
-        this.current = PIXI.RenderTexture.create({ width, height });
-        this.history = [PIXI.RenderTexture.create({ width, height }), PIXI.RenderTexture.create({ width, height })];
-        this.read = 0;
-        this.previousFrame = new PIXI.Sprite(this.history[this.read]);
-        this.liveFrame = new PIXI.Sprite(this.current);
-        this.mix = new PIXI.Container();
-        this.mix.addChild(this.previousFrame, this.liveFrame);
-        this.sprite = new PIXI.Sprite(this.history[this.read]);
-        this.failed = false;
-    }
-
-    /** Add `source`'s frame to the trail and show the result in `sprite`; false once the pipeline has failed. */
-    draw(renderer, source) {
-        if (this.failed) return false;
-        try {
-            renderer.render({ container: source, target: this.current, clear: true, clearColor: OPAQUE_BLACK });
-            const write = nextHistoryIndex(this.read);
-            this.previousFrame.texture = this.history[this.read];
-            this.liveFrame.alpha = currentFrameWeight(this.persistence);
-            renderer.render({ container: this.mix, target: this.history[write], clear: true, clearColor: OPAQUE_BLACK });
-            this.sprite.texture = this.history[write];
-            this.read = write;
-            return true;
-        } catch (error) {
-            this.failed = true;
-            if (!trailsFailureReported) {
-                trailsFailureReported = true;
-                console.warn('[effects] Estelas failed to draw; the frame is shown without trails.', error);
-            }
-            return false;
-        }
-    }
-
-    destroy() {
-        this.mix.destroy({ children: true });
-        this.sprite.destroy();
-        this.current.destroy(true);
-        for (const texture of this.history) texture.destroy(true);
-    }
-}
-
-const trails = {
-    id: 'trails',
-    label: 'Estelas',
-    defaults: { persistence: 0.8, sync: FIXED },
-    params: [
-        { key: 'persistence', label: 'Persistencia', min: PERSISTENCE_MIN, max: PERSISTENCE_MAX, decimals: 2 },
-        {
-            key: 'sync',
-            label: 'Ritmo',
-            options: [{ value: FIXED, label: 'Fijo' }, { value: 'beat', label: 'Al golpe' }],
-        },
-    ],
-    create(params, { width, height }) {
-        const pass = new TrailsPass(width, height);
-        trails.update(pass, params);
-        return pass;
-    },
-    update(pass, params) {
-        pass.persistence = clampPersistence(params.persistence);
-    },
-    tick(pass, params, { beatPhase }) {
-        pass.persistence = trailPersistence(params.persistence, beatPhase);
     },
 };
 
@@ -362,7 +244,7 @@ const crt = {
     },
 };
 
-export const SCREEN_EFFECTS = [flash, trails, mirror, crt];
+export const SCREEN_EFFECTS = [flash, mirror, crt];
 
 /** The definition registered under `id`, undefined when there is none. */
 export function screenEffectById(id) {
