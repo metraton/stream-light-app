@@ -458,7 +458,68 @@ const pixelate = {
     },
 };
 
-export const EFFECTS = [ascii, xray, rgbSplit, pixelate];
+// --- Semitono ---
+
+const halftone = {
+    id: 'halftone',
+    label: 'Semitono',
+    defaults: { scale: 1, angle: 5, tone: 'gray' },
+    params: [
+        { key: 'scale', label: 'Escala', min: 0.3, max: 3, decimals: 2 },
+        { key: 'angle', label: 'Ángulo', min: 0, max: 6.28, decimals: 2 },
+        {
+            key: 'tone',
+            label: 'Tono',
+            options: [{ value: 'gray', label: 'Gris' }, { value: 'color', label: 'Color' }],
+        },
+    ],
+    create(params) {
+        const filter = new PIXI.filters.DotFilter();
+        halftone.update(filter, params);
+        return filter;
+    },
+    update(filter, params) {
+        filter.scale = params.scale;
+        filter.angle = params.angle;
+        filter.grayscale = params.tone === 'gray';
+    },
+};
+
+// --- Glitch ---
+
+// The beat index each Al golpe glitch last re-rolled on; kept outside the Pixi filter object.
+const glitchBeats = new WeakMap();
+
+const glitch = {
+    id: 'glitch',
+    label: 'Glitch',
+    defaults: { slices: 8, offset: 60, sync: FIXED },
+    params: [
+        { key: 'slices', label: 'Franjas', min: 2, max: 30, decimals: 0 },
+        { key: 'offset', label: 'Desplazamiento', min: 0, max: 300, decimals: 0 },
+        {
+            key: 'sync',
+            label: 'Ritmo',
+            options: [{ value: FIXED, label: 'Fijo' }, { value: 'beat', label: 'Al golpe' }],
+        },
+    ],
+    create(params) {
+        return new PIXI.filters.GlitchFilter({ slices: params.slices, offset: params.offset });
+    },
+    update(filter, params) {
+        filter.slices = params.slices;
+        filter.offset = params.offset;
+    },
+    // A new beat gets new slice sizes and offsets (refresh) and a new noise seed.
+    tick(filter, params, { beatIndex }) {
+        if (glitchBeats.get(filter) === beatIndex) return;
+        glitchBeats.set(filter, beatIndex);
+        filter.seed = Math.random();
+        filter.refresh();
+    },
+};
+
+export const EFFECTS = [ascii, xray, rgbSplit, pixelate, halftone, glitch];
 
 /** The definition registered under `id`, undefined when there is none. */
 export function effectById(id) {
