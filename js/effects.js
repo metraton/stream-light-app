@@ -1,7 +1,8 @@
 // --- Effect Definitions (phase data + metadata) ---
 // Offset values are reference at 1080p, auto-scaled to viewport by the engine.
-// phaseDuration is the default ms per sequence step and speedRange bounds the
-// panel slider; easing 'linear' is what the panel calls "Suave".
+// `rate` is the default number of sequence steps per beat (js/tempo.js), chosen
+// at 120 BPM; easing 'linear' is what the panel calls "Suave". The definitions
+// are frozen; panel tweaks live in the app.
 
 export const EFFECTS = {
     wave: {
@@ -14,11 +15,9 @@ export const EFFECTS = {
             BOTTOM: [14, 8, 0, 7, 14],
         },
         sequence: ['UP', 'PEAK', 'UP', 'MAIN', 'DOWN', 'BOTTOM', 'DOWN', 'MAIN'],
-        phaseDuration: 550,
-        speedRange: [100, 1200],
+        rate: 1,
         axis: 'y',
         easing: 'linear',
-        looping: true,
     },
     expand: {
         label: 'Expand',
@@ -28,11 +27,9 @@ export const EFFECTS = {
             E2:   [-15, -7, 0, 7, 15],
         },
         sequence: ['E1', 'MAIN', 'E2', 'MAIN'],
-        phaseDuration: 700,
-        speedRange: [100, 1200],
+        rate: 1,
         axis: 'x',
         easing: 'linear',
-        looping: true,
     },
     broken: {
         label: 'Broken',
@@ -44,11 +41,9 @@ export const EFFECTS = {
             ZAG:  [20, -20, 20, -20, 20],
         },
         sequence: ['ZIG', 'MAIN', 'ZAG', 'MAIN'],
-        phaseDuration: 500,
-        speedRange: [100, 1000],
+        rate: 1,
         axis: 'y',
         easing: 'linear',
-        looping: true,
     },
     equalizer: {
         label: 'Equalizer',
@@ -65,15 +60,13 @@ export const EFFECTS = {
             E7: [-0.07, 0.05, 0.10, 0.02, -0.09],
         },
         sequence: ['E0', 'E1', 'E2', 'E3', 'E4', 'E5', 'E6', 'E7'],
-        phaseDuration: 180,
-        speedRange: [50, 800],
+        rate: 1,
         axis: 'scaleY',
         easing: 'linear',
-        looping: true,
     },
     shake: {
         label: 'Shake',
-        // A real jitter: +/-4 px on both axes, a new position every 50 ms.
+        // A real jitter: +/-4 px on both axes, a new position every step.
         phases: {
             MAIN: { x: [0, 0, 0, 0, 0],     y: [0, 0, 0, 0, 0] },
             S1:   { x: [-4, 2, 0, -2, 4],   y: [2, -4, 2, 4, -2] },
@@ -82,19 +75,11 @@ export const EFFECTS = {
             S4:   { x: [-2, 4, 0, -4, 2],   y: [4, -2, 4, -4, 2] },
         },
         sequence: ['S1', 'S2', 'S3', 'S4', 'S2', 'S1', 'S4', 'S3'],
-        phaseDuration: 50,
-        speedRange: [10, 600],
+        rate: 4,
         axis: 'xy',
         easing: 'linear',
-        looping: true,
     },
 };
 
-// Store defaults for reset
-export const EFFECT_DEFAULTS = {};
-for (const [key, def] of Object.entries(EFFECTS)) {
-    EFFECT_DEFAULTS[key] = {
-        phaseDuration: def.phaseDuration,
-        easing: def.easing,
-    };
-}
+for (const def of Object.values(EFFECTS)) Object.freeze(def);
+Object.freeze(EFFECTS);

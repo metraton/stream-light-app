@@ -1,6 +1,7 @@
-// --- Glow Controls (GlowFilter params + sequence engine) ---
+// --- Glow Controls: the GlowFilter look ---
+// The glow sequence playing now, its rate and its easing are set in
+// "Sonando ahora" (layer-controls.js).
 import { CONFIG } from '../config.js';
-import { GLOW_SEQUENCES } from '../glow-sequences.js';
 
 export function createGlowControls(sectionEl, app) {
     const g = CONFIG.glow;
@@ -71,136 +72,6 @@ export function createGlowControls(sectionEl, app) {
     colorRow.appendChild(colorSelect);
     colorRow.appendChild(customColorInput);
     sectionEl.appendChild(colorRow);
-
-    // === Sequences ===
-    const seqHeader = document.createElement('div');
-    seqHeader.className = 'effect-name';
-    seqHeader.textContent = 'Glow — Secuencia animada';
-    seqHeader.style.marginTop = '10px';
-    sectionEl.appendChild(seqHeader);
-
-    // Sequence selector
-    const seqRow = document.createElement('div');
-    seqRow.className = 'effect-row';
-
-    const seqLabel = document.createElement('label');
-    seqLabel.textContent = 'Pattern';
-
-    const seqSelect = document.createElement('select');
-    let firstKey = null;
-    for (const [key, def] of Object.entries(GLOW_SEQUENCES)) {
-        if (!firstKey) firstKey = key;
-        const opt = document.createElement('option');
-        opt.value = key;
-        opt.textContent = def.label;
-        seqSelect.appendChild(opt);
-    }
-
-    seqRow.appendChild(seqLabel);
-    seqRow.appendChild(seqSelect);
-    sectionEl.appendChild(seqRow);
-
-    // Speed slider (updates based on selected sequence)
-    const speedRow = document.createElement('div');
-    speedRow.className = 'effect-row';
-
-    const speedLabel = document.createElement('label');
-    speedLabel.textContent = 'Speed';
-
-    const speedSlider = document.createElement('input');
-    speedSlider.type = 'range';
-
-    const speedVal = document.createElement('span');
-    speedVal.className = 'range-value';
-
-    function updateSpeedSlider() {
-        const key = seqSelect.value;
-        const def = GLOW_SEQUENCES[key];
-        const [min, max] = def.speedRange || [30, 500];
-        speedSlider.min = min;
-        speedSlider.max = max;
-        // Coarser, comfortable step (~20 stops across the range).
-        speedSlider.step = (max - min) <= 200 ? 10 : 20;
-        speedSlider.value = def.phaseDuration;
-        speedVal.textContent = def.phaseDuration + 'ms';
-    }
-    updateSpeedSlider();
-
-    speedSlider.addEventListener('input', () => {
-        const key = seqSelect.value;
-        GLOW_SEQUENCES[key].phaseDuration = parseInt(speedSlider.value);
-        speedVal.textContent = speedSlider.value + 'ms';
-    });
-
-    seqSelect.addEventListener('change', () => {
-        updateSpeedSlider();
-        // If already playing, switch to new sequence
-        if (app.glowEngine.isPlaying) {
-            app.playGlowEffect(seqSelect.value);
-        }
-    });
-
-    speedRow.appendChild(speedLabel);
-    speedRow.appendChild(speedSlider);
-    speedRow.appendChild(speedVal);
-    sectionEl.appendChild(speedRow);
-
-    // Easing selector
-    const easingRow = document.createElement('div');
-    easingRow.className = 'effect-row';
-
-    const easingLabel = document.createElement('label');
-    easingLabel.textContent = 'Suavizado';
-
-    const easingSelect = document.createElement('select');
-    // Labels match perceived behavior: 'Suave' = linear (continuous, smoothest);
-    // the ease-in-out curves read as a pulse at these durations.
-    const easings = [
-        { value: 'linear',         label: 'Suave' },
-        { value: 'easeInOutSine',  label: 'Pulsada' },
-        { value: 'easeInOutCubic', label: 'Pulsada fuerte' },
-    ];
-    for (const { value, label } of easings) {
-        const opt = document.createElement('option');
-        opt.value = value;
-        opt.textContent = label;
-        easingSelect.appendChild(opt);
-    }
-    // Set initial easing from selected sequence
-    easingSelect.value = GLOW_SEQUENCES[seqSelect.value]?.easing || 'linear';
-
-    easingSelect.addEventListener('change', () => {
-        const key = seqSelect.value;
-        GLOW_SEQUENCES[key].easing = easingSelect.value;
-    });
-
-    seqSelect.addEventListener('change', () => {
-        easingSelect.value = GLOW_SEQUENCES[seqSelect.value]?.easing || 'linear';
-    });
-
-    easingRow.appendChild(easingLabel);
-    easingRow.appendChild(easingSelect);
-    sectionEl.appendChild(easingRow);
-
-    // Play / Stop buttons
-    const btnRow = document.createElement('div');
-    btnRow.className = 'effect-buttons';
-
-    const playBtn = document.createElement('button');
-    playBtn.textContent = 'Play';
-    playBtn.addEventListener('click', () => {
-        app.playGlowEffect(seqSelect.value);
-    });
-
-    const stopBtn = document.createElement('button');
-    stopBtn.textContent = 'Stop';
-    stopBtn.addEventListener('click', () => {
-        app.stopGlowEffect();
-    });
-
-    btnRow.appendChild(playBtn);
-    btnRow.appendChild(stopBtn);
-    sectionEl.appendChild(btnRow);
 }
 
 function addSlider(parent, label, min, max, step, value, onChange) {

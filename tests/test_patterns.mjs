@@ -6,7 +6,10 @@ import { spawnSync } from 'node:child_process';
 import { readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { PATTERNS, generateFrames, canonicalPattern } from '../js/color-sequencer.js';
+import { PATTERNS, PATTERN_RATES, generateFrames, canonicalPattern } from '../js/color-sequencer.js';
+import { BeatClock, RATES } from '../js/tempo.js';
+import { EffectEngine } from '../js/effect-engine.js';
+import { GlowEngine } from '../js/glow-engine.js';
 import { BASE_STATE, MOODS, MOOD_QUICK } from '../js/mood-map.js';
 import { GLOW_QUICK, GLOW_MODE_SEQUENCE, canonicalGlowMode } from '../js/glow-map.js';
 import { GLOW_SEQUENCES } from '../js/glow-sequences.js';
@@ -118,6 +121,59 @@ test('Q W E R T Y resolve to the patterns in panel order: T is Fill, Y is Sparkl
     assert.deepEqual(['q', 'w', 'e', 'r', 't', 'y'].map(patternFor), PATTERNS);
     assert.equal(patternFor('t'), 'fill');
     assert.equal(patternFor('y'), 'sparkle');
+});
+
+test('a BPM change keeps the beat position continuous', () => {
+    const clock = new BeatClock(120, 0);
+    const before = clock.beatAt(3210);
+    clock.setBPM(175, 3210);
+    assert.ok(Math.abs(clock.beatAt(3210) - before) < 1e-9);
+    assert.ok(Math.abs(clock.beatAt(4210) - before - 175 / 60) < 1e-9);
+});
+
+test('rate and BPM changes keep every movement and glow position continuous', () => {
+    const EPS = 1e-9;
+    const cases = [
+        ...Object.entries(EFFECTS).map(([name, def]) => [name, def, new EffectEngine(), (e, b) => e.compute(5, 1, b)]),
+        ...Object.entries(GLOW_SEQUENCES).map(([name, def]) => [name, def, new GlowEngine(), (e, b) => e.compute(5, b)]),
+    ];
+    for (const [name, def, engine, sample] of cases) {
+        const clock = new BeatClock(120, 0);
+        engine.play(name, def, { rate: def.rate, easing: def.easing, intensity: 1 }, clock.beatAt(100));
+        const changes = [
+            [1337, () => engine.setRate(4, clock.beatAt(1337))],
+            [2711, () => clock.setBPM(60, 2711)],
+            [4099, () => engine.setRate(0.25, clock.beatAt(4099))],
+            [5003, () => clock.setBPM(175, 5003)],
+        ];
+        for (const [time, change] of changes) {
+            const before = Object.values(sample(engine, clock.beatAt(time))).flat();
+            change();
+            const after = Object.values(sample(engine, clock.beatAt(time))).flat();
+            before.forEach((v, i) => assert.ok(Math.abs(v - after[i]) < EPS, `${name} jumped at ${time} ms`));
+        }
+    }
+});
+
+test('pulse and strobe flash at full intensity on every beat', () => {
+    for (const name of ['pulse', 'strobe']) {
+        const def = GLOW_SEQUENCES[name];
+        const engine = new GlowEngine();
+        engine.play(name, def, { rate: def.rate, easing: def.easing, intensity: 1 }, 0.37, true);
+        for (const beat of [3, 4, 5, 17]) {
+            assert.deepEqual(engine.compute(5, beat).intensity, [1, 1, 1, 1, 1], `${name} at beat ${beat}`);
+        }
+    }
+});
+
+test('effect definitions are frozen and every default and mood rate is a rate button', () => {
+    assert.throws(() => { EFFECTS.wave.rate = 9; }, TypeError);
+    assert.throws(() => { GLOW_SEQUENCES.pulse.rate = 9; }, TypeError);
+    for (const def of [...Object.values(EFFECTS), ...Object.values(GLOW_SEQUENCES)]) assert.ok(RATES.includes(def.rate));
+    for (const rate of Object.values(PATTERN_RATES)) assert.ok(RATES.includes(rate));
+    for (const [name, mood] of Object.entries(MOODS)) {
+        for (const layer of ['color', 'movement', 'glow']) assert.ok(RATES.includes(mood.rates[layer]), `${name} ${layer}`);
+    }
 });
 
 const jsFiles = readdirSync(join(ROOT, 'js'), { recursive: true })

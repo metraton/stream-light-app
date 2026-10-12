@@ -1,10 +1,12 @@
 // --- Color Sequencer: pattern-based color cycling for columns ---
-// Owns the selected colors and the pattern, turns them into frames (one color
-// index per column) and steps through the frames at the BPM rate. Independent
-// of the movement and glow layers.
+// Owns the selected colors, the pattern and the master tempo (BPM), turns the
+// colors into frames (one color index per column) and steps through the frames
+// at the pattern's rate. Independent of the movement and glow layers, which
+// read the beat from here.
 
 import { CONFIG } from './config.js';
 import { BASE_STATE } from './mood-map.js';
+import { BeatClock, LayerPhase } from './tempo.js';
 
 // Color indices: -1=empty (neutral column), 0=YELLOW, 1=BLUE, 2=RED, 3=GREEN, 4=PURPLE
 const COLOR_NAMES = ['YELLOW', 'BLUE', 'RED', 'GREEN', 'PURPLE'];
@@ -15,6 +17,9 @@ const SPARKLE_FRAME_COUNT = 16;
 
 /** Pattern names in key order (Q W E R T Y). */
 export const PATTERNS = ['none', 'chase', 'carousel', 'mirror', 'fill', 'sparkle'];
+
+/** Default rate of each pattern in frames per beat (js/tempo.js), chosen at 120 BPM. */
+export const PATTERN_RATES = Object.freeze({ none: 1, chase: 2, carousel: 1, mirror: 1, fill: 2, sparkle: 1 });
 
 // Removed pattern names mapped to the pattern that now plays instead, so an
 // old name arriving from stored or relayed state still resolves.
@@ -124,8 +129,12 @@ export class ColorSequencer {
     constructor() {
         this.frames = [];           // each frame is one color index per column
         this.currentStep = 0;
-        this._lastStepTime = 0;
         this._onFrameChange = null; // callback(frame, stepIndex)
+        this.clock = new BeatClock(BASE_STATE.bpm, performance.now());
+        this.phase = new LayerPhase(PATTERN_RATES[BASE_STATE.pattern]);
+        this._wholeStep = 0;        // floor of the phase at the last frame change
+        this._ratePattern = null;   // pattern whose rate the phase currently runs at
+        this.patternRates = {};     // panel-chosen rate per pattern, over PATTERN_RATES
         this.resetToBase();
     }
 
@@ -133,7 +142,7 @@ export class ColorSequencer {
     resetToBase() {
         this.selectedColors = [...BASE_STATE.colors];
         this.pattern = BASE_STATE.pattern;
-        this.bpm = BASE_STATE.bpm;
+        this.setBPM(BASE_STATE.bpm);
         this.isPlaying = BASE_STATE.playing;
 
         // --- DJ cue/staging model ---
@@ -239,10 +248,38 @@ export class ColorSequencer {
         this._regenerate();
     }
 
-    // --- BPM ---
+    // --- Tempo ---
 
+    get bpm() {
+        return this.clock.bpm;
+    }
+
+    /** Change the master tempo without moving any layer's position. */
     setBPM(bpm) {
-        this.bpm = Math.max(40, Math.min(300, bpm));
+        this.clock.setBPM(bpm, performance.now());
+    }
+
+    /** Master beat position at `now` (ms); the movement and glow layers run on it. */
+    beatAt(now) {
+        return this.clock.beatAt(now);
+    }
+
+    get rate() {
+        return this.phase.rate;
+    }
+
+    /** Change the pattern's frames-per-beat without moving its position.
+     *  remember keeps the rate for this pattern; a mood's rate is not kept. */
+    setRate(rate, remember = true) {
+        this.phase.setRate(rate, this.beatAt(performance.now()));
+        this._ratePattern = this.pattern;
+        if (remember) this.patternRates[this.pattern] = rate;
+    }
+
+    /** Run at the live pattern's rate once the pattern has changed. */
+    _syncPatternRate() {
+        if (this._ratePattern === this.pattern) return;
+        this.setRate(this.patternRates[this.pattern] ?? PATTERN_RATES[this.pattern] ?? 1, false);
     }
 
     // --- Playback ---
@@ -252,7 +289,8 @@ export class ColorSequencer {
         if (this.frames.length === 0) return;
         this.isPlaying = true;
         if (reset) this.currentStep = 0;
-        this._lastStepTime = performance.now();
+        this.phase.restartAt(this.beatAt(performance.now()));
+        this._wholeStep = 0;
         this._applyCurrentFrame();
     }
 
@@ -274,18 +312,14 @@ export class ColorSequencer {
         }
     }
 
-    /** Called every frame from the main app loop */
+    /** Called every frame from the main app loop: advance one frame per whole phase step. */
     update(now) {
         if (!this.isPlaying || this.frames.length === 0) return;
-
-        const msPerStep = (60 / this.bpm) * 1000;
-        const elapsed = now - this._lastStepTime;
-
-        if (elapsed >= msPerStep) {
-            this._lastStepTime = now - (elapsed % msPerStep);
-            this.currentStep = (this.currentStep + 1) % this.frames.length;
-            this._applyCurrentFrame();
-        }
+        const wholeStep = Math.floor(this.phase.stepAt(this.beatAt(now)));
+        if (wholeStep === this._wholeStep) return;
+        this.currentStep = (this.currentStep + wholeStep - this._wholeStep) % this.frames.length;
+        this._wholeStep = wholeStep;
+        this._applyCurrentFrame();
     }
 
     /** Register callback for when frame changes */
@@ -296,6 +330,7 @@ export class ColorSequencer {
     /** Rebuild the frames and paint frame 0. Never starts playback: nothing
      *  auto-plays, Space does. If already playing, the ticker keeps cycling. */
     _regenerate() {
+        this._syncPatternRate();
         this.currentStep = 0;
         this.frames = generateFrames(this.pattern, this.selectedColors);
         this._applyCurrentFrame();

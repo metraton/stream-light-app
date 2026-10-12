@@ -19,12 +19,20 @@ export const BASE_STATE = Object.freeze({
     playing: false,
 });
 
+// A mood's speed is its BPM plus one rate per layer, in steps per beat from
+// the rate buttons (tempo.js RATES); applying a mood does not change the rate
+// an effect is remembered with.
 export const MOODS = {
-    calm:    { colors: [1],             pattern: 'none',     movement: 'wave',      glow: 'breathe',   bpm: 80 },
-    build:   { colors: [2, 0],          pattern: 'fill',     movement: 'broken',    glow: 'sweep',     bpm: 120 },
-    tension: { colors: [2, 4],          pattern: 'mirror',   movement: 'shake',     glow: 'pulse',     bpm: 140 },
-    peak:    { colors: [0, 1, 2, 3, 4], pattern: 'carousel', movement: 'expand',    glow: 'strobe',    bpm: 175 },
-    mystic:  { colors: [4, 1],          pattern: 'sparkle',  movement: 'equalizer', glow: 'alternate', bpm: 90 },
+    calm:    { colors: [1],             pattern: 'none',     movement: 'wave',      glow: 'breathe',   bpm: 80,
+               rates: { color: 1, movement: 0.5, glow: 0.25 } },
+    build:   { colors: [2, 0],          pattern: 'fill',     movement: 'broken',    glow: 'sweep',     bpm: 130,
+               rates: { color: 2, movement: 1, glow: 2 } },
+    tension: { colors: [2, 4],          pattern: 'mirror',   movement: 'shake',     glow: 'pulse',     bpm: 140,
+               rates: { color: 1, movement: 2, glow: 2 } },
+    peak:    { colors: [0, 1, 2, 3, 4], pattern: 'carousel', movement: 'expand',    glow: 'alternate', bpm: 175,
+               rates: { color: 1, movement: 1, glow: 2 } },
+    mystic:  { colors: [4],             pattern: 'none',     movement: 'equalizer', glow: 'sweep',     bpm: 85,
+               rates: { color: 1, movement: 1, glow: 0.5 } },
 };
 
 /** Mood keys in panel order; each is pressed with Shift. mood null is None, which clears the active mood. */

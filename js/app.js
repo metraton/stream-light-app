@@ -6,7 +6,9 @@ import { GlowEngine } from './glow-engine.js';
 import { GLOW_SEQUENCES } from './glow-sequences.js';
 import { GLOW_MODE_SEQUENCE, canonicalGlowMode } from './glow-map.js';
 import { BASE_STATE } from './mood-map.js';
-import { ColorSequencer } from './color-sequencer.js';
+import { EASING_MAP } from './easing.js';
+import { RATES } from './tempo.js';
+import { ColorSequencer, PATTERN_RATES } from './color-sequencer.js';
 import { ColumnManager } from './columns.js';
 import { Overlay } from './overlay.js';
 import { HUD } from './hud.js';
@@ -23,6 +25,16 @@ const RENDER_HEIGHT = 1080;
 // Frame-rate caps the panel cycles through; 0 is Pixi's "no cap" (the monitor's refresh rate).
 const MAX_FPS_OPTIONS = [30, 60, 0];
 const DEFAULT_MAX_FPS = 60;
+
+// Bounds of the movement intensity multiplier a panel tweak may hold.
+const INTENSITY_MIN = 0.25;
+const INTENSITY_MAX = 2;
+
+/** A stored easing is one curve name or an array of them, each known to EASING_MAP. */
+function isEasing(value) {
+    const curves = Array.isArray(value) ? value : [value];
+    return curves.length > 0 && curves.every(c => typeof c === 'string' && Object.hasOwn(EASING_MAP, c));
+}
 
 export class StreamLightApp {
     constructor() {
@@ -41,6 +53,9 @@ export class StreamLightApp {
         this.currentGlowMode = BASE_STATE.glow;
         this.currentMovement = BASE_STATE.movement;
         this.currentMood = BASE_STATE.mood;
+        // Panel tweaks per effect ({ rate, easing, intensity }) over the frozen
+        // definitions; the color layer keeps its own in sequencer.patternRates.
+        this.tweaks = { movement: {}, glow: {} };
     }
 
     async init(deviceId) {
@@ -158,13 +173,111 @@ export class StreamLightApp {
         this.updateHUD();
     }
 
+    // --- Tempo and per-effect tweaks ---
+
+    _beatNow() {
+        return this.sequencer.beatAt(performance.now());
+    }
+
+    _engineFor(layer) {
+        return layer === 'movement' ? this.effectEngine : this.glowEngine;
+    }
+
+    /** What `name` plays with: the panel's tweak over the definition's defaults. */
+    _settingsFor(layer, name, def) {
+        const tweak = this.tweaks[layer][name] ?? {};
+        return { rate: tweak.rate ?? def.rate, easing: tweak.easing ?? def.easing, intensity: tweak.intensity ?? 1 };
+    }
+
+    _setTweak(layer, name, field, value) {
+        (this.tweaks[layer][name] ??= {})[field] = value;
+    }
+
+    /** Set the rate (steps per beat) of what a layer plays now, keeping its
+     *  position; the effect keeps that rate the next time it is triggered. */
+    setLayerRate(layer, rate) {
+        if (layer === 'color') {
+            this.sequencer.setRate(rate);
+        } else {
+            const engine = this._engineFor(layer);
+            if (!engine.active) return;
+            engine.setRate(rate, this._beatNow());
+            this._setTweak(layer, engine.active.name, 'rate', rate);
+        }
+        this.updateHUD();
+    }
+
+    /** Set the easing curve of the movement or glow playing now. */
+    setLayerEasing(layer, easing) {
+        const engine = this._engineFor(layer);
+        if (!engine.active) return;
+        engine.setEasing(easing);
+        this._setTweak(layer, engine.active.name, 'easing', easing);
+        this.updateHUD();
+    }
+
+    /** Scale the amplitude of the movement playing now (1 = as defined). */
+    setMovementIntensity(intensity) {
+        if (!this.effectEngine.active) return;
+        this.effectEngine.setIntensity(intensity);
+        this._setTweak('movement', this.effectEngine.active.name, 'intensity', intensity);
+    }
+
+    /** Per layer, the label of what actually plays and its rate, easing and
+     *  intensity; null where the layer has nothing that moves. */
+    nowPlaying() {
+        const fromEngine = (engine, label) => ({
+            label,
+            rate: engine.active?.phase.rate ?? null,
+            easing: engine.active?.easing ?? null,
+            intensity: engine.active?.intensity ?? null,
+        });
+        const pattern = this.sequencer.pattern;
+        const staticGlow = this.currentGlowMode === 'static' ? 'Static' : 'None';
+        return {
+            color: { label: pattern[0].toUpperCase() + pattern.slice(1), rate: this.sequencer.rate, easing: null, intensity: null },
+            movement: fromEngine(this.effectEngine, EFFECTS[this.currentMovement]?.label ?? 'None'),
+            glow: fromEngine(this.glowEngine, this.glowEngine.active?.def.label ?? staticGlow),
+        };
+    }
+
+    /** Tweaks as plain data, for presets. */
+    exportTweaks() {
+        return structuredClone({ ...this.tweaks, color: this.sequencer.patternRates });
+    }
+
+    /** Replace the tweaks with stored ones, keeping only values the panel could have set. */
+    importTweaks(saved) {
+        this.resetTweaks();
+        for (const layer of ['movement', 'glow']) {
+            for (const [name, tweak] of Object.entries(saved?.[layer] ?? {})) {
+                if (!tweak || typeof tweak !== 'object') continue;
+                if (RATES.includes(tweak.rate)) this._setTweak(layer, name, 'rate', tweak.rate);
+                if (isEasing(tweak.easing)) this._setTweak(layer, name, 'easing', tweak.easing);
+                if (Number.isFinite(tweak.intensity) && tweak.intensity >= INTENSITY_MIN && tweak.intensity <= INTENSITY_MAX) {
+                    this._setTweak(layer, name, 'intensity', tweak.intensity);
+                }
+            }
+        }
+        for (const [pattern, rate] of Object.entries(saved?.color ?? {})) {
+            if (Object.hasOwn(PATTERN_RATES, pattern) && RATES.includes(rate)) this.sequencer.patternRates[pattern] = rate;
+        }
+    }
+
+    resetTweaks() {
+        this.tweaks = { movement: {}, glow: {} };
+        this.sequencer.patternRates = {};
+    }
+
     // --- Public API (called by shortcuts) ---
 
-    /** Play a movement effect (independent from color) */
-    playMovement(effectName) {
+    /** Play a movement effect (independent from color); rate overrides its own. */
+    playMovement(effectName, rate = null) {
         const def = EFFECTS[effectName];
         if (!def) return;
-        this.effectEngine.play(effectName, def);
+        const settings = this._settingsFor('movement', effectName, def);
+        if (rate) settings.rate = rate;
+        this.effectEngine.play(effectName, def, settings, this._beatNow());
         this.currentMovement = effectName;
         this.currentMood = null;           // manual change drops the mood highlight
         this.updateHUD();
@@ -178,8 +291,9 @@ export class StreamLightApp {
         this.updateHUD();
     }
 
-    /** Set the glow layer to a quick mode (glow-map.js); removed mode names are translated. */
-    setGlowMode(requestedMode) {
+    /** Set the glow layer to a quick mode (glow-map.js); removed mode names are
+     *  translated. rate overrides the sequence's own. */
+    setGlowMode(requestedMode, rate = null) {
         const mode = canonicalGlowMode(requestedMode);
         this.currentGlowMode = mode;
         this.currentMood = null; // manual change drops the mood highlight
@@ -190,14 +304,17 @@ export class StreamLightApp {
             this.glowEngine.stop();
             this.columnManager.setAllGlow(CONFIG.glow.outerStrength > 0 ? 1 : 0.8);
         } else {
-            this.playGlowEffect(GLOW_MODE_SEQUENCE[mode] ?? mode);
+            this.playGlowEffect(GLOW_MODE_SEQUENCE[mode] ?? mode, rate);
         }
     }
 
-    playGlowEffect(name) {
+    /** Glows are locked to the beat grid, so flashes land on the beat. */
+    playGlowEffect(name, rate = null) {
         const def = GLOW_SEQUENCES[name];
         if (!def) return;
-        this.glowEngine.play(name, def);
+        const settings = this._settingsFor('glow', name, def);
+        if (rate) settings.rate = rate;
+        this.glowEngine.play(name, def, settings, this._beatNow(), true);
     }
 
     stopGlowEffect() {
@@ -207,9 +324,9 @@ export class StreamLightApp {
         this.currentMood = null;
     }
 
-    /** Apply a mood (mood-map.js): colors, pattern, movement, glow and BPM.
-     *  The color rotation does not start until Space ("nothing auto-plays");
-     *  movement and glow are continuous layers and start at once.
+    /** Apply a mood (mood-map.js): colors, pattern, movement, glow, BPM and a
+     *  rate per layer. The color rotation does not start until Space ("nothing
+     *  auto-plays"); movement and glow are continuous layers and start at once.
      *  @param {object} mood - mood definition
      *  @param {string|null} moodKey - mood name, for the active-state highlight */
     applyMood(mood, moodKey = null) {
@@ -217,15 +334,16 @@ export class StreamLightApp {
         this.sequencer.selectedColors = [...mood.colors];
         this.sequencer.setBPM(mood.bpm);
         this.sequencer.setPattern(mood.pattern);
+        this.sequencer.setRate(mood.rates.color, false);
 
         if (mood.movement && mood.movement !== 'none') {
-            this.playMovement(mood.movement);
+            this.playMovement(mood.movement, mood.rates.movement);
         } else {
             this.stopEffect();
         }
 
         if (mood.glow && mood.glow !== 'none') {
-            this.setGlowMode(mood.glow);
+            this.setGlowMode(mood.glow, mood.rates.glow);
         } else {
             this.stopGlowEffect();
         }
@@ -379,7 +497,7 @@ export class StreamLightApp {
             this._activeCameraTrack()?.label
         );
 
-        // Refresh panel sequencer visuals (mini-stage, tags, dots)
+        // Refresh the panel's live views (Now Playing, sequencer, Movimiento)
         if (this.panel) this.panel.refreshSequencerUI();
     }
 
@@ -387,16 +505,17 @@ export class StreamLightApp {
     // The video texture is not uploaded here: Pixi 8's VideoSource auto-updates
     // itself from requestVideoFrameCallback, once per new camera frame.
     update(ticker) {
-        // Update color sequencer timing
-        this.sequencer.update(performance.now());
+        const now = performance.now();
+        this.sequencer.update(now);
+        const beat = this.sequencer.beatAt(now);
 
         const scaleFactor = this.pixiApp.screen.height / 1080;
-        const offsets = this.effectEngine.compute(CONFIG.columns.count, scaleFactor);
+        const offsets = this.effectEngine.compute(CONFIG.columns.count, scaleFactor, beat);
         if (offsets) {
             this.columnManager.applyOffsets(offsets);
         }
 
-        const glowData = this.glowEngine.compute(CONFIG.columns.count);
+        const glowData = this.glowEngine.compute(CONFIG.columns.count, beat);
         if (glowData) {
             this.columnManager.applyGlowIntensities(glowData.intensity);
         }

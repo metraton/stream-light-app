@@ -1,10 +1,11 @@
 // --- Preset Manager (localStorage) ---
+// Movement, glow and pattern speeds are saved as the app's tweaks (rate,
+// easing, intensity per effect); the shared effect definitions are never written.
 import { CONFIG, DEFAULTS } from '../config.js';
-import { EFFECTS, EFFECT_DEFAULTS } from '../effects.js';
 
 const STORAGE_PREFIX = 'streamlight-preset-';
 
-export function savePreset(name) {
+export function savePreset(name, app) {
     const data = {
         colors: { ...CONFIG.colors },
         columns: {
@@ -22,20 +23,14 @@ export function savePreset(name) {
             temperature: [...CONFIG.filters.temperature],
         },
         glow: { ...CONFIG.glow },
-        effects: {},
+        tweaks: app.exportTweaks(),
     };
-
-    for (const [key, def] of Object.entries(EFFECTS)) {
-        data.effects[key] = {
-            phaseDuration: def.phaseDuration,
-            easing: def.easing,
-        };
-    }
 
     localStorage.setItem(STORAGE_PREFIX + name, JSON.stringify(data));
 }
 
-export function loadPreset(name) {
+/** Load a preset; presets saved before tweaks existed keep the default speeds. */
+export function loadPreset(name, app) {
     const raw = localStorage.getItem(STORAGE_PREFIX + name);
     if (!raw) return false;
 
@@ -58,14 +53,7 @@ export function loadPreset(name) {
         if (data.glow) {
             Object.assign(CONFIG.glow, data.glow);
         }
-        if (data.effects) {
-            for (const [key, vals] of Object.entries(data.effects)) {
-                if (EFFECTS[key]) {
-                    if (vals.phaseDuration) EFFECTS[key].phaseDuration = vals.phaseDuration;
-                    if (vals.easing) EFFECTS[key].easing = vals.easing;
-                }
-            }
-        }
+        app.importTweaks(data.tweaks);
         return true;
     } catch {
         return false;
@@ -87,9 +75,9 @@ export function deletePreset(name) {
     localStorage.removeItem(STORAGE_PREFIX + name);
 }
 
-/** Restore colors, layout, filters, glow look and movement timings to their
+/** Restore colors, layout, filters, glow look and every speed tweak to their
  *  defaults. The rotation is kept: the camera sets it, not the defaults. */
-export function resetToDefaults() {
+export function resetToDefaults(app) {
     const { rotationSteps } = CONFIG.columns;
     Object.assign(CONFIG.colors, DEFAULTS.colors);
     Object.assign(CONFIG.columns, DEFAULTS.columns, { rotationSteps });
@@ -97,12 +85,7 @@ export function resetToDefaults() {
         CONFIG.filters[key] = [...DEFAULTS.filters[key]];
     }
     Object.assign(CONFIG.glow, DEFAULTS.glow);
-    for (const [key, def] of Object.entries(EFFECT_DEFAULTS)) {
-        if (EFFECTS[key]) {
-            EFFECTS[key].phaseDuration = def.phaseDuration;
-            EFFECTS[key].easing = def.easing;
-        }
-    }
+    app.resetTweaks();
 }
 
 export function createPresetControls(sectionEl, app) {
@@ -113,7 +96,7 @@ export function createPresetControls(sectionEl, app) {
     resetBtn.textContent = 'Reset to Defaults';
     resetBtn.style.flex = '1';
     resetBtn.addEventListener('click', () => {
-        resetToDefaults();
+        resetToDefaults(app);
         app.resetToBase();
         app.columnManager.rebuild();
         app.reapplyColors();
@@ -136,7 +119,7 @@ export function createPresetControls(sectionEl, app) {
     saveBtn.addEventListener('click', () => {
         const name = nameInput.value.trim();
         if (!name) return;
-        savePreset(name);
+        savePreset(name, app);
         nameInput.value = '';
         refreshPresetList();
     });
@@ -157,7 +140,7 @@ export function createPresetControls(sectionEl, app) {
     loadBtn.addEventListener('click', () => {
         const name = presetSelect.value;
         if (!name) return;
-        if (loadPreset(name)) {
+        if (loadPreset(name, app)) {
             app.columnManager.rebuild();
             app.reapplyColors();
             if (app.overlay) app.overlay.moveToTop();

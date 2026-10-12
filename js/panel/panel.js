@@ -6,6 +6,7 @@ import { createFilterControls } from './filter-controls.js';
 import { createGlowControls } from './glow-controls.js';
 import { createPresetControls } from './preset-manager.js';
 import { createEffectControls } from './effect-controls.js';
+import { createNowPlaying } from './layer-controls.js';
 
 const SECTION_DEFS = [
     { key: 'sequencer', title: 'Sequencer', open: true },
@@ -57,9 +58,13 @@ export class ControlPanel {
             this.sections[def.key] = contentEl;
 
             switch (def.key) {
-                case 'sequencer':
-                    this._sequencerRefresh = createSequencerControls(contentEl, this.app);
+                case 'sequencer': {
+                    const nowPlaying = createNowPlaying(contentEl, this.app);
+                    const sequencer = createSequencerControls(contentEl, this.app);
+                    const movement = () => this._movementRefresh?.();
+                    this._sequencerRefresh = () => { nowPlaying(); sequencer(); movement(); };
                     break;
+                }
                 case 'colors':
                     createColorControls(contentEl, this.app);
                     break;
@@ -67,7 +72,7 @@ export class ControlPanel {
                     this.createLayoutControls(contentEl);
                     break;
                 case 'effects':
-                    createEffectControls(contentEl, this.app);
+                    this._movementRefresh = createEffectControls(contentEl, this.app);
                     break;
                 case 'filters':
                     createFilterControls(contentEl, this.app);
