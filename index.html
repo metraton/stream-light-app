@@ -8,6 +8,10 @@
     <meta http-equiv="Expires" content="0">
     <title>Stream Light</title>
     <link rel="stylesheet" href="panel.css">
+    <!-- Fredoka 600 is the text overlay's face (js/overlay-text.js TEXT_FONT_FAMILY); the app awaits it before rendering text. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600&display=block">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         html, body {
@@ -108,7 +112,7 @@
         <div><span class="label">Effect:</span> <span class="value" id="hud-effect">NONE</span></div>
         <div><span class="label">FPS:</span> <span class="value" id="hud-fps">0</span></div>
         <div class="keys">
-            <kbd>|</kbd> Empty &middot; <kbd>1-5</kbd> Colores &middot; <kbd>6</kbd> Todos al azar &middot; <kbd>0</kbd> Camara<br>
+            <kbd>|</kbd> Empty &middot; <kbd>1-5</kbd> Colores &middot; <kbd>6</kbd> Todos al azar &middot; <kbd>9</kbd> Texto &middot; <kbd>0</kbd> Camara<br>
             <kbd>QWERTY</kbd> Patron &middot; <kbd>ASDFGH</kbd> Movimiento<br>
             <kbd>ZXCVBN</kbd> Glow &middot; <kbd>Shift+ZXCVBN</kbd> Moods &middot; <kbd>&lt;</kbd> Mood None<br>
             <kbd>Space</kbd> Pausa / Play &middot; commit cue &middot; <kbd>+</kbd>/<kbd>´</kbd> BPM<br>

@@ -60,6 +60,9 @@ Every row of the key grid has six keys and starts with None:
 | `Backspace` / `Space` | Cue | stage a new combo while the live one plays / commit it (otherwise pause / resume) |
 | `Escape` | Base state | no colors, every layer None, 120 BPM, playing (the first color pressed moves at once); layout, filters, rotation and FPS cap stay |
 | `+` / `´`, `0`, `J`, `P` | Other | BPM up/down, next camera, HUD, panel |
+| `9` | Text | fade the text overlay in or out (250 ms); Shift+9 stays unbound |
+
+The text overlay (`9`, or the panel's Texto section) draws the current phrase as hollow Fredoka letters outlined by a thin double line, with a glow and an optional dark band across the frame. It sits above the Pantalla layer, so screen effects never distort it. The panel sets the phrase, saved phrases (seeded with FLASH LIGHT and CANDLE LIGHT, kept in localStorage apart from presets), color (Neón, Columna = first selected color, Blanco, Custom), size, band and its opacity, position (Centro / Arriba / Abajo) and beat behavior (Fijo, Pulso al golpe, Parpadeo neón). Presets save that look as `text` but never whether it shows; a preset from before carries none and loads the defaults.
 
 Pattern variants (`js/color-sequencer.js` `PATTERN_VARIANTS`): Carousel reversed runs the same frames backwards. Chase, Mirror, Fill and Sparkle negative swap lit and Empty columns: each selected color in turn fills the row and the columns the normal pattern lights for that color alone become gaps, so Chase is a full row with a travelling gap and Fill empties the row column by column. None has no variant, so Shift+Q is Q. A plain key always picks the normal pattern; pressing Shift again keeps the variant; moods play the normal pattern.
 
@@ -86,11 +89,14 @@ js/live-bridge.js   page side of live mode: reports bound keys, runs relayed key
 js/glow-map.js      glow quick keys shared by shortcuts and the panel
 js/mood-map.js      the base state and the moods, shared by the app, shortcuts and the panel
 js/color-filter.js  Color panel model: global filter + per-color offsets, effective values, old-preset migration
+js/overlay-text.js  text overlay model: settings and their preset restore, saved phrases, fade, beat pulse, seeded flicker
+js/overlay.js       text overlay rendering: double-outline phrase, glow and band above the screen layer
 js/panel/           control panel sections
 js/*.js             rendering engines: columns, effects, glow, color sequencer, camera, HUD
 tests/test_serve.py    tests for the file server, the bridge and the Caps Lock live-mode logic
 tests/test_patterns.mjs tests for the color patterns, the key grid and JS syntax
 tests/test_color_filter.mjs tests for the Color panel math and the old-preset migration
+tests/test_text_overlay.mjs tests for the text overlay's phrases, preset restore, fade, flicker and key 9
 ```
 
 ## Ownership

@@ -6,10 +6,13 @@
 // converted on load by migrateLegacyFilters, so its columns look the same.
 // Effects are saved as `effectStack` and Pantalla effects as `screenEffects`;
 // a preset without either loads with none of those effects on.
+// The text overlay's look is saved as `text`, never whether it shows; a preset
+// without it loads the default look.
 import { CONFIG, DEFAULTS } from '../config.js';
 import { restoreColorFilter, migrateLegacyFilters } from '../color-filter.js';
 import { restoreEffectStack } from '../effect-stack.js';
 import { restoreScreenStack, loadScreenStack, resetScreenStack } from '../screen-stack.js';
+import { restoreTextSettings } from '../overlay-text.js';
 import { activeLayoutDefault } from '../layout-default.js';
 
 const STORAGE_PREFIX = 'streamlight-preset-';
@@ -28,6 +31,7 @@ export function savePreset(name, app) {
         effectStack: restoreEffectStack(CONFIG.effectStack),
         screenEffects: restoreScreenStack(CONFIG.screenEffects),
         glow: { ...CONFIG.glow },
+        text: restoreTextSettings(CONFIG.text),
         tweaks: app.exportTweaks(),
     };
 
@@ -58,6 +62,7 @@ export function loadPreset(name, app) {
         if (data.glow) {
             Object.assign(CONFIG.glow, data.glow);
         }
+        Object.assign(CONFIG.text, restoreTextSettings(data.text));
         app.importTweaks(data.tweaks);
         return true;
     } catch {
@@ -80,10 +85,11 @@ export function deletePreset(name) {
     localStorage.removeItem(STORAGE_PREFIX + name);
 }
 
-/** Restore colors, filters, effects, Pantalla effects, glow look and every speed tweak
- *  to their factory values, and the layout to the active layout default: the user's
- *  saved one ("Guardar como default" in Layout) when it exists, otherwise factory. The
- *  rotation is kept: the camera sets it, not the defaults. */
+/** Restore colors, filters, effects, Pantalla effects, glow look, text look and every
+ *  speed tweak to their factory values, and the layout to the active layout default:
+ *  the user's saved one ("Guardar como default" in Layout) when it exists, otherwise
+ *  factory. The rotation is kept: the camera sets it, not the defaults. Whether the
+ *  text shows is kept too, like any other live toggle. */
 export function resetToDefaults(app, storage = localStorage) {
     const { rotationSteps } = CONFIG.columns;
     Object.assign(CONFIG.colors, DEFAULTS.colors);
@@ -92,7 +98,20 @@ export function resetToDefaults(app, storage = localStorage) {
     Object.assign(CONFIG.effectStack, restoreEffectStack(DEFAULTS.effectStack));
     resetScreenStack(CONFIG.screenEffects);
     Object.assign(CONFIG.glow, DEFAULTS.glow);
+    Object.assign(CONFIG.text, restoreTextSettings(DEFAULTS.text));
     app.resetTweaks();
+}
+
+/** Redraw everything a preset or reset changed, keeping the text overlay above the screen layer. */
+function applyLoadedState(app) {
+    app.columnManager.rebuild();
+    app.columnManager.screenLayer.apply();
+    app.reapplyColors();
+    if (app.overlay) {
+        app.overlay.refresh();
+        app.overlay.moveToTop();
+    }
+    if (app.panel) app.panel.refresh();
 }
 
 export function createPresetControls(sectionEl, app) {
@@ -105,11 +124,7 @@ export function createPresetControls(sectionEl, app) {
     resetBtn.addEventListener('click', () => {
         resetToDefaults(app);
         app.resetToBase();
-        app.columnManager.rebuild();
-        app.columnManager.screenLayer.apply();
-        app.reapplyColors();
-        if (app.overlay) app.overlay.moveToTop();
-        if (app.panel) app.panel.refresh();
+        applyLoadedState(app);
     });
     resetRow.appendChild(resetBtn);
     sectionEl.appendChild(resetRow);
@@ -148,14 +163,7 @@ export function createPresetControls(sectionEl, app) {
     loadBtn.addEventListener('click', () => {
         const name = presetSelect.value;
         if (!name) return;
-        if (loadPreset(name, app)) {
-            app.columnManager.rebuild();
-            app.columnManager.screenLayer.apply();
-            app.reapplyColors();
-            if (app.overlay) app.overlay.moveToTop();
-            // Refresh panel controls to reflect new values
-            if (app.panel) app.panel.refresh();
-        }
+        if (loadPreset(name, app)) applyLoadedState(app);
     });
 
     const deleteBtn = document.createElement('button');

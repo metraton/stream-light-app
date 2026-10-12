@@ -12,9 +12,11 @@ import { createPresetControls } from './preset-manager.js';
 import { createEffectControls } from './effect-controls.js';
 import { createNowPlaying } from './layer-controls.js';
 import { createScreenControls } from './screen-controls.js';
+import { createTextControls } from './text-controls.js';
 
 const SECTION_DEFS = [
     { key: 'sequencer', title: 'Sequencer', open: true },
+    { key: 'text',      title: 'Texto',     open: false },
     { key: 'colors',    title: 'Color Hex', open: false },
     { key: 'filters',   title: 'Color',     open: false },
     { key: 'screen',    title: 'Pantalla',  open: false },
@@ -72,13 +74,17 @@ export class ControlPanel {
                 case 'sequencer': {
                     const nowPlaying = createNowPlaying(contentEl, this.app);
                     const sequencer = createSequencerControls(contentEl, this.app);
-                    // Movimiento and Glow follow the active effect however it
-                    // was triggered: every key, button and mood ends in updateHUD.
+                    // Movimiento, Glow and Texto follow the app however it was
+                    // changed: every key, button and mood ends in updateHUD.
                     const movement = () => this._movementRefresh?.();
                     const glow = () => this._glowRefresh?.();
-                    this._sequencerRefresh = () => { nowPlaying(); sequencer(); movement(); glow(); };
+                    const text = () => this._textRefresh?.();
+                    this._sequencerRefresh = () => { nowPlaying(); sequencer(); movement(); glow(); text(); };
                     break;
                 }
+                case 'text':
+                    this._textRefresh = createTextControls(contentEl, this.app);
+                    break;
                 case 'colors':
                     this._colorHexRefresh = createColorControls(contentEl, this.app, () => this.refreshColorSwatches());
                     break;

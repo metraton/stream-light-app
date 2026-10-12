@@ -10,7 +10,7 @@ import { EASING_MAP } from './easing.js';
 import { RATES } from './tempo.js';
 import { ColorSequencer, PATTERN_RATES } from './color-sequencer.js';
 import { ColumnManager } from './columns.js';
-import { Overlay } from './overlay.js';
+import { Overlay, loadOverlayFont } from './overlay.js';
 import { HUD } from './hud.js';
 import { setupShortcuts } from './shortcuts.js';
 import { connectLiveBridge } from './live-bridge.js';
@@ -112,6 +112,8 @@ export class StreamLightApp {
         });
         this.setMaxFPS(this.maxFPS);
         document.getElementById('app').appendChild(this.pixiApp.canvas);
+        // Both start paths run this before setup(), so the overlay's first render already has its font.
+        await loadOverlayFont();
     }
 
     /** Cap rendering at `fps` frames per second; 0 renders at the monitor's refresh rate. */
@@ -438,8 +440,11 @@ export class StreamLightApp {
         if (this.hud) this.hud.toggle();
     }
 
+    /** Fade the text overlay in or out (key 9 / panel); updateHUD refreshes the panel's Texto button. */
     toggleOverlay() {
-        if (this.overlay) this.overlay.toggle();
+        if (!this.overlay) return;
+        this.overlay.toggle();
+        this.updateHUD();
     }
 
     /** Cycle orientation 0°→90°→180°→270°→0°. Returns the new step (0-3). */
