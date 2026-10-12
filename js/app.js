@@ -213,11 +213,12 @@ export class StreamLightApp {
         this.updateHUD();
     }
 
-    /** Scale the amplitude of the movement playing now (1 = as defined). */
-    setMovementIntensity(intensity) {
-        if (!this.effectEngine.active) return;
-        this.effectEngine.setIntensity(intensity);
-        this._setTweak('movement', this.effectEngine.active.name, 'intensity', intensity);
+    /** Scale what the movement or glow layer plays now (1 = as defined). */
+    setLayerIntensity(layer, intensity) {
+        const engine = this._engineFor(layer);
+        if (!engine.active) return;
+        engine.setIntensity(intensity);
+        this._setTweak(layer, engine.active.name, 'intensity', intensity);
     }
 
     /** Per layer, the label of what actually plays and its rate, easing and

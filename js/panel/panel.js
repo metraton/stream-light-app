@@ -61,8 +61,11 @@ export class ControlPanel {
                 case 'sequencer': {
                     const nowPlaying = createNowPlaying(contentEl, this.app);
                     const sequencer = createSequencerControls(contentEl, this.app);
+                    // Movimiento and Glow follow the active effect however it
+                    // was triggered: every key, button and mood ends in updateHUD.
                     const movement = () => this._movementRefresh?.();
-                    this._sequencerRefresh = () => { nowPlaying(); sequencer(); movement(); };
+                    const glow = () => this._glowRefresh?.();
+                    this._sequencerRefresh = () => { nowPlaying(); sequencer(); movement(); glow(); };
                     break;
                 }
                 case 'colors':
@@ -78,7 +81,7 @@ export class ControlPanel {
                     createFilterControls(contentEl, this.app);
                     break;
                 case 'glow':
-                    createGlowControls(contentEl, this.app);
+                    this._glowRefresh = createGlowControls(contentEl, this.app);
                     break;
                 case 'presets':
                     createPresetControls(contentEl, this.app);
