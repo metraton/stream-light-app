@@ -2,10 +2,26 @@
 // The glow sequence playing now, its rate and its easing are set in
 // "Sonando ahora" (layer-controls.js).
 import { CONFIG } from '../config.js';
+import { GLOW_QUICK } from '../glow-map.js';
+import { createSlider } from './slider.js';
+import { buttonRow } from './layer-controls.js';
+
+// The look the app starts with, which a double click on a slider returns to.
+const GLOW_DEFAULTS = Object.freeze({ ...CONFIG.glow });
 
 export function createGlowControls(sectionEl, app) {
     const g = CONFIG.glow;
     const cm = app.columnManager;
+
+    // === Trigger: the glows of the key grid (glow-map.js), one button each ===
+    const triggerHeader = document.createElement('div');
+    triggerHeader.className = 'effect-name';
+    triggerHeader.textContent = 'Glow (Z X C V B N)';
+    sectionEl.appendChild(triggerHeader);
+    buttonRow(sectionEl, GLOW_QUICK.map(({ key, label }) => `${key.toUpperCase()} ${label}`), i => {
+        app.setGlowMode(GLOW_QUICK[i].mode);
+        app.updateHUD();
+    });
 
     // === Parameters ===
     const paramHeader = document.createElement('div');
@@ -13,21 +29,35 @@ export function createGlowControls(sectionEl, app) {
     paramHeader.textContent = 'Parameters';
     sectionEl.appendChild(paramHeader);
 
-    addSlider(sectionEl, 'Strength', 0, 10, 0.5, g.outerStrength, v => {
-        g.outerStrength = v;
-        cm.updateGlowParams();
+    // Ranges keep the values that change the look visibly; Distance and
+    // Quality rebuild the filters, so they move in whole useful steps.
+    createSlider(sectionEl, {
+        label: 'Strength', min: 0, max: 6, decimals: 1,
+        defaultValue: GLOW_DEFAULTS.outerStrength, value: g.outerStrength,
+        onChange: v => {
+            g.outerStrength = v;
+            cm.updateGlowParams();
+        },
     });
 
-    addSlider(sectionEl, 'Distance', 2, 25, 1, g.distance, v => {
-        g.distance = v;
-        cm.rebuild();
-        app.reapplyColors();
+    createSlider(sectionEl, {
+        label: 'Distance', min: 4, max: 20, decimals: 0,
+        defaultValue: GLOW_DEFAULTS.distance, value: g.distance,
+        onChange: v => {
+            g.distance = v;
+            cm.rebuild();
+            app.reapplyColors();
+        },
     });
 
-    addSlider(sectionEl, 'Quality', 0.05, 0.5, 0.05, g.quality, v => {
-        g.quality = v;
-        cm.rebuild();
-        app.reapplyColors();
+    createSlider(sectionEl, {
+        label: 'Quality', min: 0.1, max: 0.5, decimals: 2,
+        defaultValue: GLOW_DEFAULTS.quality, value: g.quality,
+        onChange: v => {
+            g.quality = v;
+            cm.rebuild();
+            app.reapplyColors();
+        },
     });
 
     // --- Color Mode ---
@@ -72,34 +102,4 @@ export function createGlowControls(sectionEl, app) {
     colorRow.appendChild(colorSelect);
     colorRow.appendChild(customColorInput);
     sectionEl.appendChild(colorRow);
-}
-
-function addSlider(parent, label, min, max, step, value, onChange) {
-    const row = document.createElement('div');
-    row.className = 'layout-row';
-
-    const lbl = document.createElement('label');
-    lbl.textContent = label;
-
-    const slider = document.createElement('input');
-    slider.type = 'range';
-    slider.min = min;
-    slider.max = max;
-    slider.step = step;
-    slider.value = value;
-
-    const val = document.createElement('span');
-    val.className = 'range-value';
-    val.textContent = Number.isInteger(value) ? value : value.toFixed(2);
-
-    slider.addEventListener('input', () => {
-        const v = parseFloat(slider.value);
-        val.textContent = Number.isInteger(v) ? v : v.toFixed(2);
-        onChange(v);
-    });
-
-    row.appendChild(lbl);
-    row.appendChild(slider);
-    row.appendChild(val);
-    parent.appendChild(row);
 }
