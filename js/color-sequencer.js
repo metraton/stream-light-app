@@ -39,7 +39,7 @@ export function generateFrames(pattern, colors) {
         case 'mirror': return mirrorFrames(colors);
         case 'sparkle': return sparkleFrames(colors);
         case 'fill': return fillFrames(colors);
-        default: return [spreadFrame(colors)];
+        default: return solidFrames(colors);
     }
 }
 
@@ -47,9 +47,10 @@ function frameOf(colorAt) {
     return Array.from({ length: COLUMN_COUNT }, (_, col) => colorAt(col));
 }
 
-// none: the colors split the row into equal blocks, left to right, and hold still.
-function spreadFrame(colors) {
-    return frameOf(col => colors[Math.floor(col * colors.length / COLUMN_COUNT)]);
+// none: each color fills the whole row as its own frame, so one color holds
+// still and several blink the row from one color to the next on every step.
+function solidFrames(colors) {
+    return colors.map(color => frameOf(() => color));
 }
 
 // chase: the colors travel together left to right, wrapping, over empty columns.

@@ -57,9 +57,14 @@ for (const pattern of PATTERNS) {
     });
 }
 
-test('none spreads the selected colors across the columns', () => {
-    assert.deepEqual(generateFrames('none', [0, 1, 2, 3, 4]), [[0, 1, 2, 3, 4]]);
-    assert.deepEqual(generateFrames('none', [2, 0]), [[2, 2, 2, 0, 0]]);
+test('none fills every column with one color: still with one, a blink per step with several', () => {
+    assert.deepEqual(generateFrames('none', [3]), [[3, 3, 3, 3, 3]]);
+    assert.deepEqual(generateFrames('none', [2, 0]), [[2, 2, 2, 2, 2], [0, 0, 0, 0, 0]]);
+    for (const colors of combos([-1, 0, 1, 2, 3, 4])) {
+        const frames = generateFrames('none', colors);
+        assert.equal(frames.length, colors.length, `none ${colors}`);
+        frames.forEach((frame, i) => assert.deepEqual(frame, new Array(COLUMN_COUNT).fill(colors[i])));
+    }
 });
 
 test('mirror grows from the center column; fill grows left to right', () => {
