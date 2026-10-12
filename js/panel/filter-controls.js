@@ -68,8 +68,9 @@ export function createFilterControls(sectionEl, app) {
                 }
                 app.columnManager.applyFilters();
             } else {
+                // selectedCol is a color slot; that color may sit in any column.
                 CONFIG.filters[def.key][selectedCol] = v;
-                app.columnManager.applyFilters(selectedCol);
+                app.columnManager.applyFilters();
             }
         });
 

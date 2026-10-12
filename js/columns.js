@@ -185,24 +185,28 @@ export class ColumnManager {
         // default white tint, which is overwritten synchronously by the frame.
     }
 
-    // --- Filters (per-column: brightness, contrast, saturation, hue, temperature) ---
-    applyFilters(columnIndex) {
+    // --- Filters (per color: brightness, contrast, saturation, hue, temperature) ---
+    /**
+     * Apply to every column the filter set of the color it currently shows.
+     * CONFIG.filters arrays are indexed by color slot in CONFIG.colorOrder, not by
+     * column position, because the sequencer moves colors between columns.
+     */
+    applyFilters() {
         const f = CONFIG.filters;
         const nf = CONFIG.neutralFilter;
-        const start = columnIndex !== undefined ? columnIndex : 0;
-        const end = columnIndex !== undefined ? columnIndex + 1 : this.columns.length;
 
-        for (let i = start; i < end; i++) {
-            if (!this.columns[i]) continue;
+        for (let i = 0; i < this.columns.length; i++) {
             const cm = this.columns[i].colorMatrix;
             cm.reset();
 
-            const isNeutral = this.columnColors[i] === 'NEUTRAL';
-            const b = isNeutral ? (nf.brightness || 0) : (f.brightness[i] || 0);
-            const c = isNeutral ? (nf.contrast ?? 1)   : (f.contrast[i] ?? 1);
-            const s = isNeutral ? (nf.saturation ?? 1)  : (f.saturation[i] ?? 1);
-            const h = isNeutral ? (nf.hue || 0)         : (f.hue[i] || 0);
-            const t = isNeutral ? (nf.temperature || 0)  : (f.temperature[i] || 0);
+            const colorName = this.columnColors[i];
+            const isNeutral = colorName === 'NEUTRAL';
+            const slot = CONFIG.colorOrder.indexOf(colorName);
+            const b = isNeutral ? (nf.brightness || 0) : (f.brightness[slot] || 0);
+            const c = isNeutral ? (nf.contrast ?? 1)   : (f.contrast[slot] ?? 1);
+            const s = isNeutral ? (nf.saturation ?? 1)  : (f.saturation[slot] ?? 1);
+            const h = isNeutral ? (nf.hue || 0)         : (f.hue[slot] || 0);
+            const t = isNeutral ? (nf.temperature || 0)  : (f.temperature[slot] || 0);
 
             let chained = false;
             if (b !== 0) { cm.brightness(1 + b / 100, chained); chained = true; }
