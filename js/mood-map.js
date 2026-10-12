@@ -24,13 +24,13 @@ export const BASE_STATE = Object.freeze({
 // an effect is remembered with.
 export const MOODS = {
     calm:    { colors: [1],             pattern: 'none',     movement: 'wave',      glow: 'breathe',   bpm: 80,
-               rates: { color: 1, movement: 0.5, glow: 0.25 } },
+               rates: { color: 1, movement: 1, glow: 1 } },
     build:   { colors: [2, 0],          pattern: 'fill',     movement: 'broken',    glow: 'sweep',     bpm: 130,
                rates: { color: 2, movement: 1, glow: 2 } },
     tension: { colors: [2, 4],          pattern: 'mirror',   movement: 'shake',     glow: 'pulse',     bpm: 140,
-               rates: { color: 1, movement: 2, glow: 2 } },
-    peak:    { colors: [0, 1, 2, 3, 4], pattern: 'carousel', movement: 'expand',    glow: 'alternate', bpm: 175,
-               rates: { color: 1, movement: 1, glow: 2 } },
+               rates: { color: 1, movement: 2, glow: 4 } },
+    peak:    { colors: [0, 1, 2, 3, 4], pattern: 'carousel', movement: 'shake',     glow: 'alternate', bpm: 175,
+               rates: { color: 1, movement: 1, glow: 1 } },
     mystic:  { colors: [4],             pattern: 'none',     movement: 'equalizer', glow: 'sweep',     bpm: 85,
                rates: { color: 1, movement: 1, glow: 0.5 } },
 };
