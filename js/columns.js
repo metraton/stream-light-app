@@ -5,6 +5,7 @@ import { resolveEffects, chainKey } from './effect-stack.js';
 import { effectById, runsOnBeat } from './effects-registry.js';
 import { ScreenLayer } from './screen-layer.js';
 import { ringReadSlot, ringWriteSlot } from './effect-engine.js';
+import { computeStageLayout } from './stage-layout.js';
 
 // ============================================================================
 // UNIFIED MOVEMENT MARGIN RULE  (single source of truth — tune here)
@@ -206,37 +207,19 @@ export class ColumnManager {
     }
 
     create() {
-        const width = this.pixiApp.screen.width;
-        const height = this.pixiApp.screen.height;
-        const { count, gap, margin, cornerRadius } = CONFIG.columns;
-        const columnWidth = (width - 2 * margin - (count - 1) * gap) / count;
-        const columnHeight = height - 2 * margin;
-
-        const videoW = this.videoElement.videoWidth;
-        const videoH = this.videoElement.videoHeight;
+        const { count, margin, cornerRadius } = CONFIG.columns;
+        const { columnWidth, columnHeight, scale, scaledWidth: scaledW, columnXs, panOffsets } = computeStageLayout({
+            stageWidth: this.pixiApp.screen.width,
+            stageHeight: this.pixiApp.screen.height,
+            layout: CONFIG.columns,
+            videoWidth: this.videoElement.videoWidth,
+            videoHeight: this.videoElement.videoHeight,
+        });
         // rotationSteps: 0=0°, 1=90°, 2=180°, 3=270° (clockwise).
-        // Odd steps (90°/270°) swap the feed's effective width/height.
         const rotationSteps = ((CONFIG.columns.rotationSteps % 4) + 4) % 4;
-        const swapDims = rotationSteps === 1 || rotationSteps === 3;
-
-        const effectiveW = swapDims ? videoH : videoW;
-        const effectiveH = swapDims ? videoW : videoH;
-
-        const zoom = CONFIG.columns.zoom;
-        const baseScale = columnHeight / effectiveH;
-        const scale = baseScale * zoom;
-
-        const scaledW = effectiveW * scale;
-
-        const maxPan = scaledW - columnWidth;
-        const spread = CONFIG.columns.spread;
-        const cropStep = maxPan > 0 ? (maxPan * spread) / (count - 1) : 0;
-
-        const totalSpread = cropStep * (count - 1);
-        const startOffset = (maxPan - totalSpread) / 2;
 
         for (let i = 0; i < count; i++) {
-            const screenX = margin + i * (columnWidth + gap);
+            const screenX = columnXs[i];
             const screenY = margin;
 
             const container = new PIXI.Container();
@@ -257,8 +240,7 @@ export class ColumnManager {
 
             sprite.scale.set(scale);
 
-            const panOffset = startOffset + cropStep * i;
-            sprite.x = scaledW / 2 - panOffset;
+            sprite.x = scaledW / 2 - panOffsets[i];
             sprite.y = columnHeight / 2;
 
             // Color filter (brightness, contrast, saturation); applyFilters() attaches it.
