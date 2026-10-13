@@ -15,6 +15,7 @@ import { GLOW_QUICK, GLOW_MODE_SEQUENCE, canonicalGlowMode } from '../js/glow-ma
 import { GLOW_SEQUENCES } from '../js/glow-sequences.js';
 import { EFFECTS } from '../js/effects.js';
 import { resolveShortcut } from '../js/shortcuts.js';
+import { StreamLightApp } from '../js/app.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const COLUMN_COUNT = 5;
@@ -167,7 +168,7 @@ test('base state and every mood name a real button, so their highlights match', 
 test('Q W E R T Y resolve to the patterns in panel order: T is Fill, Y is Sparkle', () => {
     const patternFor = (key) => {
         let pattern = null;
-        const app = { sequencer: { setPattern: (p) => { pattern = p; } }, updateHUD() {} };
+        const app = { setPattern: (p) => { pattern = p; }, updateHUD() {} };
         resolveShortcut({ key, code: `Key${key.toUpperCase()}`, shiftKey: false, ctrlKey: false, altKey: false })(app);
         return pattern;
     };
@@ -178,7 +179,9 @@ test('Q W E R T Y resolve to the patterns in panel order: T is Fill, Y is Sparkl
 
 /** An app stand-in around a real sequencer, its other layers away from the base state. */
 function fakeApp() {
-    return { sequencer: new ColorSequencer(), currentMovement: 'wave', currentGlowMode: 'pulse', currentMood: 'calm', updateHUD() {} };
+    const app = new StreamLightApp();
+    Object.assign(app, { currentMovement: 'wave', currentGlowMode: 'pulse', currentMood: 'calm' });
+    return app;
 }
 
 function press(app, key, code, shiftKey = false) {

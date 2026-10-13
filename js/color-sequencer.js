@@ -223,6 +223,16 @@ export class ColorSequencer {
         this._regenerate();
     }
 
+    /** Replace the color list: the pending one while staging, else the live one. */
+    setColors(colors) {
+        if (this.staging) {
+            this.pendingColors = [...colors];
+            return;
+        }
+        this.selectedColors = [...colors];
+        this._regenerate();
+    }
+
     /** Todos al azar: all 5 colors in a fresh random order on every press. Only
      *  the color selection changes; the pattern, its rate and the other layers stay. */
     selectAllShuffled() {

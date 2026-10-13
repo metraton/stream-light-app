@@ -9,8 +9,9 @@
 // Z X C V B N: glow (none/sweep/breathe/pulse/strobe/alternate), from js/glow-map.js
 // Shift+Z X C V B N: mood (none/calm/build/tension/peak/mystic), from js/mood-map.js
 // <: mood None
-// Backspace: cue a new combo while the live one keeps playing
-// Space: commit the cue (movement/glow/mood back to the base state), else pause/resume
+// Backspace: cue a new combo while the live one keeps playing; colors, pattern,
+//   movement, glow and mood pressed meanwhile wait for Space (BPM stays live)
+// Space: commit the cue (unpressed movement/glow/mood go to the base state), else pause/resume
 // + / ´: BPM up / down
 // Escape: back to the base state; J: HUD; P: panel
 //
@@ -89,7 +90,7 @@ export function resolveShortcut(e) {
     // Shift picks the variant and plain the normal pattern, so a repeated press never toggles.
     if (PATTERN_KEYS[keyLower] && !ctrl && !alt) {
         return (app) => {
-            app.sequencer.setPattern(PATTERN_KEYS[keyLower], shift);
+            app.setPattern(PATTERN_KEYS[keyLower], shift);
             app.updateHUD();
         };
     }

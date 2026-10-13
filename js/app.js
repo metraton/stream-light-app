@@ -53,6 +53,8 @@ export class StreamLightApp {
         // Panel tweaks per effect ({ rate, easing, intensity }) over the frozen
         // definitions; the color layer keeps its own in sequencer.patternRates.
         this.tweaks = { movement: {}, glow: {} };
+        // Scene changes pressed while a cue is armed, run in press order on commit.
+        this.stagedChanges = [];
     }
 
     async init(deviceId) {
@@ -292,8 +294,39 @@ export class StreamLightApp {
 
     // --- Public API (called by shortcuts) ---
 
+    /** The one entry point for scene changes: run `change` now, or hold it for
+     *  the next commit while a cue is armed. Colors and the pattern stage in the
+     *  sequencer itself; only the pattern's mood highlight drop goes through here. */
+    _dispatch(change) {
+        if (this.sequencer.staging) {
+            this.stagedChanges.push(change);
+        } else {
+            change();
+        }
+    }
+
+    /** A manual pattern leaves the mood, as a manual movement or glow does. */
+    setPattern(pattern, variant = false) {
+        this.sequencer.setPattern(pattern, variant);
+        this.clearMood();
+    }
+
     /** Play a movement effect (independent from color); rate and easing override its own. */
     playMovement(effectName, rate = null, easing = null) {
+        this._dispatch(() => this._playMovement(effectName, rate, easing));
+    }
+
+    stopEffect() {
+        this._dispatch(() => this._stopMovement());
+    }
+
+    /** Set the glow layer to a quick mode (glow-map.js); removed mode names are
+     *  translated. rate and easing override the sequence's own. */
+    setGlowMode(requestedMode, rate = null, easing = null) {
+        this._dispatch(() => this._setGlowMode(requestedMode, rate, easing));
+    }
+
+    _playMovement(effectName, rate, easing) {
         const def = EFFECTS[effectName];
         if (!def) return;
         const settings = this._settingsFor('movement', effectName, def);
@@ -305,7 +338,7 @@ export class StreamLightApp {
         this.updateHUD();
     }
 
-    stopEffect() {
+    _stopMovement() {
         this.effectEngine.stop();
         this.columnManager.resetOffsets();
         this.currentMovement = 'none';
@@ -313,9 +346,7 @@ export class StreamLightApp {
         this.updateHUD();
     }
 
-    /** Set the glow layer to a quick mode (glow-map.js); removed mode names are
-     *  translated. rate and easing override the sequence's own. */
-    setGlowMode(requestedMode, rate = null, easing = null) {
+    _setGlowMode(requestedMode, rate, easing) {
         const mode = canonicalGlowMode(requestedMode);
         this.currentGlowMode = mode;
         this.currentMood = null; // manual change drops the mood highlight
@@ -350,54 +381,66 @@ export class StreamLightApp {
     /** Apply a mood (mood-map.js): colors, pattern, movement, glow, BPM and a
      *  rate per layer, plus the movement and glow easings it names. Every layer
      *  starts at once, the color rotation from frame 0 even when it was paused.
+     *  While a cue is armed the colors and pattern go to the pending combo and
+     *  the rest waits for the commit.
      *  @param {object} mood - mood definition
      *  @param {string|null} moodKey - mood name, for the active-state highlight */
     applyMood(mood, moodKey = null) {
-        this.sequencer.staging = false;
-        this.sequencer.selectedColors = [...mood.colors];
-        this.sequencer.setBPM(mood.bpm);
+        this.sequencer.setColors(mood.colors);
         this.sequencer.setPattern(mood.pattern);
-        this.sequencer.setRate(mood.rates.color, false);
-        this.sequencer.play(true);
+        this._dispatch(() => {
+            this.sequencer.setBPM(mood.bpm);
+            // A pattern pressed after the mood on the cue keeps its own rate.
+            if (this.sequencer.pattern === mood.pattern) this.sequencer.setRate(mood.rates.color, false);
+            this.sequencer.play(true);
 
-        if (mood.movement && mood.movement !== 'none') {
-            this.playMovement(mood.movement, mood.rates.movement, mood.easings?.movement);
-        } else {
-            this.stopEffect();
-        }
+            if (mood.movement && mood.movement !== 'none') {
+                this._playMovement(mood.movement, mood.rates.movement, mood.easings?.movement);
+            } else {
+                this._stopMovement();
+            }
 
-        if (mood.glow && mood.glow !== 'none') {
-            this.setGlowMode(mood.glow, mood.rates.glow, mood.easings?.glow);
-        } else {
-            this.stopGlowEffect();
-        }
+            if (mood.glow && mood.glow !== 'none') {
+                this._setGlowMode(mood.glow, mood.rates.glow, mood.easings?.glow);
+            } else {
+                this.stopGlowEffect();
+            }
 
-        // Set after the layer calls, which clear currentMood, so the mood button highlights.
-        this.currentMood = moodKey;
-        this.updateHUD();
+            // Set after the layer calls, which clear currentMood, so the mood button highlights.
+            this.currentMood = moodKey;
+            this.updateHUD();
+        });
     }
 
     /** Mood None: clear only the active-mood highlight. The live layers stay as
      *  they are; each has its own None button. */
     clearMood() {
-        this.currentMood = null;
-        this.updateHUD();
+        this._dispatch(() => {
+            this.currentMood = null;
+            this.updateHUD();
+        });
     }
 
     /** CUE (Backspace / panel Cue): stage a new combo while the live rotation
-     *  keeps playing. On commit the live state becomes the cued colors, the
-     *  pattern pressed while staging (the base pattern if none), and the base
-     *  movement, glow and mood; BPM is kept. */
+     *  keeps playing. Colors, pattern, movement, glow and mood pressed meanwhile
+     *  wait for the commit, which starts from the base movement, glow and mood
+     *  and replays them in press order; BPM stays live. Cueing again starts the
+     *  combo over. */
     cue() {
         this.sequencer.startStaging(BASE_STATE.pattern, true);
+        this.stagedChanges = [];
         this.updateHUD();
     }
 
     /** Commit a cue (Space / panel Play while staging): pending -> live, play
-     *  from 0, and reset movement/glow/mood when the cue asked for it. */
+     *  from 0, reset movement/glow/mood when the cue asked for it, then run the
+     *  staged scene changes in press order. */
     commitCue() {
         const res = this.sequencer.commitStaged();
         if (res && res.fullReset) this._resetLayersToBase();
+        const changes = this.stagedChanges;
+        this.stagedChanges = [];
+        for (const change of changes) change();
         this.updateHUD();
     }
 
@@ -406,6 +449,7 @@ export class StreamLightApp {
      *  FPS cap are not performance layers and stay as they are. */
     resetToBase() {
         this.sequencer.resetToBase();
+        this.stagedChanges = [];
         this._resetLayersToBase();
         this.updateHUD();
     }
@@ -413,11 +457,11 @@ export class StreamLightApp {
     /** Movement, glow and mood to BASE_STATE; the sequencer resets itself. */
     _resetLayersToBase() {
         if (BASE_STATE.movement === 'none') {
-            this.stopEffect();
+            this._stopMovement();
         } else {
-            this.playMovement(BASE_STATE.movement);
+            this._playMovement(BASE_STATE.movement, null, null);
         }
-        this.setGlowMode(BASE_STATE.glow);
+        this._setGlowMode(BASE_STATE.glow, null, null);
         this.currentMood = BASE_STATE.mood;
     }
 
