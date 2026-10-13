@@ -145,11 +145,12 @@ test('removed pattern and glow names map to their replacements', () => {
     assert.equal(canonicalGlowMode('alternate'), 'alternate');
 });
 
-test('glow and mood rows have 6 keys, None first; every glow mode has a sequence', () => {
+test('glow and mood rows have 6 keys, the glow row None first; every glow mode has a sequence', () => {
     assert.deepEqual(GLOW_QUICK.map(g => g.key), ['z', 'x', 'c', 'v', 'b', 'n']);
     assert.equal(GLOW_QUICK[0].mode, 'none');
-    assert.deepEqual(MOOD_QUICK.map(m => m.key), ['z', 'x', 'c', 'v', 'b', 'n']);
-    assert.equal(MOOD_QUICK[0].mood, null);
+    assert.deepEqual(MOOD_QUICK.map(m => [m.key, m.mood]), [
+        ['z', 'calm'], ['x', 'groove'], ['c', 'build'], ['v', 'tension'], ['b', 'peak'], ['n', 'mystic'],
+    ]);
     for (const { mode } of GLOW_QUICK.slice(1)) {
         assert.ok(GLOW_SEQUENCES[GLOW_MODE_SEQUENCE[mode] ?? mode], `glow ${mode} has no sequence`);
     }
@@ -162,7 +163,7 @@ test('base state and every mood name a real button, so their highlights match', 
         assert.ok(glowModes.includes(state.glow), `${name} glow ${state.glow}`);
         assert.ok(state.movement === 'none' || EFFECTS[state.movement], `${name} movement ${state.movement}`);
     }
-    assert.deepEqual(MOOD_QUICK.slice(1).map(m => m.mood).sort(), Object.keys(MOODS).sort());
+    assert.deepEqual(MOOD_QUICK.map(m => m.mood).sort(), Object.keys(MOODS).sort());
 });
 
 test('Q W E R T Y resolve to the patterns in panel order: T is Fill, Y is Sparkle', () => {

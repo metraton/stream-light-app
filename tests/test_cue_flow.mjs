@@ -21,7 +21,9 @@ const BACKSPACE = ['Backspace', 'Backspace'];
 const SPACE = [' ', 'Space'];
 const ESCAPE = ['Escape', 'Escape'];
 const SHIFT_C = ['C', 'KeyC', true];   // Build
-const SHIFT_X = ['X', 'KeyX', true];   // Calm
+const SHIFT_Z = ['Z', 'KeyZ', true];   // Calm
+const SHIFT_X = ['X', 'KeyX', true];   // Groove
+const LESS_THAN = ['<', 'IntlBackslash'];   // Mood None
 
 /** Every layer a key can change, as plain data. */
 function live(app) {
@@ -82,18 +84,52 @@ test('the last mood pressed on a cue wins, and Mood None after it keeps the laye
     const app = stageApp();
     press(app, ...BACKSPACE);
     press(app, ...SHIFT_C);
-    press(app, ...SHIFT_X);
+    press(app, ...SHIFT_Z);
     press(app, ...SPACE);
     assert.equal(app.currentMood, 'calm');
     assert.deepEqual([app.currentMovement, app.currentGlowMode, app.sequencer.bpm], ['wave', 'breathe', MOODS.calm.bpm]);
 
     press(app, ...BACKSPACE);
     press(app, ...SHIFT_C);
-    press(app, '<', 'IntlBackslash');
+    press(app, ...LESS_THAN);
     assert.equal(app.currentMood, 'calm', 'Mood None waits for the commit too');
     press(app, ...SPACE);
     assert.equal(app.currentMood, null);
     assert.equal(app.currentMovement, 'broken', 'None clears only the highlight');
+});
+
+test('Shift+Z X C V B N play calm, groove, build, tension, peak, mystic; Shift+Z is not None', () => {
+    const names = ['calm', 'groove', 'build', 'tension', 'peak', 'mystic'];
+    ['Z', 'X', 'C', 'V', 'B', 'N'].forEach((letter, i) => {
+        const app = stageApp();
+        press(app, letter, `Key${letter}`, true);
+        assert.equal(app.currentMood, names[i], `Shift+${letter}`);
+        assert.equal(app.sequencer.bpm, MOODS[names[i]].bpm);
+    });
+});
+
+test('< is Mood None: it clears only the highlight, live and on a cue', () => {
+    const app = stageApp();
+    press(app, ...SHIFT_X);
+    press(app, ...LESS_THAN);
+    assert.equal(app.currentMood, null);
+    assert.equal(app.currentMovement, 'wave', 'the layers keep playing');
+    assert.equal(app.sequencer.bpm, MOODS.groove.bpm);
+});
+
+test('groove goes through the cue: staged on Backspace, live on Space', () => {
+    const app = stageApp();
+    press(app, ...BACKSPACE);
+    press(app, ...SHIFT_X);
+    assert.deepEqual(live(app), BASE_LIVE);
+    assert.deepEqual(app.sequencer.pendingColors, [1, 3]);
+    assert.equal(app.sequencer.pendingPattern, 'carousel');
+
+    press(app, ...SPACE);
+    assert.deepEqual(live(app), {
+        colors: [1, 3], pattern: 'carousel', variant: false,
+        movement: 'wave', glow: 'pulse', mood: 'groove', bpm: 120,
+    });
 });
 
 test('a movement key with a cue armed plays only on Space', () => {
@@ -120,11 +156,11 @@ test('a glow key with a cue armed plays only on Space', () => {
 
 test('a pattern key drops the mood highlight, with a cue armed only on Space', () => {
     const app = stageApp();
-    press(app, ...SHIFT_X);
+    press(app, ...SHIFT_Z);
     press(app, 'r', 'KeyR');
     assert.equal(app.currentMood, null, 'live: a manual pattern leaves the mood');
 
-    press(app, ...SHIFT_X);
+    press(app, ...SHIFT_Z);
     press(app, ...BACKSPACE);
     press(app, 'r', 'KeyR');
     assert.equal(app.currentMood, 'calm', 'armed: the highlight stays until commit');
@@ -135,7 +171,7 @@ test('a pattern key drops the mood highlight, with a cue armed only on Space', (
 
 test('Space commits the staged layers and sends the unpressed ones to the base state', () => {
     const app = stageApp();
-    press(app, ...SHIFT_X);
+    press(app, ...SHIFT_Z);
     press(app, ...BACKSPACE);
     press(app, '5', 'Digit5');
     press(app, ...SPACE);

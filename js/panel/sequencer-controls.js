@@ -237,17 +237,21 @@ export function createSequencerControls(sectionEl, app) {
         const btn = document.createElement('button');
         keyLabel(btn, key.toUpperCase(), label);
         btn.addEventListener('click', () => {
-            if (mood === null) {
-                app.clearMood();
-            } else {
-                app.applyMood(MOODS[mood], mood);
-            }
+            app.applyMood(MOODS[mood], mood);
             refreshAll();
             app.updateHUD();
         });
         moodBtns.push(btn);
         moodRow.appendChild(btn);
     }
+    const noneBtn = document.createElement('button');
+    keyLabel(noneBtn, '<', 'None');
+    noneBtn.addEventListener('click', () => {
+        app.clearMood();
+        refreshAll();
+        app.updateHUD();
+    });
+    moodRow.appendChild(noneBtn);
     sectionEl.appendChild(moodRow);
 
     // === BPM ===
