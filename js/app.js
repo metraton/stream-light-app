@@ -439,7 +439,10 @@ export class StreamLightApp {
     }
 
     toggleHUD() {
-        if (this.hud) this.hud.toggle();
+        if (this.hud) {
+            this.hud.toggle();
+            this.hud.showView(this._viewInfo());
+        }
     }
 
     /** Fade the text overlay in or out (key 9 / panel); updateHUD refreshes the panel's Texto button. */
@@ -465,6 +468,15 @@ export class StreamLightApp {
     /** deviceId of the live webcam feed; undefined in demo mode. */
     get activeCameraId() {
         return this._activeCameraTrack()?.getSettings().deviceId;
+    }
+
+    /** Window, canvas and WebGL facts the HUD shows, to tell apart browsers that render the same page differently. */
+    _viewInfo() {
+        const rect = this.pixiApp.canvas.getBoundingClientRect();
+        const gl = this.pixiApp.renderer.gl;
+        const debug = gl?.getExtension('WEBGL_debug_renderer_info');
+        const renderer = debug ? gl.getParameter(debug.UNMASKED_RENDERER_WEBGL) : 'gl n/a';
+        return `${innerWidth}x${innerHeight} dpr ${devicePixelRatio} canvas ${Math.round(rect.width)}x${Math.round(rect.height)}@${Math.round(rect.x)},${Math.round(rect.y)} scroll ${scrollX},${scrollY} ${renderer}`;
     }
 
     _activeCameraTrack() {
