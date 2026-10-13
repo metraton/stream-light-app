@@ -521,7 +521,8 @@ export class StreamLightApp {
             effectName,
             glowName !== 'none' ? glowName : null,
             seq.bpm,
-            this._activeCameraTrack()?.label
+            [this._activeCameraTrack()?.label, this.videoElement?.videoWidth && `${this.videoElement.videoWidth}x${this.videoElement.videoHeight}`]
+                .filter(Boolean).join(' ')
         );
 
         // Refresh the panel's live views (Now Playing, sequencer, Movimiento)
