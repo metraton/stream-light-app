@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-store">
     <title>Stream Health</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -19,18 +20,16 @@
         #banner.alert { display: block; background: #b3261e; color: #fff; }
         #banner.recovery { display: block; background: #1f7a3a; color: #fff; }
         #cards { display: grid; gap: 8px; margin-bottom: 8px; }
-        .card { background: #1d2026; border-left: 6px solid #555; border-radius: 6px; padding: 8px 10px; }
-        .card.live { border-color: #2ecc71; }
-        .card.degraded { border-color: #f1c40f; }
-        .card.reconnecting { border-color: #e67e22; }
-        .card.down { border-color: #e74c3c; }
-        .card header { display: flex; justify-content: space-between; align-items: center; font-weight: bold; }
-        .badge { text-transform: uppercase; font-size: 12px; }
-        .card.live .badge { color: #2ecc71; }
-        .card.degraded .badge { color: #f1c40f; }
-        .card.reconnecting .badge { color: #e67e22; }
-        .card.down .badge { color: #e74c3c; }
-        .metrics { color: #aab; margin-top: 4px; line-height: 1.5; }
+        .card { --c: #8a8f98; background: color-mix(in srgb, var(--c) 16%, #1d2026); border-left: 8px solid var(--c); border-radius: 6px; padding: 10px 12px; }
+        .card.live { --c: #2ecc71; }
+        .card.degraded { --c: #f1c40f; }
+        .card.reconnecting { --c: #e67e22; }
+        .card.down { --c: #e74c3c; }
+        .card .label { color: #cfd2d8; font-size: 13px; }
+        .status { display: flex; align-items: center; gap: 10px; color: var(--c); font-size: 30px; font-weight: 800; text-transform: uppercase; line-height: 1.2; }
+        .dot { width: 18px; height: 18px; border-radius: 50%; background: var(--c); flex: none; }
+        .metrics { color: #aab; margin-top: 4px; line-height: 1.5; font-size: 12px; }
+        #build { color: #667; font-size: 11px; margin-top: 4px; }
         .card button { margin-top: 6px; }
         .tools { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0; align-items: center; }
         textarea { width: 100%; height: 160px; background: #0e1013; color: #cfd2d8; border: 1px solid #2a2e35; border-radius: 4px; padding: 6px; font: 12px Consolas, monospace; resize: vertical; }
@@ -58,11 +57,13 @@
         <button id="clear-log" type="button">Clear log</button>
     </div>
     <textarea id="log" readonly aria-label="event log"></textarea>
+    <div id="build"></div>
 
     <script type="module">
-        import { computeAuthentication } from './obs-auth.js';
-        import { classify, transitionKind, DEFAULTS } from './health.js';
-        import { createPoller, MAIN_ID, VENDOR, DEFAULT_VERTICAL_OUTPUT } from './poller.js';
+        const BUILD = '2026-10-13.4';
+        const fresh = name => import(`./${name}.js?build=${Date.now()}`);
+        const [{ computeAuthentication }, { classify, transitionKind, DEFAULTS }, { createPoller, verticalOutputId, MAIN_ID, VENDOR, DEFAULT_VERTICAL_OUTPUT }] =
+            await Promise.all([fresh('obs-auth'), fresh('health'), fresh('poller')]);
 
         const POLL_MS = 1000;
         const RECONNECT_MS = 2000;
@@ -70,6 +71,7 @@
         const RESTART_WAIT_MS = 10000;
         const LOG_LIMIT = 1000;
         const AUTH_FAILED_CLOSE_CODE = 4009;
+        const SOUND_GAIN = 0.05;
         const SETTINGS_KEY = 'streamHealth.settings';
         const LOG_KEY = 'streamHealth.log';
         const EMPTY_SNAPSHOT = { active: false, reconnecting: false, congestion: 0, bytes: 0, skippedFrames: 0, totalFrames: 0 };
@@ -126,22 +128,24 @@
             if (audio.state === 'suspended') audio.resume();
         }
 
-        function tone(frequency, offset, duration, type, gain) {
+        function tone(frequency, duration) {
             const oscillator = audio.createOscillator();
             const amp = audio.createGain();
-            oscillator.type = type;
+            oscillator.type = 'sine';
             oscillator.frequency.value = frequency;
-            amp.gain.value = gain;
+            const start = audio.currentTime;
+            amp.gain.setValueAtTime(0, start);
+            amp.gain.linearRampToValueAtTime(SOUND_GAIN, start + 0.03);
+            amp.gain.linearRampToValueAtTime(0, start + duration);
             oscillator.connect(amp).connect(audio.destination);
-            const start = audio.currentTime + offset;
             oscillator.start(start);
             oscillator.stop(start + duration);
         }
 
         function sound(kind) {
             if (settings.muted || !audio) return;
-            if (kind === 'alert') [880, 660, 880, 660].forEach((f, i) => tone(f, i * 0.25, 0.2, 'square', 0.25));
-            else [523, 784].forEach((f, i) => tone(f, i * 0.18, 0.16, 'sine', 0.2));
+            if (kind === 'alert') tone(330, 0.45);
+            else tone(660, 0.2);
         }
 
         function notify(kind, message) {
@@ -194,6 +198,7 @@
             log('obs-websocket connected');
             vendorAvailable = await vendorCall('status').then(() => true, () => false);
             log(`Aitum vertical vendor API ${vendorAvailable ? 'available' : 'not available (restart button hidden)'}`);
+            if (!vendorAvailable) outputs.delete(verticalOutputId(settings.verticalOutput));
             poller = createPoller({ send: request, now: Date.now, vertical: vendorAvailable ? settings.verticalOutput : null });
             clearInterval(pollTimer);
             pollTimer = setInterval(poll, POLL_MS);
@@ -251,17 +256,26 @@
         const fmtKbps = value => (value === null ? 'n/a' : `${Math.round(value)} kbps`);
         const fmtPercent = value => (value === null ? 'n/a' : `${(value * 100).toFixed(1)}%`);
 
-        function observe(id, snapshot) {
+        function ensureOutput(id) {
             let output = outputs.get(id);
             if (!output) {
-                output = { id, label: labelOf(id), history: [], state: null, verdict: null };
+                output = { id, label: labelOf(id), history: [], state: null, verdict: null, expectStreaming: false };
                 outputs.set(id, output);
             }
+            return output;
+        }
+
+        function observe(id, snapshot) {
+            const output = ensureOutput(id);
+            if (snapshot.active) output.expectStreaming = true;
             output.history.push(snapshot);
             const horizon = snapshot.t - Math.max(stallMs, DEFAULTS.rateWindowMs) - 2 * POLL_MS;
             while (output.history.length > 2 && output.history[1].t < horizon) output.history.shift();
+            evaluate(output);
+        }
 
-            output.verdict = classify(output.history, { stallMs });
+        function evaluate(output) {
+            output.verdict = classify(output.history, { stallMs, expectStreaming: output.expectStreaming });
             const kind = transitionKind(output.state, output.verdict.state);
             if (kind === 'none') return;
             const { state, reasons, bitrateKbps, congestion } = output.verdict;
@@ -320,16 +334,18 @@
 
         function render() {
             $('cards').innerHTML = [...outputs.values()].map(({ id, label, verdict, history }) => {
-                if (!verdict) return '';
+                const state = verdict?.state ?? 'idle';
                 const latest = history[history.length - 1];
                 const canRestart = vendorAvailable && id !== MAIN_ID;
-                return `<div class="card ${verdict.state}">
-                    <header><span>${esc(label)}</span><span class="badge">${verdict.state}</span></header>
-                    <div class="metrics">
-                        ${esc(verdict.reasons.join(', ') || 'healthy')}<br>
-                        bitrate ${fmtKbps(verdict.bitrateKbps)} &middot; skipped ${fmtPercent(verdict.skippedRate)} &middot; congestion ${verdict.congestion.toFixed(2)}<br>
-                        active ${latest.active} &middot; reconnecting ${latest.reconnecting}
-                    </div>
+                const detail = verdict
+                    ? `${esc(verdict.reasons.join(', ') || 'healthy')}<br>
+                        bitrate ${fmtKbps(verdict.bitrateKbps)} &middot; dropped ${fmtPercent(verdict.skippedRate)} &middot; congestion ${verdict.congestion.toFixed(2)}<br>
+                        active ${latest.active} &middot; reconnecting ${latest.reconnecting}`
+                    : 'waiting for OBS';
+                return `<div class="card ${state}">
+                    <div class="label">${esc(label)}</div>
+                    <div class="status"><span class="dot"></span>${state}</div>
+                    <div class="metrics">${detail}</div>
                     ${canRestart ? `<button type="button" data-restart="${esc(id)}">Restart output</button>` : ''}
                 </div>`;
             }).join('');
@@ -376,7 +392,16 @@
             sound('alert');
             setTimeout(() => sound('recovery'), 1200);
         });
-        $('banner').addEventListener('click', () => { $('banner').className = ''; });
+        $('banner').addEventListener('click', () => {
+            $('banner').className = '';
+            for (const output of outputs.values()) {
+                if (output.verdict?.reasons.includes('inactive')) {
+                    output.expectStreaming = false;
+                    evaluate(output);
+                }
+            }
+            render();
+        });
         $('cards').addEventListener('click', event => {
             const id = event.target.dataset.restart;
             if (id) restartVertical(id);
@@ -390,7 +415,11 @@
         });
         document.addEventListener('pointerdown', ensureAudio, { once: true });
 
-        renderLog();
+        $('build').textContent = `build ${BUILD}`;
+        log(`monitor build ${BUILD} loaded`);
+        ensureOutput(MAIN_ID);
+        ensureOutput(verticalOutputId(settings.verticalOutput));
+        render();
         connect();
     </script>
 </body>

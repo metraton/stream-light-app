@@ -114,3 +114,19 @@ test('transitions: first observation is initial, drops alert, returns recover', 
     assert.equal(transitionKind('live', 'degraded'), 'change');
     assert.equal(transitionKind('degraded', 'live'), 'change');
 });
+
+test('an inactive output nobody expects to stream is idle; once expected it is down', () => {
+    const history = series(5, () => ({ active: false, bytes: 0, totalFrames: 0 }));
+    const idle = classify(history, { expectStreaming: false });
+    assert.equal(idle.state, 'idle');
+    assert.deepEqual(idle.reasons, ['not-streaming']);
+    assert.equal(classify(history).state, 'down');
+});
+
+test('going idle never alerts or counts as a recovery; leaving idle is a plain change', () => {
+    assert.equal(transitionKind('down', 'idle'), 'change');
+    assert.equal(transitionKind('live', 'idle'), 'change');
+    assert.equal(transitionKind('idle', 'live'), 'change');
+    assert.equal(transitionKind('idle', 'down'), 'alert');
+    assert.equal(transitionKind(null, 'idle'), 'initial');
+});

@@ -3,6 +3,7 @@ export const STATES = Object.freeze({
     DEGRADED: 'degraded',
     RECONNECTING: 'reconnecting',
     DOWN: 'down',
+    IDLE: 'idle',
 });
 
 export const DEFAULTS = Object.freeze({
@@ -10,9 +11,10 @@ export const DEFAULTS = Object.freeze({
     rateWindowMs: 5000,
     congestionDegraded: 0.3,
     skippedRateDegraded: 0.02,
+    expectStreaming: true,
 });
 
-const SEVERITY = { live: 0, degraded: 1, reconnecting: 2, down: 3 };
+const SEVERITY = { idle: 0, live: 0, degraded: 1, reconnecting: 2, down: 3 };
 
 /**
  * Snapshot: { t (ms), active, reconnecting, congestion (0..1), bytes, skippedFrames, totalFrames, missing? }.
@@ -54,7 +56,9 @@ export function classify(history, options = {}) {
 
     if (latest.missing) return verdict(STATES.DOWN, ['not-found']);
     if (latest.reconnecting) return verdict(STATES.RECONNECTING, ['reconnecting']);
-    if (!latest.active) return verdict(STATES.DOWN, ['inactive']);
+    if (!latest.active) {
+        return opts.expectStreaming ? verdict(STATES.DOWN, ['inactive']) : verdict(STATES.IDLE, ['not-streaming']);
+    }
 
     const stallBase = baselineAtLeast(run, opts.stallMs);
     if (stallBase && latest.bytes <= stallBase.bytes) return verdict(STATES.DOWN, ['stalled']);
@@ -73,6 +77,7 @@ export function classify(history, options = {}) {
 export function transitionKind(previous, next) {
     if (previous === null) return 'initial';
     if (previous === next) return 'none';
+    if (next === 'idle') return 'change';
     const before = SEVERITY[previous];
     const after = SEVERITY[next];
     if (after >= 2 && (before < 2 || after > before)) return 'alert';
