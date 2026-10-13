@@ -56,7 +56,7 @@ Every row of the key grid has six keys and starts with None:
 | `Q W E R T Y` | Pattern (Shift plays its variant, shown as ⇄) | None, Chase, Carousel, Mirror, Fill, Sparkle |
 | `A S D F G H` | Movement | None, Wave, Expand, Broken, Shake, Equalizer |
 | `Z X C V B N` | Glow | None, Sweep, Breathe, Pulse, Strobe, Alternate |
-| `Shift+Z X C V B N` | Mood (`<` is also None) | None, Calm, Build, Tension, Peak, Mystic |
+| `Shift+Z X C V B N` | Mood | Calm, Groove, Build, Tension, Peak, Mystic (`<` is Mood None) |
 | `Backspace` / `Space` | Cue | stage a new combo (colors, pattern, movement, glow, mood; BPM stays live) while the live one plays / commit it in press order (otherwise pause / resume) |
 | `Escape` | Base state | no colors, every layer None, 120 BPM, playing (the first color pressed moves at once); layout, filters, rotation and FPS cap stay |
 | `+` / `´`, `0`, `J`, `P` | Other | BPM up/down, next camera, HUD, panel |

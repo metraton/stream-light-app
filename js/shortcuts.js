@@ -7,8 +7,8 @@
 // Shift+W E R T Y: that pattern's variant (color-sequencer.js PATTERN_VARIANTS); Shift+Q is Q
 // A S D F G H: movement (none/wave/expand/broken/shake/equalizer)
 // Z X C V B N: glow (none/sweep/breathe/pulse/strobe/alternate), from js/glow-map.js
-// Shift+Z X C V B N: mood (none/calm/build/tension/peak/mystic), from js/mood-map.js
-// <: mood None
+// Shift+Z X C V B N: mood (calm/groove/build/tension/peak/mystic), from js/mood-map.js
+// <: mood None (the only key for it)
 // Backspace: cue a new combo while the live one keeps playing; colors, pattern,
 //   movement, glow and mood pressed meanwhile wait for Space (BPM stays live)
 // Space: commit the cue (unpressed movement/glow/mood go to the base state), else pause/resume
@@ -111,11 +111,7 @@ export function resolveShortcut(e) {
     if (shift && Object.hasOwn(MOOD_KEY_TO_NAME, keyLower) && !ctrl && !alt) {
         const moodName = MOOD_KEY_TO_NAME[keyLower];
         return (app) => {
-            if (moodName === null) {
-                app.clearMood();
-            } else {
-                app.applyMood(MOODS[moodName], moodName);
-            }
+            app.applyMood(MOODS[moodName], moodName);
             app.updateHUD();
         };
     }

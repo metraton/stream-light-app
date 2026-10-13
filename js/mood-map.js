@@ -27,7 +27,9 @@ export const BASE_STATE = Object.freeze({
 export const MOODS = {
     calm:    { colors: [1],             pattern: 'none',     movement: 'wave',      glow: 'breathe',   bpm: 80,
                rates: { color: 1, movement: 1, glow: 0.5 } },
-    build:   { colors: [2, 0],          pattern: 'fill',     movement: 'broken',    glow: 'sweep',     bpm: 130,
+    groove:  { colors: [1, 3],          pattern: 'carousel', movement: 'wave',      glow: 'pulse',     bpm: 120,
+               rates: { color: 1, movement: 1, glow: 1 } },
+    build:   { colors: [2, 0],         pattern: 'fill',     movement: 'broken',    glow: 'sweep',     bpm: 130,
                rates: { color: 2, movement: 1, glow: 2 } },
     tension: { colors: [2, 4],          pattern: 'mirror',   movement: 'shake',     glow: 'pulse',     bpm: 140,
                rates: { color: 1, movement: 2, glow: 4 },
@@ -39,17 +41,17 @@ export const MOODS = {
                easings: { glow: 'linear' } },
 };
 
-/** Mood keys in panel order; each is pressed with Shift. mood null is None, which clears the active mood. */
+/** Mood keys in panel order; each is pressed with Shift. Mood None is the `<` key, not a Shift key. */
 export const MOOD_QUICK = [
-    { key: 'z', mood: null,      label: 'None' },
-    { key: 'x', mood: 'calm',    label: 'Calm' },
+    { key: 'z', mood: 'calm',    label: 'Calm' },
+    { key: 'x', mood: 'groove',  label: 'Groove' },
     { key: 'c', mood: 'build',   label: 'Build' },
     { key: 'v', mood: 'tension', label: 'Tension' },
     { key: 'b', mood: 'peak',    label: 'Peak' },
     { key: 'n', mood: 'mystic',  label: 'Mystic' },
 ];
 
-/** key (lowercase letter) -> mood name, or null for None. */
+/** key (lowercase letter) -> mood name. */
 export const MOOD_KEY_TO_NAME = Object.fromEntries(
     MOOD_QUICK.map(({ key, mood }) => [key, mood])
 );
