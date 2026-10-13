@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stream Health</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #14161a; color: #e6e6e6; font: 13px 'Segoe UI', sans-serif; padding: 8px; }
+        details { margin-bottom: 8px; }
+        summary { cursor: pointer; color: #9aa; }
+        form { display: grid; grid-template-columns: 1fr 70px; gap: 6px; margin-top: 6px; }
+        form input[type=password] { grid-column: 1 / -1; }
+        input, button { background: #22262d; color: #e6e6e6; border: 1px solid #3a3f48; border-radius: 4px; padding: 5px 8px; font: inherit; }
+        button { cursor: pointer; }
+        button:hover { background: #2d323b; }
+        #conn { margin-bottom: 6px; color: #9aa; }
+        #banner { display: none; padding: 10px; border-radius: 6px; margin-bottom: 8px; font-weight: bold; cursor: pointer; }
+        #banner.alert { display: block; background: #b3261e; color: #fff; }
+        #banner.recovery { display: block; background: #1f7a3a; color: #fff; }
+        #cards { display: grid; gap: 8px; margin-bottom: 8px; }
+        .card { background: #1d2026; border-left: 6px solid #555; border-radius: 6px; padding: 8px 10px; }
+        .card.live { border-color: #2ecc71; }
+        .card.degraded { border-color: #f1c40f; }
+        .card.reconnecting { border-color: #e67e22; }
+        .card.down { border-color: #e74c3c; }
+        .card header { display: flex; justify-content: space-between; align-items: center; font-weight: bold; }
+        .badge { text-transform: uppercase; font-size: 12px; }
+        .card.live .badge { color: #2ecc71; }
+        .card.degraded .badge { color: #f1c40f; }
+        .card.reconnecting .badge { color: #e67e22; }
+        .card.down .badge { color: #e74c3c; }
+        .metrics { color: #aab; margin-top: 4px; line-height: 1.5; }
+        .card button { margin-top: 6px; }
+        .tools { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0; align-items: center; }
+        textarea { width: 100%; height: 160px; background: #0e1013; color: #cfd2d8; border: 1px solid #2a2e35; border-radius: 4px; padding: 6px; font: 12px Consolas, monospace; resize: vertical; }
+    </style>
+</head>
+<body>
+    <details id="settings">
+        <summary>Connection settings</summary>
+        <form id="connect-form">
+            <input id="host" placeholder="host" aria-label="host">
+            <input id="port" placeholder="port" aria-label="port">
+            <input id="password" type="password" placeholder="obs-websocket password" aria-label="password">
+            <button type="submit" style="grid-column: 1 / -1">Connect</button>
+        </form>
+    </details>
+    <div id="conn">Not connected</div>
+    <div id="banner" role="alert" title="Click to dismiss"></div>
+    <div id="cards"></div>
+    <div class="tools">
+        <label><input type="checkbox" id="mute"> Mute</label>
+        <button id="test-sound" type="button">Test sound</button>
+        <button id="copy-log" type="button">Copy log</button>
+        <button id="download-log" type="button">Download log</button>
+        <button id="clear-log" type="button">Clear log</button>
+    </div>
+    <textarea id="log" readonly aria-label="event log"></textarea>
+
+    <script type="module">
+        import { computeAuthentication } from './obs-auth.js';
+        import { classify, transitionKind, DEFAULTS } from './health.js';
+
+        const VENDOR = 'aitum-vertical-canvas';
+        const VERTICAL_PREFIX = 'vertical_canvas_stream';
+        const MAIN_ID = '__main__';
+        const POLL_MS = 1000;
+        const RECONNECT_MS = 2000;
+        const REQUEST_TIMEOUT_MS = 4000;
+        const RESTART_WAIT_MS = 10000;
+        const LOG_LIMIT = 1000;
+        const AUTH_FAILED_CLOSE_CODE = 4009;
+        const SETTINGS_KEY = 'streamHealth.settings';
+        const LOG_KEY = 'streamHealth.log';
+        const EMPTY_SNAPSHOT = { active: false, reconnecting: false, congestion: 0, bytes: 0, skippedFrames: 0, totalFrames: 0 };
+
+        const $ = id => document.getElementById(id);
+        const params = new URLSearchParams(location.search);
+        const stored = JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? '{}');
+        const settings = {
+            host: params.get('host') ?? stored.host ?? 'localhost',
+            port: params.get('port') ?? stored.port ?? '4455',
+            password: stored.password ?? '',
+            muted: stored.muted ?? false,
+        };
+        const stallMs = Number(params.get('stall')) * 1000 || DEFAULTS.stallMs;
+
+        const outputs = new Map();
+        const pending = new Map();
+        const logLines = JSON.parse(localStorage.getItem(LOG_KEY) ?? '[]');
+        let socket = null;
+        let identified = false;
+        let nextRequestId = 1;
+        let pollTimer = null;
+        let polling = false;
+        let reconnectTimer = null;
+        let vendorAvailable = false;
+        let restartPending = null;
+        let lastPollError = null;
+        let audio = null;
+
+        const esc = text => String(text).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+        const stamp = () => new Date().toLocaleString('sv-SE');
+
+        function saveSettings() {
+            localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+        }
+
+        function log(text) {
+            logLines.push(`${stamp()}  ${text}`);
+            if (logLines.length > LOG_LIMIT) logLines.splice(0, logLines.length - LOG_LIMIT);
+            localStorage.setItem(LOG_KEY, JSON.stringify(logLines));
+            renderLog();
+        }
+
+        function renderLog() {
+            const box = $('log');
+            box.value = logLines.join('\n');
+            box.scrollTop = box.scrollHeight;
+        }
+
+        function ensureAudio() {
+            audio ??= new AudioContext();
+            if (audio.state === 'suspended') audio.resume();
+        }
+
+        function tone(frequency, offset, duration, type, gain) {
+            const oscillator = audio.createOscillator();
+            const amp = audio.createGain();
+            oscillator.type = type;
+            oscillator.frequency.value = frequency;
+            amp.gain.value = gain;
+            oscillator.connect(amp).connect(audio.destination);
+            const start = audio.currentTime + offset;
+            oscillator.start(start);
+            oscillator.stop(start + duration);
+        }
+
+        function sound(kind) {
+            if (settings.muted || !audio) return;
+            if (kind === 'alert') [880, 660, 880, 660].forEach((f, i) => tone(f, i * 0.25, 0.2, 'square', 0.25));
+            else [523, 784].forEach((f, i) => tone(f, i * 0.18, 0.16, 'sine', 0.2));
+        }
+
+        function notify(kind, message) {
+            const banner = $('banner');
+            banner.className = kind;
+            banner.textContent = `${stamp()}  ${message}`;
+            sound(kind);
+        }
+
+        function setConnection(text) {
+            $('conn').textContent = text;
+        }
+
+        function request(type, data) {
+            return new Promise((resolve, reject) => {
+                const id = String(nextRequestId++);
+                const timer = setTimeout(() => {
+                    pending.delete(id);
+                    reject(new Error(`${type} timed out`));
+                }, REQUEST_TIMEOUT_MS);
+                pending.set(id, { resolve, reject, timer });
+                socket.send(JSON.stringify({ op: 6, d: { requestType: type, requestId: id, requestData: data } }));
+            });
+        }
+
+        function handleResponse(d) {
+            const entry = pending.get(d.requestId);
+            if (!entry) return;
+            pending.delete(d.requestId);
+            clearTimeout(entry.timer);
+            if (d.requestStatus.result) entry.resolve(d.responseData ?? {});
+            else entry.reject(new Error(`${d.requestType}: ${d.requestStatus.comment ?? d.requestStatus.code}`));
+        }
+
+        async function vendorCall(requestType) {
+            const reply = await request('CallVendorRequest', { vendorName: VENDOR, requestType, requestData: {} });
+            if (!reply.responseData?.success) throw new Error(`${VENDOR} ${requestType} reported failure`);
+        }
+
+        async function identify(hello) {
+            const d = { rpcVersion: 1, eventSubscriptions: 0 };
+            if (hello.authentication) {
+                d.authentication = await computeAuthentication(settings.password, hello.authentication.salt, hello.authentication.challenge);
+            }
+            socket.send(JSON.stringify({ op: 1, d }));
+        }
+
+        async function onIdentified() {
+            identified = true;
+            setConnection(`Connected to ws://${settings.host}:${settings.port}`);
+            log('obs-websocket connected');
+            vendorAvailable = await vendorCall('status').then(() => true, () => false);
+            log(`Aitum vertical vendor API ${vendorAvailable ? 'available' : 'not available (restart button hidden)'}`);
+            clearInterval(pollTimer);
+            pollTimer = setInterval(poll, POLL_MS);
+            poll();
+        }
+
+        function onDisconnected(event) {
+            clearInterval(pollTimer);
+            for (const entry of pending.values()) {
+                clearTimeout(entry.timer);
+                entry.reject(new Error('connection closed'));
+            }
+            pending.clear();
+            const wasIdentified = identified;
+            identified = false;
+            if (event.code === AUTH_FAILED_CLOSE_CODE) {
+                setConnection('Authentication failed: check the password');
+                log('obs-websocket authentication failed');
+                $('settings').open = true;
+                return;
+            }
+            setConnection(`Disconnected, retrying every ${RECONNECT_MS / 1000} s`);
+            if (wasIdentified) {
+                log(`obs-websocket connection lost (code ${event.code})`);
+                notify('alert', 'Lost connection to OBS: stream state unknown');
+                const now = Date.now();
+                for (const id of outputs.keys()) observe(id, { ...EMPTY_SNAPSHOT, t: now });
+                render();
+            }
+            reconnectTimer = setTimeout(connect, RECONNECT_MS);
+        }
+
+        function connect() {
+            clearTimeout(reconnectTimer);
+            if (socket) socket.onclose = null;
+            if (socket) socket.close();
+            if (!globalThis.crypto?.subtle) {
+                setConnection('This page needs a secure context (open it through http://localhost)');
+                return;
+            }
+            setConnection(`Connecting to ws://${settings.host}:${settings.port} ...`);
+            const current = new WebSocket(`ws://${settings.host}:${settings.port}`);
+            socket = current;
+            current.onmessage = async event => {
+                const message = JSON.parse(event.data);
+                if (message.op === 0) await identify(message.d);
+                else if (message.op === 2) onIdentified();
+                else if (message.op === 7) handleResponse(message.d);
+            };
+            current.onclose = onDisconnected;
+        }
+
+        const snapshotOf = (t, status) => ({
+            t,
+            active: status.outputActive,
+            reconnecting: status.outputReconnecting,
+            congestion: status.outputCongestion,
+            bytes: status.outputBytes,
+            skippedFrames: status.outputSkippedFrames,
+            totalFrames: status.outputTotalFrames,
+        });
+
+        const labelOf = id => {
+            if (id === MAIN_ID) return 'YouTube (main stream)';
+            const name = id.slice(VERTICAL_PREFIX.length).replace(/^_/, '');
+            return name ? `Vertical: ${name}` : 'Vertical';
+        };
+
+        const fmtKbps = value => (value === null ? 'n/a' : `${Math.round(value)} kbps`);
+        const fmtPercent = value => (value === null ? 'n/a' : `${(value * 100).toFixed(1)}%`);
+
+        function observe(id, snapshot) {
+            let output = outputs.get(id);
+            if (!output) {
+                output = { id, label: labelOf(id), history: [], state: null, verdict: null };
+                outputs.set(id, output);
+            }
+            output.history.push(snapshot);
+            const horizon = snapshot.t - Math.max(stallMs, DEFAULTS.rateWindowMs) - 2 * POLL_MS;
+            while (output.history.length > 2 && output.history[1].t < horizon) output.history.shift();
+
+            output.verdict = classify(output.history, { stallMs });
+            const kind = transitionKind(output.state, output.verdict.state);
+            if (kind === 'none') return;
+            const { state, reasons, bitrateKbps, congestion } = output.verdict;
+            log(`${output.label}: ${output.state ?? 'start'} -> ${state} [${reasons.join('+') || 'ok'}] ${fmtKbps(bitrateKbps)}, congestion ${congestion.toFixed(2)}`);
+            if (kind === 'alert') notify('alert', `${output.label} is ${state}: ${reasons.join(', ')}`);
+            if (kind === 'recovery') notify('recovery', `${output.label} recovered (${state})`);
+            output.state = state;
+        }
+
+        async function poll() {
+            if (polling) return;
+            polling = true;
+            try {
+                const now = Date.now();
+                const [main, list] = await Promise.all([request('GetStreamStatus'), request('GetOutputList')]);
+                const names = list.outputs.map(o => o.outputName).filter(name => name.startsWith(VERTICAL_PREFIX));
+                const statuses = await Promise.all(names.map(outputName => request('GetOutputStatus', { outputName })));
+                observe(MAIN_ID, snapshotOf(now, main));
+                names.forEach((name, i) => observe(name, snapshotOf(now, statuses[i])));
+                for (const id of outputs.keys()) {
+                    if (id !== MAIN_ID && !names.includes(id)) observe(id, { ...EMPTY_SNAPSHOT, t: now, missing: true });
+                }
+                lastPollError = null;
+                await continueRestart();
+            } catch (error) {
+                if (error.message !== lastPollError) log(`poll failed: ${error.message}`);
+                lastPollError = error.message;
+            } finally {
+                polling = false;
+                render();
+            }
+        }
+
+        async function restartVertical(id) {
+            const output = outputs.get(id);
+            log(`${output.label}: manual restart requested`);
+            try {
+                await vendorCall('stop_streaming');
+                restartPending = { id, since: Date.now() };
+            } catch (error) {
+                log(`${output.label}: restart failed to stop: ${error.message}`);
+            }
+        }
+
+        async function continueRestart() {
+            if (!restartPending) return;
+            const output = outputs.get(restartPending.id);
+            const latest = output?.history[output.history.length - 1];
+            if (latest && !latest.active) {
+                restartPending = null;
+                try {
+                    await vendorCall('start_streaming');
+                    log(`${output.label}: start requested after manual stop`);
+                } catch (error) {
+                    log(`${output.label}: restart failed to start: ${error.message}`);
+                }
+            } else if (Date.now() - restartPending.since > RESTART_WAIT_MS) {
+                log(`${output?.label ?? restartPending.id}: restart abandoned, output never reported inactive`);
+                restartPending = null;
+            }
+        }
+
+        function render() {
+            $('cards').innerHTML = [...outputs.values()].map(({ id, label, verdict, history }) => {
+                if (!verdict) return '';
+                const latest = history[history.length - 1];
+                const canRestart = vendorAvailable && id !== MAIN_ID;
+                return `<div class="card ${verdict.state}">
+                    <header><span>${esc(label)}</span><span class="badge">${verdict.state}</span></header>
+                    <div class="metrics">
+                        ${esc(verdict.reasons.join(', ') || 'healthy')}<br>
+                        bitrate ${fmtKbps(verdict.bitrateKbps)} &middot; skipped ${fmtPercent(verdict.skippedRate)} &middot; congestion ${verdict.congestion.toFixed(2)}<br>
+                        active ${latest.active} &middot; reconnecting ${latest.reconnecting}
+                    </div>
+                    ${canRestart ? `<button type="button" data-restart="${esc(id)}">Restart output</button>` : ''}
+                </div>`;
+            }).join('');
+        }
+
+        function copyLog() {
+            const box = $('log');
+            navigator.clipboard.writeText(box.value).catch(() => {
+                box.select();
+                document.execCommand('copy');
+            });
+        }
+
+        function downloadLog() {
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(new Blob([logLines.join('\n') + '\n'], { type: 'text/plain' }));
+            link.download = `stream-health-${stamp().replace(/[: ]/g, '-')}.txt`;
+            link.click();
+            URL.revokeObjectURL(link.href);
+        }
+
+        $('host').value = settings.host;
+        $('port').value = settings.port;
+        $('password').value = settings.password;
+        $('mute').checked = settings.muted;
+
+        $('connect-form').addEventListener('submit', event => {
+            event.preventDefault();
+            settings.host = $('host').value.trim() || 'localhost';
+            settings.port = $('port').value.trim() || '4455';
+            settings.password = $('password').value;
+            saveSettings();
+            ensureAudio();
+            connect();
+        });
+        $('mute').addEventListener('change', event => {
+            settings.muted = event.target.checked;
+            saveSettings();
+        });
+        $('test-sound').addEventListener('click', () => {
+            ensureAudio();
+            sound('alert');
+            setTimeout(() => sound('recovery'), 1200);
+        });
+        $('banner').addEventListener('click', () => { $('banner').className = ''; });
+        $('cards').addEventListener('click', event => {
+            const id = event.target.dataset.restart;
+            if (id) restartVertical(id);
+        });
+        $('copy-log').addEventListener('click', copyLog);
+        $('download-log').addEventListener('click', downloadLog);
+        $('clear-log').addEventListener('click', () => {
+            logLines.length = 0;
+            localStorage.removeItem(LOG_KEY);
+            renderLog();
+        });
+        document.addEventListener('pointerdown', ensureAudio, { once: true });
+
+        renderLog();
+        connect();
+    </script>
+</body>
+</html>
