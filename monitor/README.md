@@ -10,10 +10,11 @@ OBS reports an output as active even when the platform has stopped accepting dat
 
 ```
 page loads -> ws://host:port -> Hello -> Identify (SHA-256 auth string) -> Identified
-every 1 s:
+every 1 s, one request at a time (poller.js):
   GetStreamStatus                 -> main stream snapshot
-  GetOutputList                   -> outputs named vertical_canvas_stream* (Aitum Vertical)
-  GetOutputStatus per vertical    -> one snapshot each
+  CallVendorRequest status        -> Aitum says whether its canvas is streaming
+  GetOutputStatus                 -> only while Aitum says streaming: vertical_canvas_stream_<name> snapshot
+after a failed or timed-out request: silence for 2 s, doubling up to 30 s
 snapshots -> classify() in health.js -> live | degraded | reconnecting | down
 state change -> log line; entering reconnecting/down -> red banner + alarm; leaving -> green banner + chime
 Restart output -> CallVendorRequest aitum-vertical-canvas stop_streaming, then start_streaming once the output reports inactive
@@ -31,7 +32,7 @@ Restart output -> CallVendorRequest aitum-vertical-canvas stop_streaming, then s
 2. In the dock, open Connection settings, enter the obs-websocket password and press Connect. Host, port and password are kept in the browser's local storage (the password in clear text).
 3. Click once in the dock, or press Connect, so the browser allows sound; Test sound plays both tones.
 
-URL parameters: `host`, `port` (override the saved values) and `stall` (seconds without new bytes before an active output counts as down, default 5). Example: `http://localhost:8080/monitor/?port=4456&stall=8`.
+URL parameters: `host`, `port`, `output` (the Aitum output name, default `IG`; override the saved values) and `stall` (seconds without new bytes before an active output counts as down, default 5). Example: `http://localhost:8080/monitor/?port=4456&stall=8`.
 
 Thresholds for degraded (congestion 0.3 and above, or 2% skipped frames over the last 5 seconds) are `DEFAULTS` in `health.js`.
 
@@ -41,9 +42,11 @@ Thresholds for degraded (congestion 0.3 and above, or 2% skipped frames over the
 monitor/index.html   the dock page: settings, cards, banner, sound, event log, restart action
 monitor/health.js    pure logic: classify() snapshots into a state, transitionKind() for alerts
 monitor/obs-auth.js  pure logic: obs-websocket v5 authentication string
-tests/test_stream_health.mjs   tests for both modules: node --test tests/test_stream_health.mjs
+monitor/poller.js    which requests are sent, one at a time, with back-off; the only place requests are chosen
+tests/test_stream_health.mjs   tests for health.js and obs-auth.js
+tests/test_poller.mjs          tests that the poller never sends GetOutputList and gates GetOutputStatus on Aitum
 ```
 
 ## Conventions
 
-The vertical outputs are found by the name prefix `vertical_canvas_stream`, which Aitum Vertical gives its stream outputs (`vertical_canvas_stream_<output name>`). The websocket exposes skipped frames and congestion for an output, not network-dropped frames; congestion is the closest signal for those.
+The vertical output is addressed as `vertical_canvas_stream_<output name>`, the name Aitum Vertical gives its stream outputs. `GetOutputList` must never be added to the poller: in obs-websocket 5.6.x it calls `obs_output_get_width` on every output, which crashed OBS on an output without video. The `outputSkippedFrames` field is, in obs-websocket 5.6.x, libobs `obs_output_get_frames_dropped`, so the skipped rate shown is the output's dropped-frame rate.
