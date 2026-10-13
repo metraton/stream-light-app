@@ -43,6 +43,7 @@
             <input id="host" placeholder="host" aria-label="host">
             <input id="port" placeholder="port" aria-label="port">
             <input id="password" type="password" placeholder="obs-websocket password" aria-label="password">
+            <input id="vertical-output" placeholder="Aitum output name (IG)" aria-label="vertical output name" style="grid-column: 1 / -1">
             <button type="submit" style="grid-column: 1 / -1">Connect</button>
         </form>
     </details>
@@ -61,10 +62,8 @@
     <script type="module">
         import { computeAuthentication } from './obs-auth.js';
         import { classify, transitionKind, DEFAULTS } from './health.js';
+        import { createPoller, MAIN_ID, VENDOR, DEFAULT_VERTICAL_OUTPUT } from './poller.js';
 
-        const VENDOR = 'aitum-vertical-canvas';
-        const VERTICAL_PREFIX = 'vertical_canvas_stream';
-        const MAIN_ID = '__main__';
         const POLL_MS = 1000;
         const RECONNECT_MS = 2000;
         const REQUEST_TIMEOUT_MS = 4000;
@@ -83,6 +82,7 @@
             port: params.get('port') ?? stored.port ?? '4455',
             password: stored.password ?? '',
             muted: stored.muted ?? false,
+            verticalOutput: params.get('output') ?? stored.verticalOutput ?? DEFAULT_VERTICAL_OUTPUT,
         };
         const stallMs = Number(params.get('stall')) * 1000 || DEFAULTS.stallMs;
 
@@ -94,6 +94,7 @@
         let nextRequestId = 1;
         let pollTimer = null;
         let polling = false;
+        let poller = null;
         let reconnectTimer = null;
         let vendorAvailable = false;
         let restartPending = null;
@@ -159,7 +160,7 @@
                 const id = String(nextRequestId++);
                 const timer = setTimeout(() => {
                     pending.delete(id);
-                    reject(new Error(`${type} timed out`));
+                    reject(Object.assign(new Error(`${type} timed out`), { timeout: true }));
                 }, REQUEST_TIMEOUT_MS);
                 pending.set(id, { resolve, reject, timer });
                 socket.send(JSON.stringify({ op: 6, d: { requestType: type, requestId: id, requestData: data } }));
@@ -172,14 +173,13 @@
             pending.delete(d.requestId);
             clearTimeout(entry.timer);
             if (d.requestStatus.result) entry.resolve(d.responseData ?? {});
-            else entry.reject(new Error(`${d.requestType}: ${d.requestStatus.comment ?? d.requestStatus.code}`));
+            else entry.reject(Object.assign(new Error(`${d.requestType}: ${d.requestStatus.comment ?? d.requestStatus.code}`), { timeout: false }));
         }
 
         async function vendorCall(requestType) {
             const reply = await request('CallVendorRequest', { vendorName: VENDOR, requestType, requestData: {} });
             if (!reply.responseData?.success) throw new Error(`${VENDOR} ${requestType} reported failure`);
         }
-
         async function identify(hello) {
             const d = { rpcVersion: 1, eventSubscriptions: 0 };
             if (hello.authentication) {
@@ -194,6 +194,7 @@
             log('obs-websocket connected');
             vendorAvailable = await vendorCall('status').then(() => true, () => false);
             log(`Aitum vertical vendor API ${vendorAvailable ? 'available' : 'not available (restart button hidden)'}`);
+            poller = createPoller({ send: request, now: Date.now, vertical: vendorAvailable ? settings.verticalOutput : null });
             clearInterval(pollTimer);
             pollTimer = setInterval(poll, POLL_MS);
             poll();
@@ -245,21 +246,7 @@
             current.onclose = onDisconnected;
         }
 
-        const snapshotOf = (t, status) => ({
-            t,
-            active: status.outputActive,
-            reconnecting: status.outputReconnecting,
-            congestion: status.outputCongestion,
-            bytes: status.outputBytes,
-            skippedFrames: status.outputSkippedFrames,
-            totalFrames: status.outputTotalFrames,
-        });
-
-        const labelOf = id => {
-            if (id === MAIN_ID) return 'YouTube (main stream)';
-            const name = id.slice(VERTICAL_PREFIX.length).replace(/^_/, '');
-            return name ? `Vertical: ${name}` : 'Vertical';
-        };
+        const labelOf = id => (id === MAIN_ID ? 'YouTube (main stream)' : `Vertical: ${settings.verticalOutput}`);
 
         const fmtKbps = value => (value === null ? 'n/a' : `${Math.round(value)} kbps`);
         const fmtPercent = value => (value === null ? 'n/a' : `${(value * 100).toFixed(1)}%`);
@@ -288,19 +275,13 @@
             if (polling) return;
             polling = true;
             try {
-                const now = Date.now();
-                const [main, list] = await Promise.all([request('GetStreamStatus'), request('GetOutputList')]);
-                const names = list.outputs.map(o => o.outputName).filter(name => name.startsWith(VERTICAL_PREFIX));
-                const statuses = await Promise.all(names.map(outputName => request('GetOutputStatus', { outputName })));
-                observe(MAIN_ID, snapshotOf(now, main));
-                names.forEach((name, i) => observe(name, snapshotOf(now, statuses[i])));
-                for (const id of outputs.keys()) {
-                    if (id !== MAIN_ID && !names.includes(id)) observe(id, { ...EMPTY_SNAPSHOT, t: now, missing: true });
-                }
+                const results = await poller.poll();
+                if (!results) return;
+                for (const { id, snapshot } of results) observe(id, snapshot);
                 lastPollError = null;
                 await continueRestart();
             } catch (error) {
-                if (error.message !== lastPollError) log(`poll failed: ${error.message}`);
+                if (error.message !== lastPollError) log(`poll failed: ${error.message}; backing off`);
                 lastPollError = error.message;
             } finally {
                 polling = false;
@@ -374,9 +355,11 @@
         $('port').value = settings.port;
         $('password').value = settings.password;
         $('mute').checked = settings.muted;
+        $('vertical-output').value = settings.verticalOutput;
 
         $('connect-form').addEventListener('submit', event => {
             event.preventDefault();
+            settings.verticalOutput = $('vertical-output').value.trim() || DEFAULT_VERTICAL_OUTPUT;
             settings.host = $('host').value.trim() || 'localhost';
             settings.port = $('port').value.trim() || '4455';
             settings.password = $('password').value;
