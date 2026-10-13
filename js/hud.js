@@ -25,6 +25,11 @@ export class HUD {
         }
     }
 
+    showView(text) {
+        const el = document.getElementById('hud-view');
+        if (el) el.textContent = text;
+    }
+
     updateFPS(fps) {
         if (this.fpsEl) this.fpsEl.textContent = Math.round(fps);
     }
