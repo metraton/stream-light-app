@@ -18,7 +18,19 @@ export function frozenSteps(position, columnCount, mode, hold) {
     return frozen;
 }
 
-/** The most frames Desfase keeps for one column: a third of a second at 60 fps. */
+/** Congelado: a frozen panel is shown at this fraction of its brightness for as long as it is held. */
+export const FREEZE_DIM = 0.85;
+
+/** `tint` (0xRRGGBB) with every channel scaled by `level`. */
+export function scaleTint(tint, level) {
+    const channel = shift => Math.round(((tint >> shift) & 0xFF) * level);
+    return (channel(16) << 16) | (channel(8) << 8) | channel(0);
+}
+
+/** Desfase keeps frames at least this many ms apart, so a delay in ms needs the same ring at 30 fps and above. */
+export const CAPTURE_MS = 1000 / 30;
+
+/** The most frames Desfase keeps for one column; it bounds memory at any frame rate. */
 export const MAX_RING_FRAMES = 20;
 
 /** Desfase: per column, how many delay steps it sits behind live; 'ltr' grows
@@ -28,10 +40,15 @@ export function delayRanks(columnCount, direction) {
     return Array.from({ length: columnCount }, (_, i) => (direction === 'center' ? Math.abs(i - center) : i));
 }
 
-/** Per column, the ring that holds its deepest delay at `maxStep` frames per
- *  rank plus the newest frame, capped at MAX_RING_FRAMES; a live column keeps none. */
-export function ringLengths(ranks, maxStep) {
-    return ranks.map(rank => (rank === 0 ? 0 : Math.min(MAX_RING_FRAMES, Math.ceil(rank * maxStep) + 1)));
+/** Ms between kept frames: CAPTURE_MS, or the frame time (to 10 ms) when frames arrive slower than that. */
+export function captureInterval(frameMs) {
+    return Math.max(CAPTURE_MS, Math.round(frameMs / 10) * 10);
+}
+
+/** Per column, the ring that holds its deepest delay (`capsMs`) at one frame per
+ *  `interval` ms plus the newest frame, capped at MAX_RING_FRAMES; a live column keeps none. */
+export function ringLengths(capsMs, interval) {
+    return capsMs.map(cap => (cap === 0 ? 0 : Math.min(MAX_RING_FRAMES, Math.ceil(cap / interval) + 1)));
 }
 
 /** The slot of a ring of `length` that frame number `frame` is written to. */
@@ -39,10 +56,56 @@ export function ringWriteSlot(frame, length) {
     return frame % length;
 }
 
-/** The slot holding the frame `delay` frames before `newest`, the frame just
- *  written; it reaches no further back than the ring holds or frames were written. */
-export function ringReadSlot(newest, delay, length) {
-    return ringWriteSlot(newest - Math.min(delay, newest, length - 1), length);
+/** The capture times of Desfase's kept frames, numbered from 0, and the frame
+ *  rate they arrive at. Every column's ring keeps the same frames; a ring of
+ *  `length` reaches the newest `length` of them. */
+export class FrameHistory {
+    constructor() {
+        this.frameMs = CAPTURE_MS;
+        this.lastSeen = null;
+        this.clear();
+    }
+
+    /** Forget the kept frames, not the measured frame rate. */
+    clear() {
+        this.newest = -1;
+        this.stamps = [];
+        this.lastKept = -Infinity;
+    }
+
+    /** Note a frame rendered at `now` (ms) in the running frame time. */
+    observe(now) {
+        if (this.lastSeen !== null) this.frameMs += (now - this.lastSeen - this.frameMs) * 0.2;
+        this.lastSeen = now;
+    }
+
+    get interval() {
+        return captureInterval(this.frameMs);
+    }
+
+    /** Keep the frame at `now` unless the last kept one is more than half a frame short of an interval old, so
+     *  the kept frames are never closer than the interval a ring was sized for; returns its number or null. */
+    capture(now) {
+        if (now - this.lastKept < this.interval - this.frameMs / 2) return null;
+        this.lastKept = now;
+        this.newest++;
+        this.stamps[this.newest % MAX_RING_FRAMES] = now;
+        return this.newest;
+    }
+
+    /** The kept frame, within a ring of `length`, whose age at `now` is closest to `delayMs`. */
+    frameFor(length, delayMs, now) {
+        const oldest = Math.max(0, this.newest - (length - 1));
+        let best = this.newest;
+        let bestError = Infinity;
+        for (let frame = this.newest; frame >= oldest; frame--) {
+            const error = Math.abs(now - this.stamps[frame % MAX_RING_FRAMES] - delayMs);
+            if (error > bestError) break;
+            best = frame;
+            bestError = error;
+        }
+        return best;
+    }
 }
 
 export class EffectEngine extends SequencePlayer {
@@ -62,11 +125,11 @@ export class EffectEngine extends SequencePlayer {
 
     /**
      * Per-column movement at `beat`: { offsetX, offsetY, scaleY, scale, frozen,
-     * delay, delayRings }, or null when no effect plays. The last four are null
+     * delay, delayCap }, or null when no effect plays. The last four are null
      * unless their movement plays: scale, a uniform scale about the column's
      * center (Golpe de zoom); frozen, the step whose frame a column holds or null
-     * while live (Congelado); delay, how many frames back a column shows, and
-     * delayRings, the ring length each column needs for it (Desfase).
+     * while live (Congelado); delay, how many ms back a column shows, and
+     * delayCap, the most it can ask for at the top intensity (Desfase).
      * Pixel values are 1080p references scaled by scaleFactor; every value is
      * multiplied by the effect's intensity.
      */
@@ -83,7 +146,7 @@ export class EffectEngine extends SequencePlayer {
         let scale = null;
         let frozen = null;
         let delay = null;
-        let delayRings = null;
+        let delayCap = null;
         if (axis === 'scale') {
             // A one-phase sequence: every step starts at the full punch and its easing carries it to rest.
             scale = new Array(columnCount).fill(from * (1 - weight) * intensity);
@@ -92,8 +155,8 @@ export class EffectEngine extends SequencePlayer {
         } else if (axis === 'delay') {
             const step = Math.min(def.maxStep, blend(from, to));
             const ranks = delayRanks(columnCount, option);
-            delay = ranks.map(rank => Math.round(rank * step));
-            delayRings = ringLengths(ranks, def.maxStep);
+            delay = ranks.map(rank => rank * step);
+            delayCap = ranks.map(rank => rank * def.maxStep);
         }
         for (let i = 0; i < columnCount; i++) {
             if (axis === 'xy') {
@@ -107,6 +170,6 @@ export class EffectEngine extends SequencePlayer {
                 offsetY[i] = blend(from[i], to[i]) * scaleFactor;
             }
         }
-        return { offsetX, offsetY, scaleY, scale, frozen, delay, delayRings };
+        return { offsetX, offsetY, scaleY, scale, frozen, delay, delayCap };
     }
 }

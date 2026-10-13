@@ -108,16 +108,16 @@ export const EFFECTS = {
     },
     timeDelay: {
         label: 'Desfase',
-        // Each column shows the camera rank x step rendered frames ago, so the
-        // row reads as a staircase in time. The step is in frames, not beat
-        // fractions, so every column's ring has a fixed depth whatever the BPM.
-        // It breathes between DEEP and SHALLOW; maxStep is DEEP at the top
-        // intensity (2, INTENSITY_MAX in panel/effect-controls.js), caps the
+        // Each column shows the camera rank x step milliseconds ago, so the
+        // row reads as a staircase in time. The step is in ms, not frames or
+        // beat fractions, so the staircase looks the same at any frame rate
+        // and BPM. It breathes between DEEP and SHALLOW; maxStep is DEEP at the
+        // top intensity (2, INTENSITY_MAX in panel/effect-controls.js), caps the
         // step and sizes the rings, so changing either means changing it.
         extra: true,
-        phases: { DEEP: 2, SHALLOW: 1 },
+        phases: { DEEP: 60, SHALLOW: 30 },
         sequence: ['DEEP', 'SHALLOW'],
-        maxStep: 4,
+        maxStep: 120,
         rate: 0.5,
         axis: 'delay',
         easing: 'easeInOutSine',

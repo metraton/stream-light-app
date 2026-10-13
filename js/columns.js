@@ -4,7 +4,7 @@ import { effectiveFilter, isNeutral } from './color-filter.js';
 import { resolveEffects, chainKey } from './effect-stack.js';
 import { effectById, runsOnBeat } from './effects-registry.js';
 import { ScreenLayer } from './screen-layer.js';
-import { ringReadSlot, ringWriteSlot } from './effect-engine.js';
+import { FREEZE_DIM, FrameHistory, ringLengths, ringWriteSlot, scaleTint } from './effect-engine.js';
 import { computeStageLayout } from './stage-layout.js';
 
 // ============================================================================
@@ -101,13 +101,17 @@ class HeldFrames {
         this.renderer.render({ container: capture, target, clear: true });
     }
 
-    /** Show `texture` in place of `col`'s live video, or the live video when texture is null. */
-    _show(col, texture) {
+    /** Show `texture` in place of `col`'s live video, or the live video when texture is null.
+     *  `brightness` scales the column's color tint on the held frame only, so it ends with the hold. */
+    _show(col, texture, brightness = 1) {
         const display = this.displays[col.index];
         if (texture) {
             display.texture = texture;
-            // The held frame takes the column's color adjust and effects, as the live video does.
+            // The held frame takes the column's color, color adjust and effects, as the live video does.
+            display.tint = scaleTint(col.sprite.tint, brightness);
             display.filters = col.sprite.filters ?? null;
+        } else {
+            display.tint = 0xFFFFFF;
         }
         display.visible = texture !== null;
         col.sprite.visible = texture === null;
@@ -126,8 +130,8 @@ class HeldFrames {
     }
 }
 
-/** Congelado: a frozen column shows the frame captured as its frozen step began. */
-class FrozenFrames extends HeldFrames {
+/** Congelado: a frozen column shows the frame captured as its frozen step began, dimmed to FREEZE_DIM. */
+export class FrozenFrames extends HeldFrames {
     /** Follow offsets.frozen (EffectEngine.compute): one texture per column, allocated on the first frame it plays. */
     sync(columns, { frozen }) {
         if (!frozen) return this.release(columns);
@@ -140,39 +144,50 @@ class FrozenFrames extends HeldFrames {
             const [texture] = this.textures[col.index];
             if (step !== null && step !== this.heldSteps[col.index]) this._capture(col, texture);
             this.heldSteps[col.index] = step;
-            this._show(col, step === null ? null : texture);
+            this._show(col, step === null ? null : texture, FREEZE_DIM);
         }
     }
 }
 
-/** Desfase: every frame each column writes its live crop into its ring and shows the frame offsets.delay[i] back. */
+/** Desfase: each column shows the kept frame closest to offsets.delay[i] ms old, kept every CAPTURE_MS or the frame time. */
 class DelayedFrames extends HeldFrames {
-    /** Follow offsets.delay and offsets.delayRings (EffectEngine.compute); new ring lengths reallocate the rings. */
-    sync(columns, { delay, delayRings }) {
+    constructor(renderer) {
+        super(renderer);
+        this.history = new FrameHistory();
+        this.key = null;
+    }
+
+    /** Follow offsets.delay and offsets.delayCap (EffectEngine.compute) at `now` ms; a new ring size, from the measured frame rate, reallocates the rings. */
+    sync(columns, { delay, delayCap }, now = performance.now()) {
         if (!delay) return this.release(columns);
-        const key = delayRings.join();
+        this.history.observe(now);
+        const lengths = ringLengths(delayCap, this.history.interval);
+        const key = lengths.join();
         if (key !== this.key) {
-            this.release(columns);
-            this._allocate(columns, delayRings);
+            super.release(columns);
+            this._allocate(columns, lengths);
             this.key = key;
-            this.newest = -1;
+            this.history.clear();
         }
-        this.newest++;
+        const kept = this.history.capture(now);
         for (const col of columns) {
             const ring = this.textures[col.index];
             if (ring.length === 0) {
                 this._show(col, null);
                 continue;
             }
-            this._capture(col, ring[ringWriteSlot(this.newest, ring.length)]);
-            const frames = delay[col.index];
-            this._show(col, frames === 0 ? null : ring[ringReadSlot(this.newest, frames, ring.length)]);
+            if (kept !== null) this._capture(col, ring[ringWriteSlot(kept, ring.length)]);
+            const ms = delay[col.index];
+            const shown = this.history.frameFor(ring.length, ms, now);
+            this._show(col, ms === 0 ? null : ring[ringWriteSlot(shown, ring.length)]);
         }
     }
 
     release(columns) {
         super.release(columns);
+        if (this.key === null) return;
         this.key = null;
+        this.history = new FrameHistory();
     }
 }
 
@@ -501,7 +516,8 @@ export class ColumnManager {
             this._place(col.container, col, ox, oy, sx, sy);
             if (col.glowContainer) this._place(col.glowContainer, col, ox, oy, sx, sy);
         }
-        for (const frames of this.frameMovements) frames.sync(this.columns, offsets);
+        const now = performance.now();
+        for (const frames of this.frameMovements) frames.sync(this.columns, offsets, now);
     }
 
     /** Put `target` (a column or its glow) at offset (ox, oy), scaled by (1 + sx, 1 + sy) about the column's center. */
