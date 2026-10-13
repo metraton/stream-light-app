@@ -154,7 +154,7 @@ export function createSequencerControls(sectionEl, app) {
         const btn = document.createElement('button');
         keyLabel(btn, PATTERN_KEYS[i], PATTERN_WORDS[i]);
         btn.addEventListener('click', () => {
-            seq.setPattern(PATTERNS[i]);
+            app.setPattern(PATTERNS[i]);
             refreshAll();
             app.updateHUD();
         });
