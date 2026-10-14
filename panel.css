@@ -562,6 +562,17 @@
     background: #333;
 }
 
+.camera-row { align-items: center; }
+.camera-row button:disabled { opacity: 0.4; cursor: default; }
+.camera-row .camera-name {
+    flex: 4;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 12px;
+    color: #ccc;
+}
+
 .preset-row select {
     flex: 2;
     background: #1a1a1a;

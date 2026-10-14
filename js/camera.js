@@ -1,6 +1,5 @@
 // --- Camera Management ---
 
-const CAMERA_CYCLE_PRIORITY = ['iriun', 'logitech'];
 // Quarter turns clockwise, counted like CONFIG.columns.rotationSteps.
 const CAMERA_ROTATION_STEPS = { iriun: 1 };
 
@@ -9,8 +8,6 @@ export function defaultRotationSteps(label = '') {
     const name = Object.keys(CAMERA_ROTATION_STEPS).find(n => label.toLowerCase().includes(n));
     return name ? CAMERA_ROTATION_STEPS[name] : 0;
 }
-
-const labelMatches = (cam, name) => cam.label.toLowerCase().includes(name);
 
 async function listCameras() {
     const devices = await navigator.mediaDevices.enumerateDevices();
@@ -60,7 +57,8 @@ export async function enumerateCameras() {
     }
 }
 
-function noCamerasMessage(error) {
+/** Why no camera is listed, from the last open failure: no permission, no hardware, or another error. */
+export function noCamerasMessage(error) {
     if (!error) return 'No cameras found';
     if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
         return 'Camera access denied — check browser permissions';
@@ -71,53 +69,9 @@ function noCamerasMessage(error) {
     return `Camera error: ${error.message || error.name}`;
 }
 
-/**
- * Rebuild the startup camera select from the devices present now, preselecting
- * the Iriun camera when present. Keeps the user's current selection if that
- * device is still listed.
- */
-export async function populateCameraSelect() {
-    const select = document.getElementById('camera-select');
-    const previousDeviceId = select.value;
-    const { cameras, error } = await enumerateCameras();
-
-    if (cameras.length === 0) {
-        select.replaceChildren(new Option(noCamerasMessage(error), ''));
-        return;
-    }
-    if (error) {
-        select.replaceChildren(new Option(`Cameras found but none could be opened (${error.name})`, ''));
-        return;
-    }
-
-    select.innerHTML = cameras.map((cam, i) =>
-        `<option value="${cam.deviceId}">${cam.label || `Camera ${i + 1}`}</option>`
-    ).join('');
-
-    if (previousDeviceId && cameras.some(cam => cam.deviceId === previousDeviceId)) {
-        select.value = previousDeviceId;
-        return;
-    }
-    const iriun = cameras.find(cam => labelMatches(cam, 'iriun'));
-    if (iriun) select.value = iriun.deviceId;
-}
-
-/** Track cameras being plugged in or removed. Returns the unsubscribe function. */
+/** Calls `onChange` whenever a camera is plugged in or removed, for the whole session. */
 export function watchCameraDevices(onChange) {
     navigator.mediaDevices.addEventListener('devicechange', onChange);
-    return () => navigator.mediaDevices.removeEventListener('devicechange', onChange);
-}
-
-/** deviceId of the other camera in the Iriun <-> Logitech pair; null unless both are present. */
-export async function nextCameraId(currentId) {
-    if (!currentId) return null;
-    const cameras = await listCameras();
-    // One device per name: the first match in browser order, the same one
-    // populateCameraSelect preselects. Later matches and other inputs are skipped.
-    const pair = CAMERA_CYCLE_PRIORITY.map(name => cameras.find(cam => labelMatches(cam, name)));
-    if (pair.some(cam => !cam)) return null;
-    const current = pair.findIndex(cam => cam.deviceId === currentId);
-    return pair[(current + 1) % pair.length].deviceId;
 }
 
 export async function setupWebcam(deviceId) {

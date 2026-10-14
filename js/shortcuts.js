@@ -2,7 +2,7 @@
 // |: toggle Empty; 1-5: toggle a color; 6 / Shift+6: all 5 colors in a random order
 // Shift+| / Shift+1-5: select only that color
 // 9: show / hide the text overlay (fades in and out)
-// 0 / Shift+0: switch camera (Iriun <-> Logitech only)
+// 0 / Shift+0: next enabled camera, in the panel's Cámaras order
 // Q W E R T Y: pattern (none/chase/carousel/mirror/fill/sparkle)
 // Shift+W E R T Y: that pattern's variant (color-sequencer.js PATTERN_VARIANTS); Shift+Q is Q
 // A S D F G H J: movement (none/wave/expand/broken/shake/equalizer/zoom pulse)
@@ -21,7 +21,6 @@
 
 import { GLOW_KEY_TO_MODE } from './glow-map.js';
 import { MOODS, MOOD_KEY_TO_NAME } from './mood-map.js';
-import { nextCameraId } from './camera.js';
 
 const PATTERN_KEYS = { q: 'none', w: 'chase', e: 'carousel', r: 'mirror', t: 'fill', y: 'sparkle' };
 const MOVEMENT_KEYS = { a: 'none', s: 'wave', d: 'expand', f: 'broken', g: 'shake', h: 'equalizer', j: 'zoomPulse' };
@@ -59,7 +58,7 @@ export function resolveShortcut(e) {
         const num = parseInt(digitMatch[1]);
 
         if (num === 0) {
-            return (app) => nextCameraId(app.activeCameraId).then((id) => id && app.switchCamera(id));
+            return (app) => app.nextCamera();
         }
 
         if (num >= 1 && num <= 5) {

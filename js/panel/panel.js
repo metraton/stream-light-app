@@ -13,6 +13,7 @@ import { createEffectControls } from './effect-controls.js';
 import { createNowPlaying } from './layer-controls.js';
 import { createScreenControls } from './screen-controls.js';
 import { createTextControls } from './text-controls.js';
+import { createCameraControls } from './camera-controls.js';
 
 const SECTION_DEFS = [
     { key: 'sequencer', title: 'Sequencer', open: true },
@@ -20,6 +21,7 @@ const SECTION_DEFS = [
     { key: 'colors',    title: 'Color Hex', open: false },
     { key: 'filters',   title: 'Color',     open: false },
     { key: 'screen',    title: 'Pantalla',  open: false },
+    { key: 'cameras',   title: 'Cámaras',   open: false },
     { key: 'layout',    title: 'Layout',    open: false },
     { key: 'effects',   title: 'Movimiento', open: false },
     { key: 'glow',      title: 'Glow Params', open: false },
@@ -87,6 +89,9 @@ export class ControlPanel {
                     break;
                 case 'colors':
                     this._colorHexRefresh = createColorControls(contentEl, this.app, () => this.refreshColorSwatches());
+                    break;
+                case 'cameras':
+                    this.refreshCameras = createCameraControls(contentEl, this.app);
                     break;
                 case 'layout':
                     this.createLayoutControls(contentEl);

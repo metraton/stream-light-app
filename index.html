@@ -32,60 +32,23 @@
             height: 100%;
             object-fit: contain;
         }
-        #startup {
+        #camera-notice {
             position: fixed;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background: #000;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
+            left: 50%; bottom: 24px;
+            transform: translateX(-50%);
+            padding: 10px 18px;
+            background: rgba(0, 0, 0, 0.75);
+            color: #fff;
+            font: 16px 'Segoe UI', sans-serif;
+            border-radius: 4px;
             z-index: 3000;
-            color: #fff;
-            font-family: 'Segoe UI', sans-serif;
         }
-        #startup.hidden { display: none; }
-        #startup h1 { font-size: 36px; color: #FFD700; margin-bottom: 20px; letter-spacing: 4px; }
-        #startup .subtitle { color: #888; margin-bottom: 30px; }
-        #startup select {
-            width: 300px;
-            padding: 10px;
-            font-size: 14px;
-            background: #111;
-            color: #fff;
-            border: 1px solid #333;
-            border-radius: 4px;
-            margin-bottom: 15px;
-        }
-        #startup button {
-            width: 300px;
-            padding: 12px;
-            font-size: 16px;
-            cursor: pointer;
-            background: #FFD700;
-            color: #000;
-            border: none;
-            border-radius: 4px;
-            font-weight: bold;
-            letter-spacing: 2px;
-        }
-        #startup button:hover { background: #FFC000; }
-        #startup .error { color: #ff4444; margin-top: 15px; font-size: 13px; }
+        #camera-notice[hidden] { display: none; }
     </style>
 </head>
 <body>
-    <div id="startup">
-        <h1>STREAM LIGHT</h1>
-        <div class="subtitle">Select your camera to start</div>
-        <select id="camera-select">
-            <option value="">Loading cameras...</option>
-        </select>
-        <button id="start-btn" onclick="startApp()">START</button>
-        <button id="demo-btn" onclick="startDemo()" style="margin-top:8px; background:#555; color:#fff;">DEMO MODE (no camera)</button>
-        <div id="startup-error" class="error" style="display:none"></div>
-    </div>
-
     <div id="app"></div>
+    <div id="camera-notice" hidden></div>
 
     <script src="https://cdn.jsdelivr.net/npm/pixi.js@8/dist/pixi.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/pixi-filters@6.1.5/dist/pixi-filters.js"></script>

@@ -47,7 +47,7 @@ This serves the app at `http://localhost:8080` (bound to `127.0.0.1` only), inst
 Serving C:\...\stream-light-app at http://localhost:8080 (bound to 127.0.0.1). Caps Lock toggles live mode (now OFF); Ctrl+C stops.
 ```
 
-Press START or DEMO in the page first: the page reports its bound keys once the app is running, and until then live mode swallows nothing.
+The page starts on its own, with no click, so it also runs unattended as an OBS Browser Source: it opens the first enabled camera, or shows the test pattern with a notice at the bottom (no camera, access denied, all disabled) when none can be shown. It reports its bound keys once the stage is up, and until then live mode swallows nothing.
 
 Every row of the key grid has six keys and starts with None:
 
@@ -60,8 +60,10 @@ Every row of the key grid has six keys and starts with None:
 | `Shift+Z X C V B N` | Mood | Calm, Groove, Build, Tension, Peak, Mystic (`<` is Mood None) |
 | `Backspace` / `Space` | Cue | stage a new combo (colors, pattern, movement, glow, mood; BPM stays live) while the live one plays / commit it in press order (otherwise pause / resume) |
 | `Escape` | Base state | no colors, every layer None, 120 BPM, playing (the first color pressed moves at once); layout, filters, rotation and FPS cap stay |
-| `+` / `´`, `0`, `P` | Other | BPM up/down, next camera, panel |
+| `+` / `´`, `0`, `P` | Other | BPM up/down, next enabled camera (Shift+0 too), panel |
 | `9` | Text | fade the text overlay in or out (250 ms); Shift+9 stays unbound |
+
+One camera is on the stage at a time. `0` steps through the enabled cameras in the order of the panel's Cámaras section, where each plugged-in camera has a checkbox (in or out of the rotation) and ↑ ↓ to reorder it; ● marks the one on stage. The list follows cameras being plugged in and removed for the whole session: a new camera joins the end of the rotation enabled, and when the camera on stage is unplugged or disabled the stage moves to the next enabled one. The order and the on/off state are saved in localStorage (`streamlight-camera-order`), keyed by camera label (device id when there is none), so a camera that comes back keeps its place; on a first start an Iriun camera goes first. The rotation rules are in `js/camera-rotation.js`, tested by `tests/test_camera_rotation.mjs`.
 
 The text overlay (`9`, or the panel's Texto section) draws the current phrase as hollow Fredoka letters outlined by a thin double line, with a glow and an optional dark band across the frame. It sits above the Pantalla layer, so screen effects never distort it. The panel sets the phrase, saved phrases (seeded with FLASH LIGHT and CANDLE LIGHT, kept in localStorage apart from presets), color (Neón, Columna = first selected color, Blanco, Custom), size, band and its opacity, position (Centro / Arriba / Abajo) and beat behavior (Fijo, Pulso al golpe, Parpadeo neón). Presets save that look as `text` but never whether it shows; a preset from before carries none and loads the defaults.
 
@@ -164,10 +166,11 @@ Start-Process "C:\Program Files\obs-studio\bin\64bit\obs64.exe" -ArgumentList '-
 ## Structure
 
 ```
-index.html          page shell and the start screen
+index.html          page shell and the no-camera notice
 panel.css           control panel styles
 serve.py            file server + keyboard hook (Caps Lock live mode) + /events and /bound bridge, one process
-js/main.js          entry point: camera picker, START / DEMO
+js/main.js          entry point: one page at a time (Web Lock), then starts the app with no click
+js/camera-rotation.js camera rotation rules for key 0 and the Cámaras section: order, on/off, unplugged cameras, saved order
 js/app.js           StreamLightApp: wires engines, panel, shortcuts and the live bridge
 js/shortcuts.js     resolveShortcut, the single key map, and the keydown listener
 js/live-bridge.js   page side of live mode: reports bound keys, runs relayed keys, sets the window title
@@ -185,6 +188,7 @@ tests/test_patterns.mjs tests for the color patterns, the key grid and JS syntax
 tests/test_color_filter.mjs tests for the Color panel math and the old-preset migration
 tests/test_text_overlay.mjs tests for the text overlay's phrases, preset restore, fade, flicker and key 9
 tests/test_defaults.mjs tests that startup, Reset to Defaults, Original and old presets share the tuned base
+tests/test_camera_rotation.mjs tests for the camera rotation: order, disabled cameras, unplug and plug, saved order, key 0
 tests/test_obs_secrets.mjs fails if a file under obs/ carries a stream key, server or YouTube token, or turns the Replay Buffer off
 tests/test_obs_merge.mjs runs the installer's merge on tests/fixtures/obs/ (fake tokens) and checks what it keeps and updates
 ```

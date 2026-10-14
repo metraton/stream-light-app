@@ -13,7 +13,13 @@ import { ColumnManager } from './columns.js';
 import { Overlay, loadOverlayFont } from './overlay.js';
 import { setupShortcuts } from './shortcuts.js';
 import { connectLiveBridge } from './live-bridge.js';
-import { setupWebcam, createTestPattern, defaultRotationSteps } from './camera.js';
+import {
+    setupWebcam, createTestPattern, defaultRotationSteps, enumerateCameras, noCamerasMessage, watchCameraDevices,
+} from './camera.js';
+import {
+    describeCameras, reconcileOrder, rotationKeys, nextCameraKey, cameraToShow, setCameraEnabled, moveCamera,
+    loadCameraOrder, saveCameraOrder,
+} from './camera-rotation.js';
 import { ControlPanel } from './panel/panel.js';
 import { INTENSITY_MIN, INTENSITY_MAX } from './panel/effect-controls.js';
 
@@ -52,22 +58,29 @@ export class StreamLightApp {
         // definitions; the color layer keeps its own in sequencer.patternRates.
         this.tweaks = { movement: {}, glow: {} };
         this.stagedChanges = [];
+        // The rotation order (camera-rotation.js) and the cameras the browser lists now;
+        // activeCameraKey is null while the test pattern stands in for a camera.
+        this.cameraOrder = [];
+        this.cameras = [];
+        this.cameraError = null;
+        this.activeCameraKey = null;
+        this._cameraWork = Promise.resolve();
     }
 
-    async init(deviceId) {
-        const [, { videoElement, videoTexture }] = await Promise.all([this.createPixiApp(), setupWebcam(deviceId)]);
-        this.videoElement = videoElement;
-        this.videoTexture = videoTexture;
-        this._applyCameraRotation();
+    /**
+     * Builds the stage around the first enabled camera, or the test pattern with a notice when
+     * none opens, and follows camera changes for the whole session. Needs no user gesture.
+     */
+    async start() {
+        this.cameraOrder = loadCameraOrder();
+        await this._listCameras();
+        const [, shown] = await Promise.all([
+            this.createPixiApp(),
+            this._openFeed(cameraToShow(this.cameraOrder, this.cameras, null)),
+        ]);
+        this._useFeed(shown);
         this.setup();
-    }
-
-    async initDemo() {
-        await this.createPixiApp();
-        const { videoElement, videoTexture } = createTestPattern();
-        this.videoElement = videoElement;
-        this.videoTexture = videoTexture;
-        this.setup();
+        watchCameraDevices(() => this.refreshCameras());
     }
 
     setup() {
@@ -485,10 +498,9 @@ export class StreamLightApp {
         if (this.panel) this.panel.toggle();
     }
 
-    /** deviceId of the live webcam feed; undefined in demo mode. */
-    get activeCameraId() {
-        return this._activeCameraTrack()?.getSettings().deviceId;
-    }
+    // --- Cameras ---
+    // Every camera change runs through _queueCameraWork, one at a time: a burst of devicechange
+    // events and key presses must never open two streams or interleave a list with a switch.
 
     _activeCameraTrack() {
         return this.videoElement?.srcObject?.getVideoTracks()[0];
@@ -499,36 +511,119 @@ export class StreamLightApp {
         CONFIG.columns.rotationSteps = defaultRotationSteps(this._activeCameraTrack()?.label);
     }
 
-    /** Replace the live feed with camera `deviceId`, stopping the old stream first and reopening it if the new camera fails. */
-    async switchCamera(deviceId) {
-        const previousId = this.activeCameraId;
-        if (this._switchingCamera || !previousId) return;
-        this._switchingCamera = true;
-        const oldTexture = this.videoTexture;
-        this.videoElement.srcObject.getTracks().forEach(t => t.stop());
-        try {
-            let feed;
-            try {
-                feed = await setupWebcam(deviceId);
-            } catch (e) {
-                console.error('Camera switch failed, reopening the previous camera:', e);
-                feed = await setupWebcam(previousId);
-            }
-            this.videoElement = feed.videoElement;
-            this.videoTexture = feed.videoTexture;
-            this.columnManager.setVideo(this.videoElement, this.videoTexture);
-            this._applyCameraRotation();
-            this.panel?.refreshRotationLabel?.();
-            this.columnManager.rebuild();
-            this.reapplyColors();
-            if (this.overlay) this.overlay.moveToTop();
-            oldTexture.destroy(true);
-            this.refreshPanel();
-        } catch (e) {
-            console.error('No camera could be reopened:', e);
-        } finally {
-            this._switchingCamera = false;
+    _queueCameraWork(work) {
+        this._cameraWork = this._cameraWork.then(work).catch(e => console.error('Camera update failed:', e));
+        return this._cameraWork;
+    }
+
+    /** Key 0: show the next enabled camera in the panel's order. */
+    nextCamera() {
+        return this._queueCameraWork(() =>
+            this._show(nextCameraKey(this.cameraOrder, this.cameras, this.activeCameraKey)));
+    }
+
+    /** Re-read the cameras after one was plugged in, removed or stopped, keeping the one on stage while it can stay. */
+    refreshCameras() {
+        return this._queueCameraWork(async () => {
+            await this._listCameras();
+            this.panel?.refreshCameras?.();
+            await this._show(cameraToShow(this.cameraOrder, this.cameras, this.activeCameraKey));
+        });
+    }
+
+    /** Panel: take camera `key` in or out of the rotation; disabling the camera on stage moves to the next. */
+    setCameraEnabled(key, enabled) {
+        return this._changeCameraOrder(order => setCameraEnabled(order, key, enabled));
+    }
+
+    /** Panel: move camera `key` one place earlier (-1) or later (+1) in the rotation. */
+    moveCamera(key, direction) {
+        return this._changeCameraOrder(order => moveCamera(order, this.cameras, key, direction));
+    }
+
+    _changeCameraOrder(change) {
+        return this._queueCameraWork(async () => {
+            this.cameraOrder = change(this.cameraOrder);
+            saveCameraOrder(this.cameraOrder);
+            this.panel?.refreshCameras?.();
+            await this._show(cameraToShow(this.cameraOrder, this.cameras, this.activeCameraKey));
+        });
+    }
+
+    async _listCameras() {
+        const { cameras, error } = await enumerateCameras();
+        this.cameras = describeCameras(cameras);
+        this.cameraError = error;
+        const order = reconcileOrder(this.cameraOrder, this.cameras);
+        if (order.length !== this.cameraOrder.length) saveCameraOrder(order);
+        this.cameraOrder = order;
+    }
+
+    /** Put camera `key` on stage, or the test pattern when it is null; nothing reopens if it is already there. */
+    async _show(key) {
+        if (key !== null && key === this.activeCameraKey) return;
+        if (key === null && this.activeCameraKey === null) {
+            this._setCameraNotice(this._cameraNotice(this.cameraError));
+            return;
         }
+        // A camera may refuse a second open while its own stream is still live, so the old one stops first.
+        this._activeCameraTrack()?.stop();
+        this._useFeed(await this._openFeed(key));
+    }
+
+    /** Opens camera `key`, else each next one in the rotation in turn; the test pattern and a notice when none opens. */
+    async _openFeed(key) {
+        let error = this.cameraError;
+        const tried = new Set();
+        while (key !== null && !tried.has(key)) {
+            tried.add(key);
+            const camera = this.cameras.find(cam => cam.key === key);
+            try {
+                return { feed: await setupWebcam(camera.deviceId), key, notice: null };
+            } catch (e) {
+                console.error(`Camera "${key}" failed to open (${e.name}):`, e);
+                error = e;
+                key = nextCameraKey(this.cameraOrder, this.cameras, key);
+            }
+        }
+        return { feed: createTestPattern(), key: null, notice: this._cameraNotice(error) };
+    }
+
+    _cameraNotice(error) {
+        if (this.cameras.length === 0) return noCamerasMessage(error);
+        if (rotationKeys(this.cameraOrder, this.cameras).length === 0) {
+            return "All cameras are disabled — enable one in the panel's Cámaras section (P)";
+        }
+        return `Cameras found but none could be opened (${error?.name ?? 'unknown error'})`;
+    }
+
+    _setCameraNotice(text) {
+        const notice = document.getElementById('camera-notice');
+        notice.textContent = text ?? '';
+        notice.hidden = !text;
+    }
+
+    /** Make `feed` the stage's video. Before setup() it only stores the feed, which setup() builds the stage around. */
+    _useFeed({ feed, key, notice }) {
+        const oldTexture = this.videoTexture;
+        this.videoElement = feed.videoElement;
+        this.videoTexture = feed.videoTexture;
+        this.activeCameraKey = key;
+        this._setCameraNotice(notice);
+        if (key !== null) {
+            this._applyCameraRotation();
+            // A camera that disconnects or fails ends its track, which devicechange may never report.
+            this._activeCameraTrack().addEventListener('ended', () => this.refreshCameras(), { once: true });
+        }
+        if (!this.columnManager) return;
+        this.columnManager.setVideo(this.videoElement, this.videoTexture);
+        this.panel?.refreshRotationLabel?.();
+        this.columnManager.rebuild();
+        this.reapplyColors();
+        if (this.overlay) this.overlay.moveToTop();
+        oldTexture?.destroy(true);
+        this.refreshPanel();
+        this.panel?.refreshCameras?.();
     }
 
     /** Refresh the panel's live views (Now Playing, sequencer, Movimiento, Glow, Texto) from the app's state. */
