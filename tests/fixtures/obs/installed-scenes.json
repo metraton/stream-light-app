@@ -1,0 +1,38 @@
+{
+    "name": "stream-light-scenes",
+    "current_scene": "Scene",
+    "scene_order": [{ "name": "Webcam Scene" }, { "name": "Scene" }],
+    "transitions": [{ "name": "My Fade", "id": "fade_transition", "settings": {} }],
+    "sources": [
+        {
+            "name": "Browser",
+            "id": "browser_source",
+            "uuid": "00000000-0000-0000-0000-0000000000b1",
+            "settings": { "url": "http://old.example/" },
+            "hotkeys": { "libobs.mute": [{ "key": "OBS_KEY_F8" }] }
+        },
+        {
+            "name": "My Webcam",
+            "id": "dshow_input",
+            "uuid": "00000000-0000-0000-0000-0000000000c1",
+            "settings": { "video_device_id": "fake-camera" }
+        },
+        {
+            "name": "Scene",
+            "id": "scene",
+            "uuid": "00000000-0000-0000-0000-0000000000a1",
+            "settings": {
+                "items": [
+                    { "name": "Browser", "source_uuid": "00000000-0000-0000-0000-0000000000b1", "id": 1 },
+                    { "name": "My Webcam", "source_uuid": "00000000-0000-0000-0000-0000000000c1", "id": 9 }
+                ]
+            }
+        },
+        {
+            "name": "Webcam Scene",
+            "id": "scene",
+            "uuid": "00000000-0000-0000-0000-0000000000a2",
+            "settings": { "items": [{ "name": "My Webcam", "source_uuid": "00000000-0000-0000-0000-0000000000c1", "id": 1 }] }
+        }
+    ]
+}

@@ -67,7 +67,7 @@ The text overlay (`9`, or the panel's Texto section) draws the current phrase as
 
 Pattern variants (`js/color-sequencer.js` `PATTERN_VARIANTS`): Carousel reversed runs the same frames backwards. Chase, Mirror, Fill and Sparkle negative swap lit and Empty columns: each selected color in turn fills the row and the columns the normal pattern lights for that color alone become gaps, so Chase is a full row with a travelling gap and Fill empties the row column by column. None has no variant, so Shift+Q is Q. A plain key always picks the normal pattern; pressing Shift again keeps the variant; moods play the normal pattern.
 
-The base state and the moods are defined once, in `js/mood-map.js`.
+The tuned values in code are the app's base, and presets sit on top of it. The base state and the six moods (Calm, Groove, Build, Tension, Peak, Mystic: colors, pattern, movement, glow, BPM and per-layer rates, plus easings where set) are defined once, in `js/mood-map.js`; layout, colors, glow look, filters, effects and text look in `CONFIG` in `js/config.js`; each effect's own rate and easing in `js/effects.js`, `js/glow-sequences.js` and `PATTERN_RATES` in `js/color-sequencer.js`. `DEFAULTS` is a copy of `CONFIG` taken at load, so startup, Reset to Defaults and the Original color set all give the same values; the only exception is the layout, where a default saved from the Layout section wins until it is cleared. A preset's speed tweaks for an effect that no longer exists (the removed congelado and desfase) are dropped on load. `tests/test_defaults.mjs` pins these values.
 
 Live state is shown only in the window title, never inside the page, because OBS Window Capture records the page content and not the title bar: `Stream Light — EN VIVO` while live, `Stream Light` when not, and `Stream Light — sin conexión` while the page has lost its connection to `serve.py`. The title is visible on the taskbar and in Alt+Tab.
 
@@ -91,22 +91,71 @@ OBS can host the page itself instead of capturing a Chrome window:
 
    For a shortcut, set Target to `"C:\Program Files\obs-studio\bin\64bit\obs64.exe" --enable-media-stream` and Start in to `C:\Program Files\obs-studio\bin\64bit`.
 4. In the source's properties leave "Shutdown source when not visible" unchecked, so the page never stops.
-5. After a `git pull`, press "Refresh cache of current page" in the source's properties to load the new files.
+5. After a `git pull`, refreshing the source loads the new files: `serve.py` sends `Cache-Control: no-cache` on every file, so OBS revalidates instead of reusing a cached module (a stale cached `color-controls.js` once broke the page with `does not provide an export named 'colorHex'`). "Refresh cache of current page" is no longer needed.
 
 A camera can be held by one consumer at a time, so the Chrome window (`--chrome`) and the Browser Source cannot run together: use one or the other.
 
-Hardware acceleration: on a machine with only an Intel integrated GPU (measured on an i7-1260P laptop, OBS 32.2.2), "Enable Browser Source Hardware Acceleration" made the stage render shifted by half its width. Turning it off (Settings > Advanced > Sources, then restart OBS) fixed it. On a machine with a dedicated GPU, try it on first and turn it off only if the columns look shifted.
+Hardware acceleration stays off on both PCs: with "Enable Browser Source Hardware Acceleration" on (OBS 32.2.2), the stage rendered shifted by half its width on the Intel-only i7-1260P laptop and garbled on the NVIDIA PC. `obs\install.ps1` turns it off for either variant by writing `BrowserHWAccel=false` under `[General]` in `%APPDATA%\obs-studio\global.ini`; by hand it is Settings > Advanced > Sources, then restart OBS.
 
 ### Import the OBS profile and scenes
 
-`obs/` holds the OBS setup used for streaming, so a second machine can load it: `obs/profile/stream-light/` is the profile `stream-light` (output, video and audio settings, dock layout) and `obs/scenes/stream-light-scenes.json` is the scene collection `stream-light-scenes` (the Browser Source on `http://localhost:8080/` at 1920x1080, plus the Aitum Vertical canvas).
+`obs/` holds the OBS setup both streaming PCs share; only the encoder differs by GPU. `obs/profile/stream-light/` is the common part of the profiles (output, video and audio settings, dock layout); `obs/profile/encoders/<variant>/` holds the per-GPU part: `streamEncoder.json`, `recordEncoder.json` and `basic-overrides.ini` (the `[AdvOut]` encoder ids and the 320 kbps track 1 audio). `obs/scenes/stream-light-scenes.json` is the scene collection `stream-light-scenes`; `obs/vertical/` is the Aitum Vertical template (`canvas.json` plus `encoders/<variant>.json`).
 
-1. In OBS, Profile > Import and select the folder `obs/profile/stream-light`. Then Profile > stream-light.
-2. Scene Collection > Import and select `obs/scenes/stream-light-scenes.json`. Then Scene Collection > stream-light-scenes.
-3. Paste the stream keys in the app, never in a file of this repo: Settings > Stream, service YouTube - RTMPS, paste the YouTube key in "Stream Key" (or connect the account). For Instagram, paste its server URL and key in the Aitum Vertical output settings (Docks > Aitum Vertical).
-4. Recreate what the files cannot carry: the Stream Health custom dock (see below) and the obs-websocket password. The recording folder is not set; choose it in Settings > Output.
+`install.ps1` writes two profiles from those same files; they differ only in the YouTube video bitrate, set by `$Profiles` in the script:
 
-`obs/profile/stream-light/service.example.json` is the stream service with an empty `key`. OBS writes the real `service.json` beside it once a key is saved; `.gitignore` excludes `obs/profile/*/service.json`, so the key cannot be committed by accident. The same goes for the account tokens OBS puts in `basic.ini` after you sign in: commit the profile only after removing the `[YouTube]` section.
+| Profile | Video | Use it when |
+|---------|-------|-------------|
+| `stream-light` | CBR 4500 kbps | the standard; any link, and the one `user.ini` makes active |
+| `stream-light-hq` | CBR 8000 kbps | the upload is solid (wired, well above 10 Mbps) |
+
+Switch with the Profile menu in OBS, or launch with `--profile stream-light-hq`. Both are 1080p30 with a 2 s keyframe, reconnect every 2 s up to 25 times, dynamic bitrate on, audio at 44.1 kHz (rekordbox's rate) and AAC 320 kbps for the DJ set.
+
+| Variant | Stream | Recording |
+|---------|--------|-----------|
+| `nvidia` | NVENC H.264 CBR, P5, tune hq, two-pass quarter res, profile high | NVENC HEVC, CQP 20 |
+| `intel` | QuickSync H.264 CBR | QuickSync, ICQ 20 |
+
+A setting both PCs share goes in the common `basic.ini`; a setting that depends on the GPU goes in each variant, never in both places.
+
+The set's audio is "Application Audio Capture (BETA)" on rekordbox (window `[rekordbox.exe]: rekordbox`, "Match title, otherwise find window of same type"), on track 1 only. Desktop Audio is disabled: the collection has no `DesktopAudioDevice1` entry, which is how OBS saves a global device set to Disabled, because a muted Desktop Audio still captured and logged "audio is lagging". Mic/Aux stays in the collection but starts muted, so nothing else mixes into the set.
+
+The main OBS Replay Buffer is on, 20 s and 512 MB (`RecRB=true`, `RecRBTime=20`, `RecRBSize=512` in `[SimpleOutput]` and `[AdvOut]` of the common `basic.ini`, asserted by `tests/test_obs_secrets.mjs`), because the Aitum Vertical backtrack depends on it: without it the plugin logs "Can't start backtrack when no replay buffer is found". The installer only turns `RecRB` on; the length and size you set in OBS are kept.
+
+Start the outputs one at a time. With the stream, auto-recording, the Replay Buffer and the backtrack all starting within the same ~300 ms, OBS 32.2.2 crashed on its video thread (exception `c0000005` in `default_raw_video_callback`, `obs.dll`). Untick Settings > Advanced > Recording > "Automatically record when streaming", then start the Replay Buffer, wait a few seconds, start streaming, and start recording last.
+
+Vertical: the Aitum Vertical canvas is 1080x1920, and its "Vertical Scene" shows the same Browser source as the main scene (a reference, not a second browser), rotated 90 degrees to fill it. The Instagram output is 720x1280, 3000 kbps CBR, 2 s keyframe, audio 256 kbps (NVENC adds tune hq and two-pass quarter res). Backtrack keeps the last 90 s; the save hotkey is `OBS_KEY_PLUS` (the `}` key on a LatAm keyboard), and clips go to `-ReelDir`.
+
+1. Install the Aitum Vertical plugin first, then close OBS. From PowerShell, in the repo:
+
+   ```
+   powershell -NoProfile -ExecutionPolicy Bypass -File obs\install.ps1 [-Variant nvidia|intel] [-ReelDir <folder>]
+   ```
+
+   It refuses while OBS runs, copies `%APPDATA%\obs-studio` to `obs-studio.backup-<timestamp>` beside it, picks `nvidia` when `Win32_VideoController` lists an NVIDIA GPU and `intel` otherwise (`-Variant` overrides), installs both profiles and the collection, makes the collection active in `user.ini` (and `stream-light` the active profile unless a `stream-light` profile already is), adds the Stream Health dock (see below), and turns off Browser Source hardware acceleration in `global.ini` (see "Running it as an OBS Browser Source"). It merges the vertical settings into `%APPDATA%\obs-studio\plugin_config\vertical-canvas\config.json`, finding the Instagram output by name and keeping its server, key and every field the template does not set; `-ReelDir` (default `%USERPROFILE%\Videos\reel-raw`) is the backtrack folder, created when missing. Reinstalling merges: the script sets only the keys and objects it owns (listed in `$ManagedProfileKeys` and the merge functions of `obs\ObsMerge.psm1`, plus the variant's `basic-overrides.ini` keys) and leaves the rest of each file as OBS wrote it; `tests/test_obs_merge.mjs` runs that merge on a fixture profile with fake tokens. A profile the script creates (for example `stream-light-hq` on its first install) starts from the template and takes `[Auth]`, `[YouTube]`, `[YouTube - *]` and `service.json` from another installed `stream-light` profile that is signed in; they are copied between installed profiles only, never into the repo. That new profile gets its own `[Panels] CookieId` from OBS, so its YouTube chat dock may ask for a Google sign-in once.
+
+   What the installer never touches, in a profile that already exists:
+
+   - the YouTube sign-in: `[YouTube]` (`RefreshToken`, `Token`, `ExpireTime`, `ScopeVer`, `ChannelName` and the stream setup fields), `[Auth]` and the per-service dock layout in `[YouTube - RTMP]` / `[YouTube - RTMPS]`, all in the profile's `basic.ini` (where OBS 32 keeps them);
+   - `service.json` (service, server and stream key);
+   - `[Panels] CookieId`, which names the browser docks' cookie folder under `plugin_config\obs-browser\obs_profile_cookies`;
+   - Replay Buffer length and size (`RecRBTime`, `RecRBSize`), recording paths (`RecFilePath`, `FFFilePath`, `FilePath`), `[Hotkeys]` and every key outside the managed list;
+   - fields of `streamEncoder.json` / `recordEncoder.json` the variant does not set;
+   - in the collection, sources and scenes the repo does not have, items you added to the repo's scenes, source hotkeys, transitions and the other top-level settings;
+   - the `user.ini` dock layout (`DockState` is written only when the Stream Health dock is new) and the active profile when it is already a `stream-light` one;
+   - the Instagram server and key in the Aitum Vertical config.
+2. Paste the stream keys in the app, never in a file of this repo: Settings > Stream, service YouTube - RTMPS, paste the YouTube key in "Stream Key" (or connect the account). For Instagram, paste its server URL and key in the Aitum Vertical output settings (Docks > Aitum Vertical). The script creates `service.json` only when it does not exist, so a key already saved survives a reinstall.
+3. Set what the files cannot carry: the obs-websocket password (Tools > WebSocket Server Settings) and, in the Stream Health dock, Connection settings with that password. The recording folder is not set; choose it in Settings > Output.
+
+Launch, in two PowerShell windows (paths are this repo's and the default OBS install; adjust them on the other PC):
+
+```
+python C:\Users\jorge\Workspace\personal\stream-light-app\serve.py
+Start-Process "C:\Program Files\obs-studio\bin\64bit\obs64.exe" -ArgumentList '--enable-media-stream','--profile','stream-light','--collection','stream-light-scenes' -WorkingDirectory "C:\Program Files\obs-studio\bin\64bit"
+```
+
+`serve.py` serves its own folder whatever the current directory is, and it runs without `--chrome` because this collection hosts the page in the Browser Source.
+
+`obs/profile/stream-light/service.example.json` is the stream service with an empty `key`. OBS writes the real `service.json` beside it once a key is saved; `.gitignore` excludes `obs/profile/*/service.json`, so the key cannot be committed by accident. The same goes for the account tokens OBS puts in `basic.ini` after you sign in: commit the profile only after removing the `[YouTube]` section. `tests/test_obs_secrets.mjs` fails when any file under `obs/` holds a stream key or server field, or a YouTube section with anything but `DockState`.
 
 ### Stream health monitor dock
 
@@ -129,12 +178,15 @@ js/overlay-text.js  text overlay model: settings and their preset restore, saved
 js/overlay.js       text overlay rendering: double-outline phrase, glow and band above the screen layer
 js/panel/           control panel sections
 monitor/            OBS custom dock: stream health of the main and Aitum outputs, with its own README
-obs/                OBS profile and scene collection to import, with keys and tokens removed
+obs/                OBS profiles (common + per-GPU encoder variants), scene collection, Aitum Vertical template, install.ps1 and its merge rules ObsMerge.psm1, with keys and tokens removed
 js/*.js             rendering engines: columns, effects, glow, color sequencer, camera
 tests/test_serve.py    tests for the file server, the bridge and the Caps Lock live-mode logic
 tests/test_patterns.mjs tests for the color patterns, the key grid and JS syntax
 tests/test_color_filter.mjs tests for the Color panel math and the old-preset migration
 tests/test_text_overlay.mjs tests for the text overlay's phrases, preset restore, fade, flicker and key 9
+tests/test_defaults.mjs tests that startup, Reset to Defaults, Original and old presets share the tuned base
+tests/test_obs_secrets.mjs fails if a file under obs/ carries a stream key, server or YouTube token, or turns the Replay Buffer off
+tests/test_obs_merge.mjs runs the installer's merge on tests/fixtures/obs/ (fake tokens) and checks what it keeps and updates
 ```
 
 ## Ownership

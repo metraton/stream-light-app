@@ -1,0 +1,12 @@
+{
+    "video_encoder": "obs_nvenc_h264_tex",
+    "video_encoder_settings": {
+        "rate_control": "cbr",
+        "bitrate": 3000,
+        "keyint_sec": 2,
+        "preset": "p5",
+        "tune": "hq",
+        "multipass": "qres",
+        "profile": "high"
+    }
+}
