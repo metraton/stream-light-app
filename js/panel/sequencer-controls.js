@@ -4,7 +4,6 @@ import { ColorSequencer } from '../color-sequencer.js';
 import { GLOW_QUICK } from '../glow-map.js';
 import { MOODS, MOOD_QUICK } from '../mood-map.js';
 import { colorHex } from './color-controls.js';
-import { EFFECTS } from '../effects.js';
 
 // Every button group uses the same two-line "KEY over WORD" layout via keyLabel(),
 // and every row of the 6-key grid starts with None.
@@ -19,12 +18,9 @@ const PATTERNS = ['none', 'chase', 'carousel', 'mirror', 'fill', 'sparkle'];
 const PATTERN_KEYS = ['Q', 'W', 'E', 'R', 'T', 'Y'];
 const PATTERN_WORDS = ['None', 'Chase', 'Carousel', 'Mirror', 'Fill', 'Sparkle'];
 
-// The extra movements (EFFECTS marked `extra`) follow the keyed six; their key slot reads "extra".
-const EXTRA_MOVEMENTS = Object.keys(EFFECTS).filter(name => EFFECTS[name].extra);
-const MOVEMENTS = ['none', 'wave', 'expand', 'broken', 'shake', 'equalizer', ...EXTRA_MOVEMENTS];
-const MOVEMENT_KEYS = ['A', 'S', 'D', 'F', 'G', 'H', ...EXTRA_MOVEMENTS.map(() => 'extra')];
-const MOVEMENT_WORDS = ['None', 'Wave', 'Expand', 'Broken', 'Shake', 'Equalizer',
-    ...EXTRA_MOVEMENTS.map(name => EFFECTS[name].label)];
+const MOVEMENTS = ['none', 'wave', 'expand', 'broken', 'shake', 'equalizer', 'zoomPulse'];
+const MOVEMENT_KEYS = ['A', 'S', 'D', 'F', 'G', 'H', 'J'];
+const MOVEMENT_WORDS = ['None', 'Wave', 'Expand', 'Broken', 'Shake', 'Equalizer', 'Zoom'];
 
 /** The hex of a color slot (0-4) as CONFIG.colors holds it now. */
 function slotHex(slot) {
@@ -118,7 +114,7 @@ export function createSequencerControls(sectionEl, app) {
                 seq.toggleColor(idx);
             }
             refreshAll();
-            app.updateHUD();
+            app.refreshPanel();
         });
 
         colorBtns.push(btn);
@@ -156,7 +152,7 @@ export function createSequencerControls(sectionEl, app) {
         btn.addEventListener('click', () => {
             app.setPattern(PATTERNS[i]);
             refreshAll();
-            app.updateHUD();
+            app.refreshPanel();
         });
         patBtns.push(btn);
         patRow.appendChild(btn);
@@ -187,7 +183,7 @@ export function createSequencerControls(sectionEl, app) {
                 app.playMovement(movement);
             }
             refreshAll();
-            app.updateHUD();
+            app.refreshPanel();
         });
         movBtns.push(btn);
         movRow.appendChild(btn);
@@ -213,7 +209,7 @@ export function createSequencerControls(sectionEl, app) {
         btn.addEventListener('click', () => {
             app.setGlowMode(mode);
             refreshAll();
-            app.updateHUD();
+            app.refreshPanel();
         });
         glowBtns.push(btn);
         glowRow.appendChild(btn);
@@ -239,7 +235,7 @@ export function createSequencerControls(sectionEl, app) {
         btn.addEventListener('click', () => {
             app.applyMood(MOODS[mood], mood);
             refreshAll();
-            app.updateHUD();
+            app.refreshPanel();
         });
         moodBtns.push(btn);
         moodRow.appendChild(btn);
@@ -249,7 +245,7 @@ export function createSequencerControls(sectionEl, app) {
     noneBtn.addEventListener('click', () => {
         app.clearMood();
         refreshAll();
-        app.updateHUD();
+        app.refreshPanel();
     });
     moodRow.appendChild(noneBtn);
     sectionEl.appendChild(moodRow);
@@ -296,7 +292,7 @@ export function createSequencerControls(sectionEl, app) {
             seq.togglePlay();
         }
         refreshAll();
-        app.updateHUD();
+        app.refreshPanel();
     });
 
     transportRow.appendChild(playBtn);

@@ -54,12 +54,12 @@ Every row of the key grid has six keys and starts with None:
 |------|-----|------------|
 | `\|` `1`-`5` `6` | Colors (Shift selects only that one; `6` and `Shift+6` are the same) | Empty, Yellow, Blue, Red, Green, Purple, Todos al azar (all 5 in a new random order each press; pattern and other layers untouched) |
 | `Q W E R T Y` | Pattern (Shift plays its variant, shown as ⇄) | None, Chase, Carousel, Mirror, Fill, Sparkle |
-| `A S D F G H` | Movement | None, Wave, Expand, Broken, Shake, Equalizer |
+| `A S D F G H J` | Movement | None, Wave, Expand, Broken, Shake, Equalizer, Zoom (Golpe de zoom: every panel swells 4% on the beat and settles) |
 | `Z X C V B N` | Glow | None, Sweep, Breathe, Pulse, Strobe, Alternate |
 | `Shift+Z X C V B N` | Mood | Calm, Groove, Build, Tension, Peak, Mystic (`<` is Mood None) |
 | `Backspace` / `Space` | Cue | stage a new combo (colors, pattern, movement, glow, mood; BPM stays live) while the live one plays / commit it in press order (otherwise pause / resume) |
 | `Escape` | Base state | no colors, every layer None, 120 BPM, playing (the first color pressed moves at once); layout, filters, rotation and FPS cap stay |
-| `+` / `´`, `0`, `J`, `P` | Other | BPM up/down, next camera, HUD, panel |
+| `+` / `´`, `0`, `P` | Other | BPM up/down, next camera, panel |
 | `9` | Text | fade the text overlay in or out (250 ms); Shift+9 stays unbound |
 
 The text overlay (`9`, or the panel's Texto section) draws the current phrase as hollow Fredoka letters outlined by a thin double line, with a glow and an optional dark band across the frame. It sits above the Pantalla layer, so screen effects never distort it. The panel sets the phrase, saved phrases (seeded with FLASH LIGHT and CANDLE LIGHT, kept in localStorage apart from presets), color (Neón, Columna = first selected color, Blanco, Custom), size, band and its opacity, position (Centro / Arriba / Abajo) and beat behavior (Fijo, Pulso al golpe, Parpadeo neón). Presets save that look as `text` but never whether it shows; a preset from before carries none and loads the defaults.
@@ -79,11 +79,11 @@ Tests (the file server, the bridge and the Caps Lock logic, without installing t
 ## Structure
 
 ```
-index.html          page shell, HUD styles and the on-screen key help
+index.html          page shell and the start screen
 panel.css           control panel styles
 serve.py            file server + keyboard hook (Caps Lock live mode) + /events and /bound bridge, one process
 js/main.js          entry point: camera picker, START / DEMO
-js/app.js           StreamLightApp: wires engines, HUD, panel, shortcuts and the live bridge
+js/app.js           StreamLightApp: wires engines, panel, shortcuts and the live bridge
 js/shortcuts.js     resolveShortcut, the single key map, and the keydown listener
 js/live-bridge.js   page side of live mode: reports bound keys, runs relayed keys, sets the window title
 js/glow-map.js      glow quick keys shared by shortcuts and the panel
@@ -92,7 +92,7 @@ js/color-filter.js  Color panel model: global filter + per-color offsets, effect
 js/overlay-text.js  text overlay model: settings and their preset restore, saved phrases, fade, beat pulse, seeded flicker
 js/overlay.js       text overlay rendering: double-outline phrase, glow and band above the screen layer
 js/panel/           control panel sections
-js/*.js             rendering engines: columns, effects, glow, color sequencer, camera, HUD
+js/*.js             rendering engines: columns, effects, glow, color sequencer, camera
 tests/test_serve.py    tests for the file server, the bridge and the Caps Lock live-mode logic
 tests/test_patterns.mjs tests for the color patterns, the key grid and JS syntax
 tests/test_color_filter.mjs tests for the Color panel math and the old-preset migration

@@ -61,8 +61,8 @@ export class ControlPanel {
         this._buildSections();
 
         document.body.appendChild(this.element);
-        // No side toggle tab: the closed state shows only the HUD over the
-        // visuals. The panel opens/closes with the "P" key (see HUD hint).
+        // No side toggle tab: the closed state shows only the visuals. The
+        // panel opens/closes with the "P" key.
     }
 
     _buildSections() {
@@ -75,7 +75,7 @@ export class ControlPanel {
                     const nowPlaying = createNowPlaying(contentEl, this.app);
                     const sequencer = createSequencerControls(contentEl, this.app);
                     // Movimiento, Glow and Texto follow the app however it was
-                    // changed: every key, button and mood ends in updateHUD.
+                    // changed: every key, button and mood ends in refreshPanel.
                     const movement = () => this._movementRefresh?.();
                     const glow = () => this._glowRefresh?.();
                     const text = () => this._textRefresh?.();
@@ -248,7 +248,7 @@ export class ControlPanel {
         this.element.classList.toggle('hidden', !this.visible);
     }
 
-    /** Called from app.updateHUD() to refresh sequencer visual state */
+    /** Called from app.refreshPanel() to refresh sequencer visual state */
     refreshSequencerUI() {
         if (this._sequencerRefresh) this._sequencerRefresh();
     }

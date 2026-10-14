@@ -32,27 +32,6 @@
             height: 100%;
             object-fit: contain;
         }
-        #hud {
-            position: fixed;
-            top: 10px;
-            right: 10px;
-            color: #fff;
-            font-family: 'Consolas', 'Monaco', monospace;
-            font-size: 13px;
-            background: rgba(0,0,0,0.75);
-            padding: 10px 14px;
-            border-radius: 6px;
-            z-index: 1000;
-            pointer-events: none;
-            transition: opacity 0.3s;
-            line-height: 1.6;
-        }
-        #hud.hidden { opacity: 0; }
-        #hud .label { color: #888; }
-        #hud .value { color: #FFD700; font-weight: bold; }
-        #hud .keys { color: #555; font-size: 12px; margin-top: 6px; border-top: 1px solid #333; padding-top: 6px; }
-        #hud .keys kbd { color: #aaa; background: #222; padding: 1px 5px; border-radius: 2px; }
-
         #startup {
             position: fixed;
             top: 0; left: 0; right: 0; bottom: 0;
@@ -107,21 +86,6 @@
     </div>
 
     <div id="app"></div>
-
-    <div id="hud">
-        <div><span class="label">Color:</span> <span class="value" id="hud-color">NONE</span></div>
-        <div><span class="label">Effect:</span> <span class="value" id="hud-effect">NONE</span></div>
-        <div><span class="label">FPS:</span> <span class="value" id="hud-fps">0</span></div>
-        <div><span class="label">View:</span> <span class="value" id="hud-view">--</span></div>
-        <div class="keys">
-            <kbd>|</kbd> Empty &middot; <kbd>1-5</kbd> Colores &middot; <kbd>6</kbd> Todos al azar &middot; <kbd>9</kbd> Texto &middot; <kbd>0</kbd> Camara<br>
-            <kbd>QWERTY</kbd> Patron &middot; <kbd>ASDFGH</kbd> Movimiento<br>
-            <kbd>ZXCVBN</kbd> Glow &middot; <kbd>Shift+ZXCVBN</kbd> Moods &middot; <kbd>&lt;</kbd> Mood None<br>
-            <kbd>Space</kbd> Pausa / Play &middot; commit cue &middot; <kbd>+</kbd>/<kbd>´</kbd> BPM<br>
-            <kbd>Bksp</kbd> Cue &middot; <kbd>Esc</kbd> Estado base<br>
-            <kbd>F11</kbd> Fullscreen &middot; <kbd>J</kbd> HUD &middot; <kbd>P</kbd> Panel
-        </div>
-    </div>
 
     <script src="https://cdn.jsdelivr.net/npm/pixi.js@8/dist/pixi.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/pixi-filters@6.1.5/dist/pixi-filters.js"></script>
