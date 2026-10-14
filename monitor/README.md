@@ -28,7 +28,7 @@ Restart output -> CallVendorRequest aitum-vertical-canvas stop_streaming, then s
 
 ## How it is used
 
-1. In OBS: Docks > Custom Browser Docks, name `Stream Health`, URL `http://localhost:8080/monitor/?v=2026-10-13.4`, Apply. The page loads its modules with a fresh timestamp every time, so only `index.html` itself can be served from OBS's cache: when `index.html` changes, change the `v` value in the dock URL to the `BUILD` constant at the top of its script, which the page also shows at the bottom as `build ...`.
+1. `obs/install.ps1` adds the dock; by hand it is Docks > Custom Browser Docks, name `Stream Health`, URL `http://localhost:8080/monitor/?v=2026-10-13.4`, Apply. The installer's URL is `$StreamHealthUrl` in `obs/install.ps1`, so a new `BUILD` changes both. The page loads its modules with a fresh timestamp every time, so only `index.html` itself can be served from OBS's cache: when `index.html` changes, change the `v` value in the dock URL to the `BUILD` constant at the top of its script, which the page also shows at the bottom as `build ...`.
 2. In the dock, open Connection settings, enter the obs-websocket password and press Connect. Host, port and password are kept in the browser's local storage (the password in clear text).
 3. Click once in the dock, or press Connect, so the browser allows sound; Test sound plays both tones.
 
