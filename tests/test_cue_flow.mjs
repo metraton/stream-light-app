@@ -20,12 +20,12 @@ function press(app, key, code, shiftKey = false) {
 const BACKSPACE = ['Backspace', 'Backspace'];
 const SPACE = [' ', 'Space'];
 const ESCAPE = ['Escape', 'Escape'];
-const SHIFT_C = ['C', 'KeyC', true];   // Build
-const SHIFT_Z = ['Z', 'KeyZ', true];   // Calm
-const SHIFT_X = ['X', 'KeyX', true];   // Groove
-const LESS_THAN = ['<', 'IntlBackslash'];   // Mood None
+// Moods: Shift+Z is Calm, Shift+X Groove, Shift+C Build; `<` is Mood None.
+const SHIFT_C = ['C', 'KeyC', true];
+const SHIFT_Z = ['Z', 'KeyZ', true];
+const SHIFT_X = ['X', 'KeyX', true];
+const LESS_THAN = ['<', 'IntlBackslash'];
 
-/** Every layer a key can change, as plain data. */
 function live(app) {
     const seq = app.sequencer;
     return {
