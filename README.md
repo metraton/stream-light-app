@@ -4,7 +4,7 @@ A webcam light show for streaming: colored columns, movements and glows driven f
 
 ## What it is and why it exists
 
-Stream Light is a browser page (PixiJS) that slices the webcam image into colored columns and animates them. Every control is a keyboard shortcut, so the streamer plays it like an instrument. The page runs in a dedicated Chrome app window that OBS captures as a source.
+Stream Light is a browser page (PixiJS) that slices the webcam image into colored columns and animates them. Every control is a keyboard shortcut, so the streamer plays it like an instrument. The page runs either as an OBS Browser Source or in a dedicated Chrome app window that OBS captures as a source.
 
 Because OBS captures that window, it is usually not the focused one while streaming. Live mode solves that: `serve.py` installs a Windows keyboard hook, and live mode is on exactly while Caps Lock is on, so the keyboard's Caps light shows it on any keyboard. While live, every key the app binds is swallowed for every other program (it does not type into chat or OBS) and delivered to the page instead. Keys the app does not bind pass through normally, Caps Lock itself is never intercepted, and with Caps Lock off nothing is intercepted at all.
 
@@ -31,7 +31,8 @@ page connects to /events
 
 - Windows 10 (1607 or later) or 11, Python 3.8+ on `PATH`. No packages to install: the hook uses `ctypes` from the standard library.
 - No admin rights. One Windows limit applies: a low-level hook does not receive keys typed into a window running as administrator. If OBS runs elevated, keys typed while OBS is focused are not intercepted; run OBS unelevated or keep another window focused.
-- Google Chrome, for the `--chrome` option.
+- OBS Studio (measured on 32.2.2). The Browser Source route needs OBS launched with `--enable-media-stream`, see below.
+- Google Chrome, for the `--chrome` option (the Chrome window route).
 - Node.js 22 or later, only to run the pattern tests.
 
 ## How it is used
@@ -40,7 +41,7 @@ page connects to /events
 python serve.py --chrome
 ```
 
-This serves the app at `http://localhost:8080` (bound to `127.0.0.1` only), installs the hook, and opens the Chrome app window with the profile and background-throttling flags OBS capture needs. Drop `--chrome` to open the window yourself; `--port` changes the port; `--debug` logs every bridge event. Ctrl+C stops it. Expected first line (live mode starts already on if Caps Lock is on):
+This serves the app at `http://localhost:8080` (bound to `127.0.0.1` only), installs the hook, and opens the Chrome app window with the profile and background-throttling flags OBS capture needs. Drop `--chrome` to open the window yourself or to host the page in OBS (see "Running it as an OBS Browser Source"); `--port` changes the port; `--debug` logs every bridge event. Ctrl+C stops it. Expected first line (live mode starts already on if Caps Lock is on):
 
 ```
 Serving C:\...\stream-light-app at http://localhost:8080 (bound to 127.0.0.1). Caps Lock toggles live mode (now OFF); Ctrl+C stops.
@@ -76,6 +77,30 @@ The panel's Color section adjusts the image like a color-grading panel: the "Tod
 
 Tests (the file server, the bridge and the Caps Lock logic, without installing the hook): `python -m unittest discover -s tests -v`. Pattern, key-grid and syntax tests, without a browser: `node --test tests/test_patterns.mjs`. Color panel math: `node --test tests/test_color_filter.mjs`.
 
+### Running it as an OBS Browser Source
+
+OBS can host the page itself instead of capturing a Chrome window:
+
+1. Start the server without `--chrome`: `python serve.py` (Windows).
+2. In OBS add a Browser Source with URL `http://localhost:8080/`, width 1920 and height 1080, then press Ctrl+R on it (Reset Transform) so it fills the canvas.
+3. Launch OBS with `--enable-media-stream`; without it the camera request in the source fails with "Permission denied". From PowerShell (the paths are the default install, adjust them to yours):
+
+   ```
+   Start-Process "C:\Program Files\obs-studio\bin\64bit\obs64.exe" -ArgumentList "--enable-media-stream" -WorkingDirectory "C:\Program Files\obs-studio\bin\64bit"
+   ```
+
+   For a shortcut, set Target to `"C:\Program Files\obs-studio\bin\64bit\obs64.exe" --enable-media-stream` and Start in to `C:\Program Files\obs-studio\bin\64bit`.
+4. In the source's properties leave "Shutdown source when not visible" unchecked, so the page never stops.
+5. After a `git pull`, press "Refresh cache of current page" in the source's properties to load the new files.
+
+A camera can be held by one consumer at a time, so the Chrome window (`--chrome`) and the Browser Source cannot run together: use one or the other.
+
+Hardware acceleration: on a machine with only an Intel integrated GPU (measured on an i7-1260P laptop, OBS 32.2.2), "Enable Browser Source Hardware Acceleration" made the stage render shifted by half its width. Turning it off (Settings > Advanced > Sources, then restart OBS) fixed it. On a machine with a dedicated GPU, try it on first and turn it off only if the columns look shifted.
+
+### Stream health monitor dock
+
+`monitor/` is a separate page that runs as an OBS custom dock: Docks > Custom Browser Docks, URL `http://localhost:8080/monitor/?v=<BUILD>`, with the obs-websocket server enabled on port 4455 and a password. `monitor/README.md` gives the current `<BUILD>` value, the steps and what the dock shows.
+
 ## Structure
 
 ```
@@ -92,6 +117,7 @@ js/color-filter.js  Color panel model: global filter + per-color offsets, effect
 js/overlay-text.js  text overlay model: settings and their preset restore, saved phrases, fade, beat pulse, seeded flicker
 js/overlay.js       text overlay rendering: double-outline phrase, glow and band above the screen layer
 js/panel/           control panel sections
+monitor/            OBS custom dock: stream health of the main and Aitum outputs, with its own README
 js/*.js             rendering engines: columns, effects, glow, color sequencer, camera
 tests/test_serve.py    tests for the file server, the bridge and the Caps Lock live-mode logic
 tests/test_patterns.mjs tests for the color patterns, the key grid and JS syntax
