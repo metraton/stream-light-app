@@ -97,6 +97,17 @@ A camera can be held by one consumer at a time, so the Chrome window (`--chrome`
 
 Hardware acceleration: on a machine with only an Intel integrated GPU (measured on an i7-1260P laptop, OBS 32.2.2), "Enable Browser Source Hardware Acceleration" made the stage render shifted by half its width. Turning it off (Settings > Advanced > Sources, then restart OBS) fixed it. On a machine with a dedicated GPU, try it on first and turn it off only if the columns look shifted.
 
+### Import the OBS profile and scenes
+
+`obs/` holds the OBS setup used for streaming, so a second machine can load it: `obs/profile/stream-light/` is the profile `stream-light` (output, video and audio settings, dock layout) and `obs/scenes/stream-light-scenes.json` is the scene collection `stream-light-scenes` (the Browser Source on `http://localhost:8080/` at 1920x1080, plus the Aitum Vertical canvas).
+
+1. In OBS, Profile > Import and select the folder `obs/profile/stream-light`. Then Profile > stream-light.
+2. Scene Collection > Import and select `obs/scenes/stream-light-scenes.json`. Then Scene Collection > stream-light-scenes.
+3. Paste the stream keys in the app, never in a file of this repo: Settings > Stream, service YouTube - RTMPS, paste the YouTube key in "Stream Key" (or connect the account). For Instagram, paste its server URL and key in the Aitum Vertical output settings (Docks > Aitum Vertical).
+4. Recreate what the files cannot carry: the Stream Health custom dock (see below) and the obs-websocket password. The recording folder is not set; choose it in Settings > Output.
+
+`obs/profile/stream-light/service.example.json` is the stream service with an empty `key`. OBS writes the real `service.json` beside it once a key is saved; `.gitignore` excludes `obs/profile/*/service.json`, so the key cannot be committed by accident. The same goes for the account tokens OBS puts in `basic.ini` after you sign in: commit the profile only after removing the `[YouTube]` section.
+
 ### Stream health monitor dock
 
 `monitor/` is a separate page that runs as an OBS custom dock: Docks > Custom Browser Docks, URL `http://localhost:8080/monitor/?v=<BUILD>`, with the obs-websocket server enabled on port 4455 and a password. `monitor/README.md` gives the current `<BUILD>` value, the steps and what the dock shows.
@@ -118,6 +129,7 @@ js/overlay-text.js  text overlay model: settings and their preset restore, saved
 js/overlay.js       text overlay rendering: double-outline phrase, glow and band above the screen layer
 js/panel/           control panel sections
 monitor/            OBS custom dock: stream health of the main and Aitum outputs, with its own README
+obs/                OBS profile and scene collection to import, with keys and tokens removed
 js/*.js             rendering engines: columns, effects, glow, color sequencer, camera
 tests/test_serve.py    tests for the file server, the bridge and the Caps Lock live-mode logic
 tests/test_patterns.mjs tests for the color patterns, the key grid and JS syntax
