@@ -54,6 +54,18 @@ class ServeTest(unittest.TestCase):
         self.assertEqual(response.status, 200)
         self.assertIn(b'<title>Stream Light</title>', body)
 
+    def test_static_files_must_revalidate_on_every_load(self):
+        for path in ('/index.html', '/js/app.js', '/'):
+            with urllib.request.urlopen(f'{self.base}{path}', timeout=5) as response:
+                cache_control = response.headers.get_all('Cache-Control')
+            print(f'\n  GET {path} -> {response.status} Cache-Control: {cache_control}', end='')
+            self.assertEqual(cache_control, ['no-cache'])
+
+    def test_event_stream_sends_cache_control_once(self):
+        with urllib.request.urlopen(f'{self.base}/events', timeout=5) as stream:
+            cache_control = stream.headers.get_all('Cache-Control')
+        self.assertEqual(cache_control, ['no-cache'])
+
     def test_bridge_delivers_relayed_key_to_client(self):
         with urllib.request.urlopen(f'{self.base}/events', timeout=5) as stream:
             received = [read_event(stream), read_event(stream)]

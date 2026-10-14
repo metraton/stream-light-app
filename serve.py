@@ -326,6 +326,13 @@ class Handler(SimpleHTTPRequestHandler):
         self.bridge = bridge
         super().__init__(*args, **kwargs)
 
+    def end_headers(self):
+        if self.path != '/events':
+            # OBS's Browser Source otherwise reuses a cached module after a git pull and the page
+            # fails on imports mixing old and new files; no-cache makes every load revalidate.
+            self.send_header('Cache-Control', 'no-cache')
+        super().end_headers()
+
     def do_GET(self):
         if self.path == '/events':
             self._stream_events()
