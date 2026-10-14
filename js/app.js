@@ -51,7 +51,6 @@ export class StreamLightApp {
         // Panel tweaks per effect ({ rate, easing, intensity }) over the frozen
         // definitions; the color layer keeps its own in sequencer.patternRates.
         this.tweaks = { movement: {}, glow: {} };
-        // Scene changes pressed while a cue is armed, run in press order on commit.
         this.stagedChanges = [];
     }
 
