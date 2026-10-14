@@ -3,7 +3,7 @@ Runs the ObsMerge.psm1 merges on the fixtures beside this file and the repo temp
 one JSON object for tests\test_obs_merge.mjs. Writes only under a scratch directory it removes.
 #>
 $ErrorActionPreference = 'Stop'
-$repo = (Resolve-Path (Join-Path $PSScriptRoot '..\..\..')).Path
+$repo = (Resolve-Path (Join-Path $PSScriptRoot '..\..\..')).ProviderPath
 Import-Module (Join-Path $repo 'obs\ObsMerge.psm1') -Force
 
 function Read-Files {
