@@ -249,11 +249,14 @@ export class StreamLightApp {
         return structuredClone({ ...this.tweaks, color: this.sequencer.patternRates });
     }
 
-    /** Replace the tweaks with stored ones, keeping only values the panel could have set. */
+    /** Replace the tweaks with stored ones, keeping only values the panel could have set
+     *  on an effect that still exists (a removed one such as freeze is dropped). */
     importTweaks(saved) {
         this.resetTweaks();
+        const defined = { movement: EFFECTS, glow: GLOW_SEQUENCES };
         for (const layer of ['movement', 'glow']) {
             for (const [name, tweak] of Object.entries(saved?.[layer] ?? {})) {
+                if (!Object.hasOwn(defined[layer], name)) continue;
                 if (!tweak || typeof tweak !== 'object') continue;
                 if (RATES.includes(tweak.rate)) this._setTweak(layer, name, 'rate', tweak.rate);
                 if (isEasing(tweak.easing)) this._setTweak(layer, name, 'easing', tweak.easing);
