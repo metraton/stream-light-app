@@ -80,48 +80,15 @@ export const EFFECTS = {
     },
     zoomPulse: {
         label: 'Golpe de zoom',
-        // `extra` movements have a panel button and no key. Each step opens at
-        // the full punch, a 4% scale about the column's center, and the step's
-        // easing carries it to rest. With one phase only the first curve of
-        // Destello is ever used: expDecay drops ~95% in the first third.
-        extra: true,
+        // Each step opens at the full punch, a 4% scale about the column's
+        // center, and the step's easing carries it to rest. With one phase only
+        // the first curve of Destello is ever used: expDecay drops ~95% in the
+        // first third.
         phases: { PUNCH: 0.04 },
         sequence: ['PUNCH'],
         rate: 1,
         axis: 'scale',
         easing: ['expDecay', 'step'],
-    },
-    freeze: {
-        label: 'Congelado',
-        // A frozen column holds the camera frame from the start of its step for
-        // the first HOLD of the step, then snaps back to live; intensity scales
-        // HOLD, so at 2 the freeze fills the step. A step lasts 1/rate beats.
-        // The option picks who freezes: one column per step in turn, or all.
-        // The easing has nothing to shape: a freeze is a cut.
-        extra: true,
-        phases: { HOLD: 0.5 },
-        sequence: ['HOLD'],
-        rate: 1,
-        axis: 'freeze',
-        easing: 'step',
-        options: [{ value: 'turns', label: 'Por turnos' }, { value: 'all', label: 'Todas' }],
-    },
-    timeDelay: {
-        label: 'Desfase',
-        // Each column shows the camera rank x step milliseconds ago, so the
-        // row reads as a staircase in time. The step is in ms, not frames or
-        // beat fractions, so the staircase looks the same at any frame rate
-        // and BPM. It breathes between DEEP and SHALLOW; maxStep is DEEP at the
-        // top intensity (2, INTENSITY_MAX in panel/effect-controls.js), caps the
-        // step and sizes the rings, so changing either means changing it.
-        extra: true,
-        phases: { DEEP: 60, SHALLOW: 30 },
-        sequence: ['DEEP', 'SHALLOW'],
-        maxStep: 120,
-        rate: 0.5,
-        axis: 'delay',
-        easing: 'easeInOutSine',
-        options: [{ value: 'ltr', label: 'Izq → der' }, { value: 'center', label: 'Centro → afuera' }],
     },
 };
 

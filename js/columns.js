@@ -4,7 +4,6 @@ import { effectiveFilter, isNeutral } from './color-filter.js';
 import { resolveEffects, chainKey } from './effect-stack.js';
 import { effectById, runsOnBeat } from './effects-registry.js';
 import { ScreenLayer } from './screen-layer.js';
-import { FREEZE_DIM, FrameHistory, ringLengths, ringWriteSlot, scaleTint } from './effect-engine.js';
 import { computeStageLayout } from './stage-layout.js';
 
 // ============================================================================
@@ -55,152 +54,12 @@ function loadColorMatrix(cm, settings) {
     }
 }
 
-// --- Frame-history movements: camera frames held back per column ---
-// Each draws a column's live crop into render textures sized to the column and
-// shows one of them in place of the live video, which is hidden meanwhile.
-// Nothing is allocated until its movement plays, and sync() without its field
-// frees every texture, so a movement that is not selected costs nothing.
-
-/** The render textures and display sprites a frame-history movement holds. */
-class HeldFrames {
-    constructor(renderer) {
-        this.renderer = renderer;
-        this.capture = null;
-        this.displays = [];
-        this.textures = [];
-    }
-
-    /** GPU memory held, at 4 bytes per texel (RGBA8). */
-    get bytes() {
-        return this.textures.flat().reduce((sum, texture) => sum + texture.width * texture.height * 4, 0);
-    }
-
-    /** Allocate lengths[i] column-sized render textures and a display sprite for column i. */
-    _allocate(columns, lengths) {
-        this.capture = new PIXI.Sprite();
-        this.textures = columns.map((col, i) => Array.from({ length: lengths[i] },
-            () => PIXI.RenderTexture.create({ width: Math.ceil(col.width), height: Math.ceil(col.height) })));
-        this.displays = columns.map(col => {
-            const display = new PIXI.Sprite();
-            display.visible = false;
-            col.container.addChild(display);
-            return display;
-        });
-        console.info(`${this.constructor.name}: ${this.textures.flat().length} render textures, ${(this.bytes / 2 ** 20).toFixed(1)} MiB`);
-    }
-
-    /** Draw `col`'s live crop, placed as its video sprite places it, into `target`. */
-    _capture(col, target) {
-        const { sprite } = col;
-        const capture = this.capture;
-        capture.texture = sprite.texture;
-        capture.anchor.copyFrom(sprite.anchor);
-        capture.rotation = sprite.rotation;
-        capture.scale.copyFrom(sprite.scale);
-        capture.position.copyFrom(sprite.position);
-        this.renderer.render({ container: capture, target, clear: true });
-    }
-
-    /** Show `texture` in place of `col`'s live video, or the live video when texture is null.
-     *  `brightness` scales the column's color tint on the held frame only, so it ends with the hold. */
-    _show(col, texture, brightness = 1) {
-        const display = this.displays[col.index];
-        if (texture) {
-            display.texture = texture;
-            // The held frame takes the column's color, color adjust and effects, as the live video does.
-            display.tint = scaleTint(col.sprite.tint, brightness);
-            display.filters = col.sprite.filters ?? null;
-        } else {
-            display.tint = 0xFFFFFF;
-        }
-        display.visible = texture !== null;
-        col.sprite.visible = texture === null;
-    }
-
-    /** Free every texture and sprite and show the live video again; does nothing when nothing is held. */
-    release(columns) {
-        if (this.displays.length === 0) return;
-        for (const col of columns) col.sprite.visible = true;
-        for (const display of this.displays) display.destroy();
-        for (const texture of this.textures.flat()) texture.destroy(true);
-        this.capture.destroy();
-        this.capture = null;
-        this.displays = [];
-        this.textures = [];
-    }
-}
-
-/** Congelado: a frozen column shows the frame captured as its frozen step began, dimmed to FREEZE_DIM. */
-export class FrozenFrames extends HeldFrames {
-    /** Follow offsets.frozen (EffectEngine.compute): one texture per column, allocated on the first frame it plays. */
-    sync(columns, { frozen }) {
-        if (!frozen) return this.release(columns);
-        if (this.displays.length === 0) {
-            this._allocate(columns, columns.map(() => 1));
-            this.heldSteps = columns.map(() => null);
-        }
-        for (const col of columns) {
-            const step = frozen[col.index];
-            const [texture] = this.textures[col.index];
-            if (step !== null && step !== this.heldSteps[col.index]) this._capture(col, texture);
-            this.heldSteps[col.index] = step;
-            this._show(col, step === null ? null : texture, FREEZE_DIM);
-        }
-    }
-}
-
-/** Desfase: each column shows the kept frame closest to offsets.delay[i] ms old, kept every CAPTURE_MS or the frame time. */
-class DelayedFrames extends HeldFrames {
-    constructor(renderer) {
-        super(renderer);
-        this.history = new FrameHistory();
-        this.key = null;
-    }
-
-    /** Follow offsets.delay and offsets.delayCap (EffectEngine.compute) at `now` ms; a new ring size, from the measured frame rate, reallocates the rings. */
-    sync(columns, { delay, delayCap }, now = performance.now()) {
-        if (!delay) return this.release(columns);
-        this.history.observe(now);
-        const lengths = ringLengths(delayCap, this.history.interval);
-        const key = lengths.join();
-        if (key !== this.key) {
-            super.release(columns);
-            this._allocate(columns, lengths);
-            this.key = key;
-            this.history.clear();
-        }
-        const kept = this.history.capture(now);
-        for (const col of columns) {
-            const ring = this.textures[col.index];
-            if (ring.length === 0) {
-                this._show(col, null);
-                continue;
-            }
-            if (kept !== null) this._capture(col, ring[ringWriteSlot(kept, ring.length)]);
-            const ms = delay[col.index];
-            const shown = this.history.frameFor(ring.length, ms, now);
-            this._show(col, ms === 0 ? null : ring[ringWriteSlot(shown, ring.length)]);
-        }
-    }
-
-    release(columns) {
-        super.release(columns);
-        if (this.key === null) return;
-        this.key = null;
-        this.history = new FrameHistory();
-    }
-}
-
-/** The frame-history movements; each reads its own field of EffectEngine.compute()'s result. */
-const FRAME_MOVEMENTS = [FrozenFrames, DelayedFrames];
-
 export class ColumnManager {
     constructor(pixiApp) {
         this.pixiApp = pixiApp;
         // Every column and glow is drawn into this layer, which runs the Pantalla
         // effects; it outlives rebuild(), so the effects survive a layout change.
         this.screenLayer = new ScreenLayer(pixiApp, CONFIG.screenEffects);
-        this.frameMovements = FRAME_MOVEMENTS.map(Frames => new Frames(pixiApp.renderer));
         this.videoElement = null;
         this.videoTexture = null;
         this.columns = [];
@@ -322,8 +181,6 @@ export class ColumnManager {
 
     /** Recreate every column for the current layout, releasing the old columns' GPU resources but not the shared video texture. */
     rebuild() {
-        // Held frames are sized to the old columns; a playing movement reallocates them on its next frame.
-        this._releaseHeldFrames();
         for (const col of this.columns) {
             this.screenLayer.container.removeChild(col.container, col.glowContainer);
             // destroy() keeps sprite textures unless asked ({ texture: true }), so the video survives.
@@ -516,8 +373,6 @@ export class ColumnManager {
             this._place(col.container, col, ox, oy, sx, sy);
             if (col.glowContainer) this._place(col.glowContainer, col, ox, oy, sx, sy);
         }
-        const now = performance.now();
-        for (const frames of this.frameMovements) frames.sync(this.columns, offsets, now);
     }
 
     /** Put `target` (a column or its glow) at offset (ox, oy), scaled by (1 + sx, 1 + sy) about the column's center. */
@@ -537,10 +392,5 @@ export class ColumnManager {
             // The glow resets with its column, or it stays at its last moved spot.
             if (col.glowContainer) this._place(col.glowContainer, col, 0, 0, 0, 0);
         }
-        this._releaseHeldFrames();
-    }
-
-    _releaseHeldFrames() {
-        for (const frames of this.frameMovements) frames.release(this.columns);
     }
 }

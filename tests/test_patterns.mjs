@@ -39,7 +39,7 @@ test('playback is on at startup, so the first color advances frames with no play
 
 test('Escape returns to playing with no colors', () => {
     const seq = new ColorSequencer();
-    const app = { sequencer: seq, updateHUD() {}, resetToBase: () => seq.resetToBase() };
+    const app = { sequencer: seq, refreshPanel() {}, resetToBase: () => seq.resetToBase() };
     resolveShortcut(SPACE)(app);
     seq.toggleColor(0);
     resolveShortcut(ESCAPE)(app);
@@ -49,7 +49,7 @@ test('Escape returns to playing with no colors', () => {
 
 test('a Space pause holds while colors are added; Space and a cue commit play again', () => {
     const seq = new ColorSequencer();
-    const app = { sequencer: seq, updateHUD() {}, commitCue: () => seq.commitStaged() };
+    const app = { sequencer: seq, refreshPanel() {}, commitCue: () => seq.commitStaged() };
     resolveShortcut(SPACE)(app);
     assert.equal(seq.isPlaying, false);
     seq.setPattern('chase');
@@ -169,7 +169,7 @@ test('base state and every mood name a real button, so their highlights match', 
 test('Q W E R T Y resolve to the patterns in panel order: T is Fill, Y is Sparkle', () => {
     const patternFor = (key) => {
         let pattern = null;
-        const app = { setPattern: (p) => { pattern = p; }, updateHUD() {} };
+        const app = { setPattern: (p) => { pattern = p; }, refreshPanel() {} };
         resolveShortcut({ key, code: `Key${key.toUpperCase()}`, shiftKey: false, ctrlKey: false, altKey: false })(app);
         return pattern;
     };
@@ -314,16 +314,17 @@ test('rate and BPM changes keep every movement and glow position continuous', ()
 
 // Peak displacement each movement may reach at intensity 1, in 1080p px or in
 // scaleY, agreed with the user so the movements read as one family: Wave and
-// Expand set the 15 px reference. The extra movements are checked in
-// tests/test_movements_extra.mjs.
+// Expand set the 15 px reference. Golpe de zoom moves nothing in x, y or
+// scaleY; its own scale is checked in tests/test_movements_extra.mjs.
 const MOVEMENT_PEAK_BOUNDS = {
     wave:      { px: [14, 15] },
     expand:    { px: [14, 15] },
     broken:    { px: [11, 12] },
     shake:     { px: [1.5, 2] },
     equalizer: { scale: [0.035, 0.04] },
+    zoomPulse: {},
 };
-const KEYED_MOVEMENTS = Object.entries(EFFECTS).filter(([, def]) => !def.extra);
+const KEYED_MOVEMENTS = Object.entries(EFFECTS);
 
 test('every keyed movement peaks within its agreed bounds', () => {
     assert.deepEqual(Object.keys(MOVEMENT_PEAK_BOUNDS).sort(), KEYED_MOVEMENTS.map(([name]) => name).sort());

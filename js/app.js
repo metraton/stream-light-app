@@ -11,7 +11,6 @@ import { RATES } from './tempo.js';
 import { ColorSequencer, PATTERN_RATES } from './color-sequencer.js';
 import { ColumnManager } from './columns.js';
 import { Overlay, loadOverlayFont } from './overlay.js';
-import { HUD } from './hud.js';
 import { setupShortcuts } from './shortcuts.js';
 import { connectLiveBridge } from './live-bridge.js';
 import { setupWebcam, createTestPattern, defaultRotationSteps } from './camera.js';
@@ -43,7 +42,6 @@ export class StreamLightApp {
         this.glowEngine = new GlowEngine();
         this.sequencer = new ColorSequencer();
         this.overlay = null;
-        this.hud = null;
         this.panel = null;
         this.maxFPS = DEFAULT_MAX_FPS;
         // Active layer names, the single source of truth for the panel's highlights.
@@ -86,9 +84,6 @@ export class StreamLightApp {
             if (faces.length > 0) this.overlay.refresh();
         });
 
-        this.hud = new HUD();
-        this.updateHUD();
-
         this.panel = new ControlPanel(this);
         this.panel.create();
 
@@ -104,7 +99,7 @@ export class StreamLightApp {
         setupShortcuts(this);
         connectLiveBridge(this);
 
-        this.pixiApp.ticker.add((ticker) => this.update(ticker));
+        this.pixiApp.ticker.add(() => this.update());
     }
 
     async createPixiApp() {
@@ -149,7 +144,7 @@ export class StreamLightApp {
             }
             this.columnManager.updateGlowColors();
             this.columnManager.applyFilters();
-            this.updateHUD();
+            this.refreshPanel();
             return;
         }
 
@@ -173,7 +168,7 @@ export class StreamLightApp {
         }
         this.columnManager.updateGlowColors();
         this.columnManager.applyFilters(); // re-apply: neutral uses different filter set
-        this.updateHUD();
+        this.refreshPanel();
     }
 
     // --- Tempo and per-effect tweaks ---
@@ -193,7 +188,6 @@ export class StreamLightApp {
             rate: tweak.rate ?? def.rate,
             easing: tweak.easing ?? def.easing,
             intensity: tweak.intensity ?? 1,
-            option: tweak.option,
         };
     }
 
@@ -212,7 +206,7 @@ export class StreamLightApp {
             engine.setRate(rate, this._beatNow());
             this._setTweak(layer, engine.active.name, 'rate', rate);
         }
-        this.updateHUD();
+        this.refreshPanel();
     }
 
     /** Set the easing curve of the movement or glow playing now. */
@@ -221,7 +215,7 @@ export class StreamLightApp {
         if (!engine.active) return;
         engine.setEasing(easing);
         this._setTweak(layer, engine.active.name, 'easing', easing);
-        this.updateHUD();
+        this.refreshPanel();
     }
 
     /** Scale what the movement or glow layer plays now (1 = as defined). */
@@ -232,24 +226,14 @@ export class StreamLightApp {
         this._setTweak(layer, engine.active.name, 'intensity', intensity);
     }
 
-    /** Pick one of the playing movement's def.options; it keeps that option the next time it plays. */
-    setMovementOption(option) {
-        const { active } = this.effectEngine;
-        if (!active?.def.options?.some(o => o.value === option)) return;
-        this.effectEngine.setOption(option);
-        this._setTweak('movement', active.name, 'option', option);
-        this.updateHUD();
-    }
-
-    /** Per layer, the label of what actually plays and its rate, easing,
-     *  intensity and option; null where the layer has nothing that moves. */
+    /** Per layer, the label of what actually plays and its rate, easing and
+     *  intensity; null where the layer has nothing that moves. */
     nowPlaying() {
         const fromEngine = (engine, label) => ({
             label,
             rate: engine.active?.phase.rate ?? null,
             easing: engine.active?.easing ?? null,
             intensity: engine.active?.intensity ?? null,
-            option: engine.active?.option ?? null,
         });
         const { pattern, variant } = this.sequencer;
         const patternLabel = pattern[0].toUpperCase() + pattern.slice(1) + (variant ? ' ⇄' : '');
@@ -276,9 +260,6 @@ export class StreamLightApp {
                 if (isEasing(tweak.easing)) this._setTweak(layer, name, 'easing', tweak.easing);
                 if (Number.isFinite(tweak.intensity) && tweak.intensity >= INTENSITY_MIN && tweak.intensity <= INTENSITY_MAX) {
                     this._setTweak(layer, name, 'intensity', tweak.intensity);
-                }
-                if (layer === 'movement' && EFFECTS[name]?.options?.some(o => o.value === tweak.option)) {
-                    this._setTweak(layer, name, 'option', tweak.option);
                 }
             }
         }
@@ -335,7 +316,7 @@ export class StreamLightApp {
         this.effectEngine.play(effectName, def, settings, this._beatNow());
         this.currentMovement = effectName;
         this.currentMood = null;           // manual change drops the mood highlight
-        this.updateHUD();
+        this.refreshPanel();
     }
 
     _stopMovement() {
@@ -343,7 +324,7 @@ export class StreamLightApp {
         this.columnManager.resetOffsets();
         this.currentMovement = 'none';
         this.currentMood = null;
-        this.updateHUD();
+        this.refreshPanel();
     }
 
     _setGlowMode(requestedMode, rate, easing) {
@@ -408,7 +389,7 @@ export class StreamLightApp {
 
             // Set after the layer calls, which clear currentMood, so the mood button highlights.
             this.currentMood = moodKey;
-            this.updateHUD();
+            this.refreshPanel();
         });
     }
 
@@ -417,7 +398,7 @@ export class StreamLightApp {
     clearMood() {
         this._dispatch(() => {
             this.currentMood = null;
-            this.updateHUD();
+            this.refreshPanel();
         });
     }
 
@@ -429,7 +410,7 @@ export class StreamLightApp {
     cue() {
         this.sequencer.startStaging(BASE_STATE.pattern, true);
         this.stagedChanges = [];
-        this.updateHUD();
+        this.refreshPanel();
     }
 
     /** Commit a cue (Space / panel Play while staging): pending -> live, play
@@ -441,7 +422,7 @@ export class StreamLightApp {
         const changes = this.stagedChanges;
         this.stagedChanges = [];
         for (const change of changes) change();
-        this.updateHUD();
+        this.refreshPanel();
     }
 
     /** Return every performance layer to BASE_STATE, BPM and playing with no
@@ -451,7 +432,7 @@ export class StreamLightApp {
         this.sequencer.resetToBase();
         this.stagedChanges = [];
         this._resetLayersToBase();
-        this.updateHUD();
+        this.refreshPanel();
     }
 
     /** Movement, glow and mood to BASE_STATE; the sequencer resets itself. */
@@ -482,18 +463,11 @@ export class StreamLightApp {
         }
     }
 
-    toggleHUD() {
-        if (this.hud) {
-            this.hud.toggle();
-            this.hud.showView(this._viewInfo());
-        }
-    }
-
-    /** Fade the text overlay in or out (key 9 / panel); updateHUD refreshes the panel's Texto button. */
+    /** Fade the text overlay in or out (key 9 / panel); refreshPanel refreshes the panel's Texto button. */
     toggleOverlay() {
         if (!this.overlay) return;
         this.overlay.toggle();
-        this.updateHUD();
+        this.refreshPanel();
     }
 
     /** Cycle orientation 0°→90°→180°→270°→0°. Returns the new step (0-3). */
@@ -512,15 +486,6 @@ export class StreamLightApp {
     /** deviceId of the live webcam feed; undefined in demo mode. */
     get activeCameraId() {
         return this._activeCameraTrack()?.getSettings().deviceId;
-    }
-
-    /** Window, canvas and WebGL facts the HUD shows, to tell apart browsers that render the same page differently. */
-    _viewInfo() {
-        const rect = this.pixiApp.canvas.getBoundingClientRect();
-        const gl = this.pixiApp.renderer.gl;
-        const debug = gl?.getExtension('WEBGL_debug_renderer_info');
-        const renderer = debug ? gl.getParameter(debug.UNMASKED_RENDERER_WEBGL) : 'gl n/a';
-        return `${innerWidth}x${innerHeight} dpr ${devicePixelRatio} canvas ${Math.round(rect.width)}x${Math.round(rect.height)}@${Math.round(rect.x)},${Math.round(rect.y)} scroll ${scrollX},${scrollY} ${renderer}`;
     }
 
     _activeCameraTrack() {
@@ -556,7 +521,7 @@ export class StreamLightApp {
             this.reapplyColors();
             if (this.overlay) this.overlay.moveToTop();
             oldTexture.destroy(true);
-            this.updateHUD();
+            this.refreshPanel();
         } catch (e) {
             console.error('No camera could be reopened:', e);
         } finally {
@@ -564,31 +529,15 @@ export class StreamLightApp {
         }
     }
 
-    updateHUD() {
-        if (!this.hud) return;
-        const seq = this.sequencer.state;
-        const colorNames = seq.colors.map(c => ColorSequencer.colorName(c)).join('+') || 'none';
-        const mode = seq.pattern ? `${seq.pattern}` : 'direct';
-        const effectName = this.effectEngine.activeName;
-        const glowName = this.currentGlowMode;
-
-        this.hud.update(
-            `${colorNames} [${mode}]${seq.isPlaying ? '' : ' PAUSA'}`,
-            effectName,
-            glowName !== 'none' ? glowName : null,
-            seq.bpm,
-            [this._activeCameraTrack()?.label, this.videoElement?.videoWidth && `${this.videoElement.videoWidth}x${this.videoElement.videoHeight}`]
-                .filter(Boolean).join(' ')
-        );
-
-        // Refresh the panel's live views (Now Playing, sequencer, Movimiento)
+    /** Refresh the panel's live views (Now Playing, sequencer, Movimiento, Glow, Texto) from the app's state. */
+    refreshPanel() {
         if (this.panel) this.panel.refreshSequencerUI();
     }
 
     // --- Main Loop ---
     // The video texture is not uploaded here: Pixi 8's VideoSource auto-updates
     // itself from requestVideoFrameCallback, once per new camera frame.
-    update(ticker) {
+    update() {
         const now = performance.now();
         this.sequencer.update(now);
         const beat = this.sequencer.beatAt(now);
@@ -606,7 +555,5 @@ export class StreamLightApp {
         }
 
         this.overlay.tick(now, beat, this.sequencer.selectedColors);
-
-        if (this.hud) this.hud.updateFPS(ticker.FPS);
     }
 }

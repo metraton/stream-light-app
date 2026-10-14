@@ -6,7 +6,7 @@ import { StreamLightApp } from '../js/app.js';
 import { BASE_STATE, MOODS } from '../js/mood-map.js';
 import { resolveShortcut } from '../js/shortcuts.js';
 
-/** A real app with the stage away: columns are stubbed, there is no HUD or panel. */
+/** A real app with the stage away: columns are stubbed and there is no panel. */
 function stageApp() {
     const app = new StreamLightApp();
     app.columnManager = { resetOffsets() {}, setAllGlow() {} };
@@ -141,6 +141,40 @@ test('a movement key with a cue armed plays only on Space', () => {
     press(app, ...SPACE);
     assert.equal(app.currentMovement, 'wave');
     assert.equal(app.effectEngine.active.name, 'wave');
+});
+
+test('J plays Golpe de zoom through the same path as A S D F G H, cue staging included', () => {
+    const keys = [['s', 'wave'], ['d', 'expand'], ['f', 'broken'], ['g', 'shake'], ['h', 'equalizer'], ['j', 'zoomPulse']];
+    for (const [key, movement] of keys) {
+        const played = [];
+        const spy = { playMovement: (name) => played.push(name), refreshPanel() {} };
+        press(spy, key, `Key${key.toUpperCase()}`);
+        assert.deepEqual(played, [movement], `${key} plays ${movement}`);
+    }
+
+    const live = stageApp();
+    press(live, 'j', 'KeyJ');
+    assert.equal(live.currentMovement, 'zoomPulse');
+    assert.equal(live.effectEngine.active.name, 'zoomPulse');
+
+    const armed = stageApp();
+    press(armed, ...BACKSPACE);
+    press(armed, 'j', 'KeyJ');
+    assert.equal(armed.currentMovement, 'none', 'staged, not playing');
+    assert.equal(armed.effectEngine.active, null);
+    press(armed, ...SPACE);
+    assert.equal(armed.currentMovement, 'zoomPulse');
+    assert.equal(armed.effectEngine.active.name, 'zoomPulse');
+
+    assert.equal(resolveShortcut({ key: 'J', code: 'KeyJ', shiftKey: true, ctrlKey: false, altKey: false }), null);
+});
+
+test('the HUD is gone: no toggle, and nothing on the app draws one', () => {
+    const app = stageApp();
+    assert.equal(app.toggleHUD, undefined);
+    assert.equal(app.updateHUD, undefined);
+    assert.equal('hud' in app, false);
+    assert.equal(typeof app.refreshPanel, 'function');
 });
 
 test('a glow key with a cue armed plays only on Space', () => {

@@ -74,7 +74,7 @@ export function createTextControls(sectionEl, app) {
                 input.value = phrase;
                 redraw();
                 app.overlay.setVisible(true);
-                app.updateHUD();
+                app.refreshPanel();
             });
             const remove = document.createElement('button');
             remove.textContent = '×';

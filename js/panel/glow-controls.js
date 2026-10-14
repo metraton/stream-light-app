@@ -21,11 +21,11 @@ export function createGlowControls(sectionEl, app) {
     const setName = activeLine(sectionEl, 'Glow');
     const triggerBtns = buttonRow(sectionEl, GLOW_QUICK.map(({ key, label }) => `${key.toUpperCase()} ${label}`), i => {
         app.setGlowMode(GLOW_QUICK[i].mode);
-        app.updateHUD();
+        app.refreshPanel();
     });
     const refreshTweaks = createLayerTweaks(sectionEl, app, 'glow', () => {
         app.setGlowMode('none');
-        app.updateHUD();
+        app.refreshPanel();
     });
 
     const colorBtns = buttonRow(sectionEl, COLOR_MODES.map(m => m.label), i => {

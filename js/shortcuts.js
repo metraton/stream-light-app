@@ -5,7 +5,7 @@
 // 0 / Shift+0: switch camera (Iriun <-> Logitech only)
 // Q W E R T Y: pattern (none/chase/carousel/mirror/fill/sparkle)
 // Shift+W E R T Y: that pattern's variant (color-sequencer.js PATTERN_VARIANTS); Shift+Q is Q
-// A S D F G H: movement (none/wave/expand/broken/shake/equalizer)
+// A S D F G H J: movement (none/wave/expand/broken/shake/equalizer/zoom pulse)
 // Z X C V B N: glow (none/sweep/breathe/pulse/strobe/alternate), from js/glow-map.js
 // Shift+Z X C V B N: mood (calm/groove/build/tension/peak/mystic), from js/mood-map.js
 // <: mood None (the only key for it)
@@ -13,7 +13,7 @@
 //   movement, glow and mood pressed meanwhile wait for Space (BPM stays live)
 // Space: commit the cue (unpressed movement/glow/mood go to the base state), else pause/resume
 // + / ´: BPM up / down
-// Escape: back to the base state; J: HUD; P: panel
+// Escape: back to the base state; P: panel
 //
 // resolveShortcut is the only key map: the keydown listener and the live
 // bridge (js/live-bridge.js) both run it, and serve.py suppresses a key
@@ -24,7 +24,7 @@ import { MOODS, MOOD_KEY_TO_NAME } from './mood-map.js';
 import { nextCameraId } from './camera.js';
 
 const PATTERN_KEYS = { q: 'none', w: 'chase', e: 'carousel', r: 'mirror', t: 'fill', y: 'sparkle' };
-const MOVEMENT_KEYS = { a: 'none', s: 'wave', d: 'expand', f: 'broken', g: 'shake', h: 'equalizer' };
+const MOVEMENT_KEYS = { a: 'none', s: 'wave', d: 'expand', f: 'broken', g: 'shake', h: 'equalizer', j: 'zoomPulse' };
 
 /**
  * Returns the action bound to a keystroke as `(app) => void`, or null when the
@@ -50,7 +50,7 @@ export function resolveShortcut(e) {
             } else {
                 app.sequencer.toggleColor(-1);
             }
-            app.updateHUD();
+            app.refreshPanel();
         };
     }
 
@@ -70,14 +70,14 @@ export function resolveShortcut(e) {
                 } else {
                     app.sequencer.toggleColor(colorIdx);
                 }
-                app.updateHUD();
+                app.refreshPanel();
             };
         }
 
         if (num === 6) {
             return (app) => {
                 app.sequencer.selectAllShuffled();
-                app.updateHUD();
+                app.refreshPanel();
             };
         }
 
@@ -91,7 +91,7 @@ export function resolveShortcut(e) {
     if (PATTERN_KEYS[keyLower] && !ctrl && !alt) {
         return (app) => {
             app.setPattern(PATTERN_KEYS[keyLower], shift);
-            app.updateHUD();
+            app.refreshPanel();
         };
     }
 
@@ -103,7 +103,7 @@ export function resolveShortcut(e) {
             } else {
                 app.playMovement(movement);
             }
-            app.updateHUD();
+            app.refreshPanel();
         };
     }
 
@@ -112,14 +112,14 @@ export function resolveShortcut(e) {
         const moodName = MOOD_KEY_TO_NAME[keyLower];
         return (app) => {
             app.applyMood(MOODS[moodName], moodName);
-            app.updateHUD();
+            app.refreshPanel();
         };
     }
     if (!shift && Object.hasOwn(GLOW_KEY_TO_MODE, keyLower) && !ctrl && !alt) {
         const glowMode = GLOW_KEY_TO_MODE[keyLower];
         return (app) => {
             app.setGlowMode(glowMode);
-            app.updateHUD();
+            app.refreshPanel();
         };
     }
 
@@ -134,7 +134,7 @@ export function resolveShortcut(e) {
                 app.commitCue();
             } else {
                 app.sequencer.togglePlay();
-                app.updateHUD();
+                app.refreshPanel();
             }
         };
     }
@@ -146,7 +146,7 @@ export function resolveShortcut(e) {
     if (key === '+') {
         return (app) => {
             app.sequencer.setBPM(app.sequencer.bpm + 10);
-            app.updateHUD();
+            app.refreshPanel();
         };
     }
     // "´" is a dead key on the Spanish layout, so keydown may report 'Dead';
@@ -154,12 +154,11 @@ export function resolveShortcut(e) {
     if ((key === '´' || key === 'Dead' || e.code === 'BracketRight') && !ctrl && !alt) {
         return (app) => {
             app.sequencer.setBPM(app.sequencer.bpm - 10);
-            app.updateHUD();
+            app.refreshPanel();
         };
     }
 
     // F11 (fullscreen) and F12 (DevTools) stay unbound on purpose.
-    if (keyLower === 'j') return (app) => app.toggleHUD();
     if (keyLower === 'p') return (app) => app.togglePanel();
 
     return null;
