@@ -1,0 +1,22 @@
+{
+    "canvas": [
+        {
+            "current_scene": "Vertical Scene",
+            "width": 1080,
+            "height": 1920,
+            "backtrack": true,
+            "backtrack_seconds": 90,
+            "stream_outputs": [
+                {
+                    "name": "IG",
+                    "stream_server": "rtmps://edgetee-upload-fake.xx.fbcdn.net:443/rtmp/",
+                    "stream_key": "FAKE-INSTAGRAM-KEY",
+                    "enabled": true
+                }
+            ],
+            "stream_advanced_settings": false,
+            "stream_encoder": "ffmpeg_svt_av1",
+            "stream_encoder_settings": { "bitrate": 50, "cqp": 1 }
+        }
+    ]
+}

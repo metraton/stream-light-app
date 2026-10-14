@@ -1,28 +1,21 @@
 {
     "canvas": {
-        "width": 1080,
-        "height": 1920,
+        "width": 720,
+        "height": 1280,
         "audio_bitrate": 256,
         "backtrack": true,
-        "backtrack_seconds": 90,
+        "backtrack_seconds": 120,
         "backtrack_hotkeys": {
             "ReplayBuffer.Save": [
                 {
-                    "key": "OBS_KEY_PLUS"
+                    "key": "OBS_KEY_SLASH"
                 }
             ]
-        }
+        },
+        "stream_advanced_settings": true
     },
     "instagram_output": {
         "name": "Instagram",
-        "enabled": true,
-        "advanced": true,
-        "scale": true,
-        "width": 720,
-        "height": 1280,
-        "audio_encoder": "ffmpeg_aac",
-        "audio_encoder_settings": {
-            "bitrate": 256
-        }
+        "enabled": true
     }
 }

@@ -1,6 +1,6 @@
 {
-    "video_encoder": "obs_qsv11_v2",
-    "video_encoder_settings": {
+    "stream_encoder": "obs_qsv11_v2",
+    "stream_encoder_settings": {
         "rate_control": "CBR",
         "bitrate": 3000,
         "keyint_sec": 2,

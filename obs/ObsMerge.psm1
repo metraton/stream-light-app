@@ -113,6 +113,78 @@ function Get-ManagedProfileValues {
     return $managed
 }
 
+function Get-TextHash {
+    <# Returns the lowercase hex SHA-256 of the UTF-8 text. #>
+    param([string]$Text)
+    $sha = [Security.Cryptography.SHA256]::Create()
+    return -join ($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($Text)) | ForEach-Object { $_.ToString('x2') })
+}
+
+function Get-ProfileDockState {
+    <# Returns the dock layout OBS restores for the profile: DockState in the section named by [Auth] Type. #>
+    param([string[]]$Lines)
+    $section = Get-IniValue $Lines 'Auth' 'Type'
+    if (-not $section) { $section = 'YouTube - RTMP' }
+    return Get-IniValue $Lines $section 'DockState'
+}
+
+function Set-ProfileDockState {
+    <#
+    Returns the profile lines with the repo dock layout applied only when it differs from the layout the installer
+    applied last ([StreamLight] DockStateHash), so a layout arranged in OBS survives until the repo layout changes.
+    #>
+    param([string[]]$Lines, [string]$DockState)
+    $hash = Get-TextHash $DockState
+    if ((Get-IniValue $Lines 'StreamLight' 'DockStateHash') -eq $hash) { return , $Lines }
+    $section = Get-IniValue $Lines 'Auth' 'Type'
+    if (-not $section) { $section = 'YouTube - RTMP' }
+    $Lines = Set-IniValues $Lines $section ([ordered]@{ DockState = $DockState })
+    return , (Set-IniValues $Lines 'StreamLight' ([ordered]@{ DockStateHash = $hash }))
+}
+
+function Find-ProfileDir {
+    <#
+    Returns the directory of the profile whose [General] Name is Name, preferring PreferredDir, or $null. OBS names
+    profile directories itself (OBS 32 saves "stream-light" as "streamlight"), so the name is the only stable key.
+    Profiles maps directory name -> (file name -> text).
+    #>
+    param([System.Collections.IDictionary]$Profiles, [string]$Name, [string]$PreferredDir)
+    $matching = @($Profiles.Keys | Where-Object {
+            $Profiles[$_].ContainsKey('basic.ini') -and
+            (Get-IniValue ($Profiles[$_]['basic.ini'] -split "`r?`n") 'General' 'Name') -eq $Name
+        })
+    if ($PreferredDir -and $matching -contains $PreferredDir) { return $PreferredDir }
+    return @($matching | Sort-Object)[0]
+}
+
+function Select-SignInDonor {
+    <#
+    Returns the files of a signed-in profile named in Names (a YouTube RefreshToken and a service.json), preferring
+    PreferredDir, or $null.
+    #>
+    param([System.Collections.IDictionary]$Profiles, [string[]]$Names, [string]$PreferredDir)
+    $signedIn = @($Profiles.Keys | Sort-Object | Where-Object {
+            $files = $Profiles[$_]
+            if (-not ($files.ContainsKey('basic.ini') -and $files.ContainsKey('service.json'))) { return $false }
+            $lines = $files['basic.ini'] -split "`r?`n"
+            ($Names -contains (Get-IniValue $lines 'General' 'Name')) -and (Get-IniValue $lines 'YouTube' 'RefreshToken')
+        })
+    if ($signedIn.Count -eq 0) { return $null }
+    $dir = if ($PreferredDir -and $signedIn -contains $PreferredDir) { $PreferredDir } else { $signedIn[0] }
+    return $Profiles[$dir]
+}
+
+function Find-SceneCollectionFile {
+    <#
+    Returns the file of the collection whose name is Name, preferring PreferredFile, or $null. Collections maps file
+    name -> collection name; OBS names the files itself (OBS 32 saves "stream-light-scenes" as streamlightscenes.json).
+    #>
+    param([System.Collections.IDictionary]$Collections, [string]$Name, [string]$PreferredFile)
+    $matching = @($Collections.Keys | Where-Object { $Collections[$_] -eq $Name })
+    if ($PreferredFile -and $matching -contains $PreferredFile) { return $PreferredFile }
+    return @($matching | Sort-Object)[0]
+}
+
 function Merge-ProfileIni {
     <#
     Returns the profile basic.ini with the managed values set. An existing file keeps every other line. A new
@@ -162,7 +234,8 @@ function Merge-ProfileFiles {
     Returns file name -> new text for one profile directory; a file absent from the result is left as it is.
     Existing and Donor map file name -> current text (Donor is another signed-in stream-light profile, used only
     when this profile has no basic.ini yet). service.json is never rewritten: it is created from the donor or
-    the example only when missing.
+    the example only when missing. A new profile cut from a donor gets [Panels] CookieId, the id of the copy of
+    the donor's browser cookie jar the caller makes, so the YouTube docks stay signed in.
     #>
     param(
         [string]$ProfileName,
@@ -173,7 +246,9 @@ function Merge-ProfileFiles {
         [psobject]$StreamEncoder,
         [psobject]$RecordEncoder,
         [string]$ServiceExample,
-        [hashtable]$Donor
+        [hashtable]$Donor,
+        [string]$DockState,
+        [string]$CookieId
     )
     $isNew = -not $Existing.ContainsKey('basic.ini')
     $donorIni = if ($isNew -and $Donor -and $Donor.ContainsKey('basic.ini')) { $Donor['basic.ini'] -split "`r?`n" } else { $null }
@@ -184,7 +259,10 @@ function Merge-ProfileFiles {
     }
     $managed = Get-ManagedProfileValues $TemplateLines $Overrides $ProfileName
     $files = [ordered]@{}
-    $files['basic.ini'] = ((Merge-ProfileIni $existingIni $templateWithOverrides $managed $donorIni) -join "`r`n").TrimEnd() + "`r`n"
+    $lines = Merge-ProfileIni $existingIni $templateWithOverrides $managed $donorIni
+    if ($DockState) { $lines = Set-ProfileDockState $lines $DockState }
+    if ($donorIni -and $CookieId) { $lines = Set-IniValues $lines 'Panels' ([ordered]@{ CookieId = $CookieId }) }
+    $files['basic.ini'] = ($lines -join "`r`n").TrimEnd() + "`r`n"
 
     $stream = [pscustomobject]@{}
     foreach ($property in $StreamEncoder.PSObject.Properties) { $stream | Add-Member $property.Name $property.Value }
@@ -255,5 +333,61 @@ function Merge-SceneCollection {
     return $merged
 }
 
+function Merge-VerticalConfig {
+    <#
+    Returns the Aitum Vertical config with the repo canvas fields and the variant's canvas-level stream encoder set
+    on every canvas. The Instagram output is the one whose server is Instagram's, else the only output; it is left
+    exactly as it is (its server and key are typed in the plugin's UI). One is added only when none is found.
+    #>
+    param([psobject]$Existing, [psobject]$Template, [psobject]$Encoder, [string]$ReelDir)
+    $vertical = if ($Existing) { $Existing } else { [pscustomobject]@{ canvas = @([pscustomobject]@{}) } }
+    foreach ($canvas in @($vertical.canvas)) {
+        Merge-JsonProperties $canvas $Template.canvas | Out-Null
+        Merge-JsonProperties $canvas $Encoder | Out-Null
+        $canvas | Add-Member -NotePropertyName backtrack_path -NotePropertyValue $ReelDir -Force
+        $outputs = @($canvas.stream_outputs | Where-Object { $_ })
+        $instagram = @($outputs | Where-Object { $_.stream_server -match 'fbcdn\.net|instagram\.com' })
+        if ($instagram.Count -eq 0 -and $outputs.Count -ne 1) {
+            $outputs += Merge-JsonProperties $null $Template.instagram_output
+        }
+        $canvas | Add-Member -NotePropertyName stream_outputs -NotePropertyValue $outputs -Force
+    }
+    return $vertical
+}
+
+function Merge-UserIni {
+    <#
+    Returns user.ini with the Stream Health dock, the active profile and collection, and the active profile's dock
+    layout as the window layout. Other docks keep their entries; Stream Health keeps its uuid.
+    #>
+    param(
+        [string[]]$Lines,
+        [string]$StreamHealthUrl,
+        [string]$ProfileName,
+        [string]$ProfileDir,
+        [string]$CollectionName,
+        [string]$CollectionFile,
+        [string]$DockState
+    )
+    $existingDocks = Get-IniValue $Lines 'BasicWindow' 'ExtraBrowserDocks'
+    $docks = @()
+    if ($existingDocks) { $docks = @((ConvertFrom-Json $existingDocks) | Where-Object { $_ }) }
+    $streamHealth = $docks | Where-Object { $_.title -eq 'Stream Health' } | Select-Object -First 1
+    $uuid = if ($streamHealth) { $streamHealth.uuid } else { [guid]::NewGuid().ToString() }
+    $docks = @($docks | Where-Object { $_.title -ne 'Stream Health' }) +
+        [pscustomobject]@{ uuid = $uuid; title = 'Stream Health'; url = $StreamHealthUrl }
+    $window = [ordered]@{ ExtraBrowserDocks = (ConvertTo-Json -InputObject $docks -Compress) }
+    if ($DockState) { $window['DockState'] = $DockState }
+    $Lines = Set-IniValues $Lines 'BasicWindow' $window
+    return , (Set-IniValues $Lines 'Basic' ([ordered]@{
+                Profile             = $ProfileName
+                ProfileDir          = $ProfileDir
+                SceneCollection     = $CollectionName
+                SceneCollectionFile = $CollectionFile
+            }))
+}
+
 Export-ModuleMember -Function Set-IniValues, Get-IniValue, Read-IniSections, Test-AuthSection, Merge-ProfileFiles,
-    Merge-ProfileIni, Merge-JsonProperties, Merge-SceneCollection, Get-ManagedProfileValues
+    Merge-ProfileIni, Merge-JsonProperties, Merge-SceneCollection, Get-ManagedProfileValues, Get-ProfileDockState,
+    Set-ProfileDockState, Find-ProfileDir, Select-SignInDonor, Find-SceneCollectionFile, Merge-VerticalConfig,
+    Merge-UserIni

@@ -4,28 +4,35 @@ Installs the stream-light and stream-light-hq OBS profiles, the stream-light-sce
 Vertical settings and the Stream Health dock for this Windows user, merging into what is already installed.
 
 .DESCRIPTION
-Refuses while OBS is running and backs up %APPDATA%\obs-studio first. Every write is a merge (rules in
+Refuses while OBS is running and backs up the OBS settings folder first. Every write is a merge (rules in
 ObsMerge.psm1): the script sets only the keys and objects it owns -- video, encoders and their bitrates, audio
 sample rate and track bitrate, reconnect and dynamic bitrate, Replay Buffer on, Browser Source hardware
-acceleration off, the Stream Health dock, the repo's sources in the collection and the Aitum Vertical canvas and
-Instagram fields -- and leaves everything else as OBS or the user wrote it: the YouTube sign-in, service.json,
-[Panels] CookieId, Replay Buffer length and size, hotkeys, file paths and user-added sources.
-A profile this run creates takes the sign-in ([Auth], [YouTube], [YouTube - *] and service.json) of another
-installed stream-light profile that is signed in; it is copied between installed profiles only, never into the
-repo.
+acceleration off, the Stream Health dock, the dock layout when the repo layout changed, the repo's sources in the
+collection and the Aitum Vertical canvas and stream encoder -- and leaves everything else as OBS or the user wrote
+it: the YouTube sign-in, service.json, [Panels] CookieId, the Instagram server and key, Replay Buffer length and
+size, hotkeys, file paths and user-added sources.
+Profiles and the collection are found by the name inside them, not by folder or file name, which OBS chooses.
+A profile this run creates takes the sign-in ([Auth], [YouTube], [YouTube - *], service.json and a copy of the
+browser cookie jar the YouTube docks use) of an installed stream-light profile that is signed in; it is copied
+between installed profiles only, never into the repo.
 
 .PARAMETER ReelDir
 Folder where Aitum Vertical saves the backtrack clips; created when missing.
+
+.PARAMETER ObsDir
+The OBS settings folder; tests point it at a copy.
 #>
 [CmdletBinding()]
 param(
     [ValidateSet('nvidia', 'intel')]
     [string]$Variant,
-    [string]$ReelDir = (Join-Path $env:USERPROFILE 'Videos\reel-raw')
+    [string]$ReelDir = (Join-Path $env:USERPROFILE 'Videos\reel-raw'),
+    [string]$ObsDir = (Join-Path $env:APPDATA 'obs-studio')
 )
 
 # Profile name -> YouTube video bitrate (kbps). stream-light is the standard; stream-light-hq is for a good link.
 $Profiles = [ordered]@{ 'stream-light' = 4500; 'stream-light-hq' = 8000 }
+$CollectionName = 'stream-light-scenes'
 
 $ErrorActionPreference = 'Stop'
 
@@ -35,7 +42,6 @@ $StreamHealthUrl = 'http://localhost:8080/monitor/?v=2026-10-13.4'
 Import-Module (Join-Path $PSScriptRoot 'ObsMerge.psm1') -Force
 
 $repo = Split-Path -Parent $PSScriptRoot
-$obsDir = Join-Path $env:APPDATA 'obs-studio'
 $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 
 function Read-Json {
@@ -64,105 +70,93 @@ if (-not $Variant) {
     Write-Output "Detected GPU: $($gpuNames -join ', ') -> $Variant encoders"
 }
 
-if (Test-Path -LiteralPath $obsDir) {
-    $backup = "$obsDir.backup-$(Get-Date -Format yyyyMMdd-HHmmss)"
-    Copy-Item -LiteralPath $obsDir -Destination $backup -Recurse
+if (Test-Path -LiteralPath $ObsDir) {
+    $backup = "$ObsDir.backup-$(Get-Date -Format yyyyMMdd-HHmmss)"
+    Copy-Item -LiteralPath $ObsDir -Destination $backup -Recurse
     Write-Output "Backup: $backup"
 }
 
 $commonDir = Join-Path $repo 'obs\profile\stream-light'
 $variantDir = Join-Path $repo "obs\profile\encoders\$Variant"
 $templateLines = [IO.File]::ReadAllLines((Join-Path $commonDir 'basic.ini'))
+$repoDockState = Get-IniValue $templateLines 'YouTube - RTMP' 'DockState'
+if (-not $repoDockState) { throw 'DockState not found in the repo profile.' }
 $overrides = Read-IniSections ([IO.File]::ReadAllLines((Join-Path $variantDir 'basic-overrides.ini')))
 $streamEncoder = Read-Json (Join-Path $variantDir 'streamEncoder.json')
 $recordEncoder = Read-Json (Join-Path $variantDir 'recordEncoder.json')
 $serviceExample = [IO.File]::ReadAllText((Join-Path $commonDir 'service.example.json'))
 
-$profilesDir = Join-Path $obsDir 'basic\profiles'
-$donor = $null
-if (Test-Path -LiteralPath $profilesDir) {
-    $donor = Get-ChildItem -LiteralPath $profilesDir -Directory |
-        Where-Object { $_.Name -match '^stream-light(-[a-z0-9]+)?$' } |
-        ForEach-Object { Read-ProfileFiles $_.FullName } |
-        Where-Object { $_.ContainsKey('service.json') -and $_.ContainsKey('basic.ini') -and
-            (Get-IniValue ($_['basic.ini'] -split "`r?`n") 'YouTube' 'RefreshToken') } |
-        Select-Object -First 1
-}
+$userIniPath = Join-Path $ObsDir 'user.ini'
+$userIni = if (Test-Path -LiteralPath $userIniPath) { [IO.File]::ReadAllLines($userIniPath) } else { @() }
+
+$profilesDir = Join-Path $ObsDir 'basic\profiles'
+New-Item -ItemType Directory -Force -Path $profilesDir | Out-Null
+$installed = [ordered]@{}
+foreach ($dir in Get-ChildItem -LiteralPath $profilesDir -Directory) { $installed[$dir.Name] = Read-ProfileFiles $dir.FullName }
+$activeDir = Get-IniValue $userIni 'Basic' 'ProfileDir'
+$donor = Select-SignInDonor $installed @($Profiles.Keys) $activeDir
+$cookiesDir = Join-Path $ObsDir 'plugin_config\obs-browser\obs_profile_cookies'
+$donorCookieId = if ($donor) { Get-IniValue ($donor['basic.ini'] -split "`r?`n") 'Panels' 'CookieId' } else { $null }
+
+$profileDirs = [ordered]@{}
 foreach ($profileName in $Profiles.Keys) {
-    $profileDir = Join-Path $profilesDir $profileName
+    $dirName = Find-ProfileDir $installed $profileName $activeDir
+    if (-not $dirName) { $dirName = $profileName }
+    $profileDirs[$profileName] = $dirName
+    $profileDir = Join-Path $profilesDir $dirName
     New-Item -ItemType Directory -Force -Path $profileDir | Out-Null
     $existing = Read-ProfileFiles $profileDir
+    $cookieId = $null
+    if (-not $existing.ContainsKey('basic.ini') -and $donorCookieId) {
+        $cookieId = '{0:X16}' -f [BitConverter]::ToUInt64([guid]::NewGuid().ToByteArray(), 0)
+        $donorJar = Join-Path $cookiesDir $donorCookieId
+        if (Test-Path -LiteralPath $donorJar) { Copy-Item -LiteralPath $donorJar -Destination (Join-Path $cookiesDir $cookieId) -Recurse }
+    }
     $files = Merge-ProfileFiles -ProfileName $profileName -Bitrate $Profiles[$profileName] -Existing $existing `
         -TemplateLines $templateLines -Overrides $overrides -StreamEncoder $streamEncoder -RecordEncoder $recordEncoder `
-        -ServiceExample $serviceExample -Donor $donor
+        -ServiceExample $serviceExample -Donor $donor -DockState $repoDockState -CookieId $cookieId
     foreach ($name in $files.Keys) {
         [IO.File]::WriteAllText((Join-Path $profileDir $name), $files[$name], $utf8NoBom)
     }
+    $installed[$dirName] = Read-ProfileFiles $profileDir
     if (-not $existing.ContainsKey('basic.ini') -and $donor) {
         Write-Output "Copied the YouTube sign-in into the new profile $profileName."
     }
 }
 
-$scenesDir = Join-Path $obsDir 'basic\scenes'
+$activeName = $Profiles.Keys | Where-Object { $profileDirs[$_] -eq $activeDir } | Select-Object -First 1
+if (-not $activeName) { $activeName = 'stream-light' }
+$activeLines = $installed[$profileDirs[$activeName]]['basic.ini'] -split "`r?`n"
+
+$scenesDir = Join-Path $ObsDir 'basic\scenes'
 New-Item -ItemType Directory -Force -Path $scenesDir | Out-Null
-$scenesPath = Join-Path $scenesDir 'stream-light-scenes.json'
+$collections = @{}
+foreach ($file in Get-ChildItem -LiteralPath $scenesDir -Filter '*.json' -File) {
+    $collections[$file.Name] = (Read-Json $file.FullName).name
+}
+$collectionFile = Find-SceneCollectionFile $collections $CollectionName (Get-IniValue $userIni 'Basic' 'SceneCollectionFile')
+if (-not $collectionFile) { $collectionFile = "$CollectionName.json" }
+$scenesPath = Join-Path $scenesDir $collectionFile
 $installedScenes = if (Test-Path -LiteralPath $scenesPath) { Read-Json $scenesPath } else { $null }
-$scenes = Merge-SceneCollection $installedScenes (Read-Json (Join-Path $repo 'obs\scenes\stream-light-scenes.json'))
+$scenes = Merge-SceneCollection $installedScenes (Read-Json (Join-Path $repo "obs\scenes\$CollectionName.json"))
 [IO.File]::WriteAllText($scenesPath, (ConvertTo-Json -InputObject $scenes -Depth 50), $utf8NoBom)
 
-$userIniPath = Join-Path $obsDir 'user.ini'
-$userIni = if (Test-Path -LiteralPath $userIniPath) { [IO.File]::ReadAllLines($userIniPath) } else { @() }
-$existingDocks = Get-IniValue $userIni 'BasicWindow' 'ExtraBrowserDocks'
-$docks = @()
-if ($existingDocks) { $docks = @((ConvertFrom-Json $existingDocks) | Where-Object { $_ }) }
-$streamHealth = $docks | Where-Object { $_.title -eq 'Stream Health' } | Select-Object -First 1
-$uuid = if ($streamHealth) { $streamHealth.uuid } else { [guid]::NewGuid().ToString() }
-$docks = @($docks | Where-Object { $_.title -ne 'Stream Health' }) +
-    [pscustomobject]@{ uuid = $uuid; title = 'Stream Health'; url = $StreamHealthUrl }
-$windowValues = [ordered]@{ ExtraBrowserDocks = (ConvertTo-Json -InputObject $docks -Compress) }
-# The repo dock layout places the Stream Health dock; it is applied only when that dock is new or no layout
-# exists yet, so a layout arranged in OBS survives a reinstall.
-if (-not $streamHealth -or -not (Get-IniValue $userIni 'BasicWindow' 'DockState')) {
-    $dockState = Get-IniValue $templateLines 'YouTube - RTMP' 'DockState'
-    if (-not $dockState) { throw 'DockState not found in the repo profile.' }
-    $windowValues['DockState'] = $dockState
-}
-$userIni = Set-IniValues $userIni 'BasicWindow' $windowValues
-if ((Get-IniValue $userIni 'Basic' 'ProfileDir') -notmatch '^stream-light(-[a-z0-9]+)?$') {
-    $userIni = Set-IniValues $userIni 'Basic' ([ordered]@{ Profile = 'stream-light'; ProfileDir = 'stream-light' })
-}
-$userIni = Set-IniValues $userIni 'Basic' ([ordered]@{
-        SceneCollection     = 'stream-light-scenes'
-        SceneCollectionFile = 'stream-light-scenes.json'
-    })
+$userIni = Merge-UserIni -Lines $userIni -StreamHealthUrl $StreamHealthUrl -ProfileName $activeName `
+    -ProfileDir $profileDirs[$activeName] -CollectionName $CollectionName -CollectionFile $collectionFile `
+    -DockState (Get-ProfileDockState $activeLines)
 [IO.File]::WriteAllLines($userIniPath, $userIni, $utf8NoBom)
 
-$globalIniPath = Join-Path $obsDir 'global.ini'
+$globalIniPath = Join-Path $ObsDir 'global.ini'
 $globalIni = if (Test-Path -LiteralPath $globalIniPath) { [IO.File]::ReadAllLines($globalIniPath) } else { @() }
 $globalIni = Set-IniValues $globalIni 'General' ([ordered]@{ BrowserHWAccel = 'false' })
 [IO.File]::WriteAllLines($globalIniPath, $globalIni, $utf8NoBom)
 
-# Aitum Vertical keeps one global config.json; the Instagram output is found by name so its server and key,
-# typed in the plugin's UI, stay untouched.
 $verticalRepo = Join-Path $repo 'obs\vertical'
-$verticalTemplate = Read-Json (Join-Path $verticalRepo 'canvas.json')
-$verticalEncoder = Read-Json (Join-Path $verticalRepo "encoders\$Variant.json")
-$verticalPath = Join-Path $obsDir 'plugin_config\vertical-canvas\config.json'
+$verticalPath = Join-Path $ObsDir 'plugin_config\vertical-canvas\config.json'
 New-Item -ItemType Directory -Force -Path (Split-Path -Parent $verticalPath), $ReelDir | Out-Null
-$vertical = if (Test-Path -LiteralPath $verticalPath) { Read-Json $verticalPath } else { [pscustomobject]@{ canvas = @([pscustomobject]@{}) } }
-foreach ($canvas in @($vertical.canvas)) {
-    Merge-JsonProperties $canvas $verticalTemplate.canvas | Out-Null
-    $canvas | Add-Member -NotePropertyName backtrack_path -NotePropertyValue $ReelDir -Force
-    $outputs = @($canvas.stream_outputs | Where-Object { $_ })
-    $instagram = $outputs | Where-Object { $_.name -eq $verticalTemplate.instagram_output.name } | Select-Object -First 1
-    if (-not $instagram) {
-        $instagram = [pscustomobject]@{}
-        $outputs += $instagram
-    }
-    Merge-JsonProperties $instagram $verticalTemplate.instagram_output | Out-Null
-    Merge-JsonProperties $instagram $verticalEncoder | Out-Null
-    $canvas | Add-Member -NotePropertyName stream_outputs -NotePropertyValue $outputs -Force
-}
+$existingVertical = if (Test-Path -LiteralPath $verticalPath) { Read-Json $verticalPath } else { $null }
+$vertical = Merge-VerticalConfig $existingVertical (Read-Json (Join-Path $verticalRepo 'canvas.json')) `
+    (Read-Json (Join-Path $verticalRepo "encoders\$Variant.json")) $ReelDir
 [IO.File]::WriteAllText($verticalPath, (ConvertTo-Json -InputObject $vertical -Depth 30), $utf8NoBom)
 
-Write-Output "Merged profiles $($Profiles.Keys -join ', ') ($Variant encoders), collection stream-light-scenes, the Aitum Vertical settings (backtrack to $ReelDir) and the Stream Health dock."
+Write-Output "Merged profiles $($Profiles.Keys -join ', ') ($Variant encoders, active $activeName in $($profileDirs[$activeName])), collection $CollectionName ($collectionFile), the Aitum Vertical settings (backtrack to $ReelDir) and the Stream Health dock."

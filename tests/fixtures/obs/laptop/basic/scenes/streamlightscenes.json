@@ -1,0 +1,24 @@
+{
+    "name": "stream-light-scenes",
+    "current_scene": "Scene",
+    "current_program_scene": "Scene",
+    "scene_order": [{ "name": "Scene" }],
+    "canvases": [],
+    "sources": [
+        {
+            "name": "Browser",
+            "uuid": "8359570d-3386-4941-9702-541fb3ddbf90",
+            "id": "browser_source",
+            "settings": { "url": "http://localhost:8080/", "width": 1920, "height": 1080 },
+            "hotkeys": {}
+        },
+        {
+            "name": "Scene",
+            "uuid": "12259db1-d3ff-4849-9e08-72e563f1576e",
+            "id": "scene",
+            "settings": {
+                "items": [{ "name": "Browser", "source_uuid": "8359570d-3386-4941-9702-541fb3ddbf90", "id": 3 }]
+            }
+        }
+    ]
+}
