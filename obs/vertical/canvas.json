@@ -1,7 +1,7 @@
 {
     "canvas": {
-        "width": 720,
-        "height": 1280,
+        "width": 1080,
+        "height": 1920,
         "audio_bitrate": 256,
         "backtrack": true,
         "backtrack_seconds": 120,

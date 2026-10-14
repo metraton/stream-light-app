@@ -186,8 +186,8 @@ test('laptop layout: the repo dock layout replaces an old one once, and a layout
 
 test('laptop layout: the Aitum canvas and its stream encoder come from the repo and the variant', () => {
     const canvas = JSON.parse(result.installed['plugin_config/vertical-canvas/config.json']).canvas[0];
-    assert.equal(canvas.width, 720);
-    assert.equal(canvas.height, 1280);
+    assert.equal(canvas.width, 1080);
+    assert.equal(canvas.height, 1920);
     assert.equal(canvas.backtrack_seconds, 120);
     assert.deepEqual(canvas.backtrack_hotkeys, { 'ReplayBuffer.Save': [{ key: 'OBS_KEY_SLASH' }] });
     assert.equal(canvas.stream_advanced_settings, true);
@@ -202,5 +202,5 @@ test('laptop layout: the collection gains the rekordbox capture matched by execu
     assert.equal(capture.settings.priority, 2, 'WINDOW_PRIORITY_EXE');
     assert.equal(scenes.DesktopAudioDevice1, undefined);
     const vertical = scenes.sources.find(source => source.name === 'Vertical Scene').settings.items[0];
-    assert.deepEqual([vertical.rot, vertical.pos, vertical.scale.x], [270, { x: 0, y: 1280 }, 0.6666666865348816]);
+    assert.deepEqual([vertical.rot, vertical.pos, vertical.scale.x], [270, { x: 0, y: 1920 }, 1]);
 });

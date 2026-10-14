@@ -149,7 +149,7 @@ The Browser Source (`http://localhost:8080/`, 1920x1080) keeps "Shutdown source 
 - The dock layout in `obs/profile/stream-light/basic.ini` `[YouTube - RTMP] DockState` (YouTube chat and Live Control Panel on the left, Stream Health below them) is applied when the repo layout changed since the last install (`[StreamLight] DockStateHash` in the profile), so a layout you arrange in OBS survives a reinstall.
 - The scene collection `stream-light-scenes` (`obs/scenes/stream-light-scenes.json`): repo sources are updated by uuid or name; sources, scene items, hotkeys and transitions you added are kept.
 - The Stream Health dock in `user.ini` and `BrowserHWAccel=false` in `global.ini`: with Browser Source hardware acceleration on (OBS 32.2.2) the stage rendered shifted on the Intel laptop and garbled on the NVIDIA PC.
-- Aitum Vertical (`plugin_config\vertical-canvas\config.json`): canvas 720x1280, backtrack 120 s to `-ReelDir` (default `%USERPROFILE%\Videos\reel-raw`), the variant's canvas-level stream encoder. The Instagram output is the one whose server is Instagram's, else the only output; it is never edited, and one named `Instagram` is added only when none exists.
+- Aitum Vertical (`plugin_config\vertical-canvas\config.json`): canvas 1080x1920, backtrack 120 s to `-ReelDir` (default `%USERPROFILE%\Videos\reel-raw`), the variant's canvas-level stream encoder. The Instagram output is the one whose server is Instagram's, else the only output; it is never edited, and one named `Instagram` is added only when none exists.
 
 `tests/test_obs_merge.mjs` runs the installer twice on a copy of a laptop-shaped settings folder with fake secrets and checks that keys, sign-ins and the active profile and collection survive with no duplicates.
 
@@ -157,7 +157,7 @@ The Browser Source (`http://localhost:8080/`, 1920x1080) keeps "Shutdown source 
 
 The set's audio is "Application Audio Capture (BETA)" on rekordbox, matched by executable (`"priority": 2`, "Match title, otherwise find window of same executable"), so it survives rekordbox updates that change the window title or class. It is on track 1 only; Mic/Aux stays in the collection but starts muted.
 
-The Aitum Vertical canvas is 720x1280, and its "Vertical Scene" shows the same Browser source as the main scene (a reference, not a second browser), rotated 270 degrees and scaled to fill it. The backtrack keeps the last 120 s; its save hotkey is stored as `OBS_KEY_SLASH`, the `/` key on a US layout and `}` on a Latin American one.
+The Aitum Vertical canvas is 1080x1920 so reels are recorded at full 1080p, and its "Vertical Scene" shows the same Browser source as the main scene (a reference, not a second browser), rotated 270 degrees at scale 1 so it fills the canvas exactly. The Instagram output may scale that canvas down on its own; the installer never edits it. The backtrack keeps the last 120 s; its save hotkey is stored as `OBS_KEY_SLASH`, the `/` key on a US layout and `}` on a Latin American one.
 
 The main OBS Replay Buffer is on, 20 s and 512 MB (`RecRB`, `RecRBTime`, `RecRBSize` in the common `basic.ini`, asserted by `tests/test_obs_secrets.mjs`), because the Aitum backtrack depends on it: without it the plugin logs "Can't start backtrack when no replay buffer is found". The installer only turns `RecRB` on; the length and size you set are kept.
 
