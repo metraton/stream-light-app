@@ -42,7 +42,7 @@
             <input id="host" placeholder="host" aria-label="host">
             <input id="port" placeholder="port" aria-label="port">
             <input id="password" type="password" placeholder="obs-websocket password" aria-label="password">
-            <input id="vertical-output" placeholder="Aitum output name (IG)" aria-label="vertical output name" style="grid-column: 1 / -1">
+            <input id="vertical-output" placeholder="Aitum output name (Instagram)" aria-label="vertical output name" style="grid-column: 1 / -1">
             <button type="submit" style="grid-column: 1 / -1">Connect</button>
         </form>
     </details>
@@ -60,7 +60,7 @@
     <div id="build"></div>
 
     <script type="module">
-        const BUILD = '2026-10-13.4';
+        const BUILD = '2026-10-14.1';
         const fresh = name => import(`./${name}.js?build=${Date.now()}`);
         const [{ computeAuthentication }, { classify, transitionKind, DEFAULTS }, { createPoller, verticalOutputId, MAIN_ID, VENDOR, DEFAULT_VERTICAL_OUTPUT }] =
             await Promise.all([fresh('obs-auth'), fresh('health'), fresh('poller')]);

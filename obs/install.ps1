@@ -37,7 +37,7 @@ $CollectionName = 'stream-light-scenes'
 $ErrorActionPreference = 'Stop'
 
 # The v value must equal BUILD in monitor/index.html: OBS serves a stale cached index.html otherwise.
-$StreamHealthUrl = 'http://localhost:8080/monitor/?v=2026-10-13.4'
+$StreamHealthUrl = 'http://localhost:8080/monitor/?v=2026-10-14.1'
 
 Import-Module (Join-Path $PSScriptRoot 'ObsMerge.psm1') -Force
 

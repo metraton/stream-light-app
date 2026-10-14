@@ -1,6 +1,6 @@
 export const MAIN_ID = '__main__';
 export const VENDOR = 'aitum-vertical-canvas';
-export const DEFAULT_VERTICAL_OUTPUT = 'IG';
+export const DEFAULT_VERTICAL_OUTPUT = 'Instagram';
 
 const VERTICAL_OUTPUT_PREFIX = 'vertical_canvas_stream_';
 const BACKOFF_BASE_MS = 2000;

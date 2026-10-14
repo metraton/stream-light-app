@@ -28,11 +28,11 @@ Restart output -> CallVendorRequest aitum-vertical-canvas stop_streaming, then s
 
 ## How it is used
 
-1. `obs/install.ps1` adds the dock; by hand it is Docks > Custom Browser Docks, name `Stream Health`, URL `http://localhost:8080/monitor/?v=2026-10-13.4`, Apply. The installer's URL is `$StreamHealthUrl` in `obs/install.ps1`, so a new `BUILD` changes both. The page loads its modules with a fresh timestamp every time, so only `index.html` itself can be served from OBS's cache: when `index.html` changes, change the `v` value in the dock URL to the `BUILD` constant at the top of its script, which the page also shows at the bottom as `build ...`.
+1. `obs/install.ps1` adds the dock; by hand it is Docks > Custom Browser Docks, name `Stream Health`, URL `http://localhost:8080/monitor/?v=2026-10-14.1`, Apply. The installer's URL is `$StreamHealthUrl` in `obs/install.ps1`, so a new `BUILD` changes both. The page loads its modules with a fresh timestamp every time, so only `index.html` itself can be served from OBS's cache: when `index.html` changes, change the `v` value in the dock URL to the `BUILD` constant at the top of its script, which the page also shows at the bottom as `build ...`.
 2. In the dock, open Connection settings, enter the obs-websocket password and press Connect. Host, port and password are kept in the browser's local storage (the password in clear text).
 3. Click once in the dock, or press Connect, so the browser allows sound; Test sound plays both tones.
 
-URL parameters: `host`, `port`, `output` (the Aitum output name, default `IG`; override the saved values) and `stall` (seconds without new bytes before an active output counts as down, default 5). Example: `http://localhost:8080/monitor/?port=4456&stall=8`.
+URL parameters: `host`, `port`, `output` (the Aitum output name, default `Instagram`; override the saved values) and `stall` (seconds without new bytes before an active output counts as down, default 5). Example: `http://localhost:8080/monitor/?port=4456&stall=8`.
 
 Thresholds for degraded (congestion 0.3 and above, or 2% skipped frames over the last 5 seconds) are `DEFAULTS` in `health.js`.
 
