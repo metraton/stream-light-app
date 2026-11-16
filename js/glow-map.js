@@ -14,8 +14,8 @@ export const GLOW_QUICK = [
     { key: 'x', mode: 'sweep',     label: 'Sweep' },
     { key: 'c', mode: 'breathe',   label: 'Breathe' },
     { key: 'v', mode: 'pulse',     label: 'Pulse' },
-    { key: 'b', mode: 'strobe',    label: 'Strobe' },
-    { key: 'n', mode: 'alternate', label: 'Alternate' },
+    { key: 'b', mode: 'alternate', label: 'Alternate' },
+    { key: 'n', mode: 'strobe',    label: 'Strobe' },
 ];
 
 /** key (lowercase) -> glow mode, for the keyboard handler. */

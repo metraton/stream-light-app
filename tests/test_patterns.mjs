@@ -148,6 +148,9 @@ test('removed pattern and glow names map to their replacements', () => {
 test('glow and mood rows have 6 keys, the glow row None first; every glow mode has a sequence', () => {
     assert.deepEqual(GLOW_QUICK.map(g => g.key), ['z', 'x', 'c', 'v', 'b', 'n']);
     assert.equal(GLOW_QUICK[0].mode, 'none');
+    assert.deepEqual(GLOW_QUICK.map(g => [g.key, g.mode]), [
+        ['z', 'none'], ['x', 'sweep'], ['c', 'breathe'], ['v', 'pulse'], ['b', 'alternate'], ['n', 'strobe'],
+    ]);
     assert.deepEqual(MOOD_QUICK.map(m => [m.key, m.mood]), [
         ['z', 'calm'], ['x', 'groove'], ['c', 'build'], ['v', 'tension'], ['b', 'peak'], ['n', 'mystic'],
     ]);

@@ -6,7 +6,7 @@
 // Q W E R T Y: pattern (none/chase/carousel/mirror/fill/sparkle)
 // Shift+W E R T Y: that pattern's variant (color-sequencer.js PATTERN_VARIANTS); Shift+Q is Q
 // A S D F G H J: movement (none/wave/expand/broken/shake/equalizer/zoom pulse)
-// Z X C V B N: glow (none/sweep/breathe/pulse/strobe/alternate), from js/glow-map.js
+// Z X C V B N: glow (none/sweep/breathe/pulse/alternate/strobe), from js/glow-map.js
 // Shift+Z X C V B N: mood (calm/groove/build/tension/peak/mystic), from js/mood-map.js
 // <: mood None (the only key for it)
 // Backspace: cue a new combo while the live one keeps playing; colors, pattern,
