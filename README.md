@@ -143,7 +143,7 @@ The Browser Source (`http://localhost:8080/`, 1920x1080) keeps "Shutdown source 
 
   | Variant | Stream | Recording | Vertical stream |
   |---------|--------|-----------|-----------------|
-  | `nvidia` | NVENC H.264 CBR, P5, tune hq, two-pass quarter res | NVENC HEVC, CQP 20 | NVENC H.264 CBR 3000 kbps |
+  | `nvidia` | NVENC H.264 CBR, P5, tune hq, two-pass quarter res | NVENC HEVC, CQP 20 | NVENC H.264 CBR 3000 kbps, no B-frames, lookahead and adaptive quantization off |
   | `intel` | QuickSync H.264 CBR | QuickSync, ICQ 20 | QuickSync H.264 CBR 3000 kbps |
 - Sign-ins are never touched in an existing profile: `service.json`, `[YouTube]`, `[Auth]` and `[Panels] CookieId`. A profile the script creates takes them from an installed signed-in `stream-light` profile, with a copy of that profile's browser cookie folder under a new `CookieId`, so its YouTube docks stay signed in. They are copied between installed profiles only, never into the repo.
 - The dock layout in `obs/profile/stream-light/basic.ini` `[YouTube - RTMP] DockState` (YouTube chat and Live Control Panel on the left, Stream Health below them) is applied when the repo layout changed since the last install (`[StreamLight] DockStateHash` in the profile), so a layout you arrange in OBS survives a reinstall.
