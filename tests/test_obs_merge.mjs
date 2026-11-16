@@ -196,6 +196,16 @@ test('laptop layout: the Aitum canvas and its stream encoder come from the repo 
     assert.equal(canvas.stream_encoder_settings.bitrate, 3000);
 });
 
+test('the nvidia vertical stream encoder carries the tuning used live, B-frames and lookahead off', () => {
+    const canvas = result.vertical.canvas[0];
+    assert.equal(canvas.stream_encoder, 'obs_nvenc_h264_tex');
+    assert.deepEqual(canvas.stream_encoder_settings, {
+        rate_control: 'CBR', bitrate: 3000, keyint_sec: 2, preset: 'p5', tune: 'hq', multipass: 'qres',
+        profile: 'high', lookahead: false, adaptive_quantization: false, target_quality: 1, max_bitrate: 0,
+        cqp: 1, bf: 0,
+    });
+});
+
 test('laptop layout: the collection gains the rekordbox capture matched by executable and the vertical transform', () => {
     const scenes = JSON.parse(result.installed['basic/scenes/streamlightscenes.json']);
     const capture = scenes.sources.find(source => source.id === 'wasapi_process_output_capture');

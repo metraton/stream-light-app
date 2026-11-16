@@ -7,6 +7,12 @@
         "preset": "p5",
         "tune": "hq",
         "multipass": "qres",
-        "profile": "high"
+        "profile": "high",
+        "lookahead": false,
+        "adaptive_quantization": false,
+        "target_quality": 1,
+        "max_bitrate": 0,
+        "cqp": 1,
+        "bf": 0
     }
 }

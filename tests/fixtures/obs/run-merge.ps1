@@ -31,6 +31,10 @@ $result = [ordered]@{
     blank    = Merge-ProfileFiles @common -Existing @{} -Donor $null
     scenes   = Merge-SceneCollection ([IO.File]::ReadAllText((Join-Path $PSScriptRoot 'installed-scenes.json')) | ConvertFrom-Json) `
     ([IO.File]::ReadAllText((Join-Path $repo 'obs\scenes\stream-light-scenes.json')) | ConvertFrom-Json)
+    vertical = Merge-VerticalConfig `
+    ([IO.File]::ReadAllText((Join-Path $PSScriptRoot 'laptop\plugin_config\vertical-canvas\config.json')) | ConvertFrom-Json) `
+    ([IO.File]::ReadAllText((Join-Path $repo 'obs\vertical\canvas.json')) | ConvertFrom-Json) `
+    ([IO.File]::ReadAllText((Join-Path $repo 'obs\vertical\encoders\nvidia.json')) | ConvertFrom-Json) 'C:\reel'
 }
 
 # The real installer, run twice on a copy of the laptop-shaped settings folder in a scratch directory that is
