@@ -140,6 +140,7 @@ for (const [label, snapshot] of Object.entries(installs)) {
         assert.equal(user.Basic.ProfileDir, 'streamlight');
         assert.equal(user.Basic.SceneCollection, 'stream-light-scenes');
         assert.equal(user.Basic.SceneCollectionFile, 'streamlightscenes.json');
+        assert.equal(user.BasicWindow.RecordWhenStreaming, 'true');
         assert.equal(ini(snapshot[`basic/profiles/${user.Basic.ProfileDir}/basic.ini`]).YouTube.RefreshToken, 'FAKE-REFRESH-TOKEN');
         const docks = JSON.parse(user.BasicWindow.ExtraBrowserDocks);
         assert.deepEqual(docks.map(dock => [dock.title, dock.uuid]), [['Stream Health', '107481b5771f4662a2d319af83c41729']]);
@@ -188,7 +189,7 @@ test('laptop layout: the Aitum canvas and its stream encoder come from the repo 
     const canvas = JSON.parse(result.installed['plugin_config/vertical-canvas/config.json']).canvas[0];
     assert.equal(canvas.width, 1080);
     assert.equal(canvas.height, 1920);
-    assert.equal(canvas.backtrack_seconds, 120);
+    assert.equal(canvas.backtrack_seconds, 90);
     assert.deepEqual(canvas.backtrack_hotkeys, { 'ReplayBuffer.Save': [{ key: 'OBS_KEY_SLASH' }] });
     assert.equal(canvas.stream_advanced_settings, true);
     assert.equal(canvas.stream_encoder, 'obs_qsv11_v2');
@@ -200,6 +201,8 @@ test('laptop layout: the collection gains the rekordbox capture matched by execu
     const capture = scenes.sources.find(source => source.id === 'wasapi_process_output_capture');
     assert.match(capture.settings.window, /:rekordbox\.exe$/);
     assert.equal(capture.settings.priority, 2, 'WINDOW_PRIORITY_EXE');
+    assert.equal(capture.volume, 0.8602553009986877);
+    assert.deepEqual([scenes.AuxAudioDevice1.volume, scenes.AuxAudioDevice1.muted], [0, true]);
     assert.equal(scenes.DesktopAudioDevice1, undefined);
     const vertical = scenes.sources.find(source => source.name === 'Vertical Scene').settings.items[0];
     assert.deepEqual([vertical.rot, vertical.pos, vertical.scale.x], [270, { x: 0, y: 1920 }, 1]);

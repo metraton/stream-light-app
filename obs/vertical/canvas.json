@@ -4,7 +4,7 @@
         "height": 1920,
         "audio_bitrate": 256,
         "backtrack": true,
-        "backtrack_seconds": 120,
+        "backtrack_seconds": 90,
         "backtrack_hotkeys": {
             "ReplayBuffer.Save": [
                 {
