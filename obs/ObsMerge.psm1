@@ -357,8 +357,9 @@ function Merge-VerticalConfig {
 
 function Merge-UserIni {
     <#
-    Returns user.ini with the Stream Health dock, the active profile and collection, and the active profile's dock
-    layout as the window layout. Other docks keep their entries; Stream Health keeps its uuid.
+    Returns user.ini with the Stream Health dock, recording started with the stream, the active profile and
+    collection, and the active profile's dock layout as the window layout. Other docks keep their entries; Stream
+    Health keeps its uuid.
     #>
     param(
         [string[]]$Lines,
@@ -376,7 +377,10 @@ function Merge-UserIni {
     $uuid = if ($streamHealth) { $streamHealth.uuid } else { [guid]::NewGuid().ToString() }
     $docks = @($docks | Where-Object { $_.title -ne 'Stream Health' }) +
         [pscustomobject]@{ uuid = $uuid; title = 'Stream Health'; url = $StreamHealthUrl }
-    $window = [ordered]@{ ExtraBrowserDocks = (ConvertTo-Json -InputObject $docks -Compress) }
+    $window = [ordered]@{
+        ExtraBrowserDocks   = (ConvertTo-Json -InputObject $docks -Compress)
+        RecordWhenStreaming = 'true'
+    }
     if ($DockState) { $window['DockState'] = $DockState }
     $Lines = Set-IniValues $Lines 'BasicWindow' $window
     return , (Set-IniValues $Lines 'Basic' ([ordered]@{

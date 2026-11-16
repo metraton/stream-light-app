@@ -7,9 +7,9 @@ Vertical settings and the Stream Health dock for this Windows user, merging into
 Refuses while OBS is running and backs up the OBS settings folder first. Every write is a merge (rules in
 ObsMerge.psm1): the script sets only the keys and objects it owns -- video, encoders and their bitrates, audio
 sample rate and track bitrate, reconnect and dynamic bitrate, Replay Buffer on, Browser Source hardware
-acceleration off, the Stream Health dock, the dock layout when the repo layout changed, the repo's sources in the
-collection and the Aitum Vertical canvas and stream encoder -- and leaves everything else as OBS or the user wrote
-it: the YouTube sign-in, service.json, [Panels] CookieId, the Instagram server and key, Replay Buffer length and
+acceleration off, recording started with the stream, the Stream Health dock, the dock layout when the repo layout
+changed, the repo's sources (volumes included) in the collection and the Aitum Vertical canvas and stream encoder
+-- and leaves everything else as OBS or the user wrote it: the YouTube sign-in, service.json, [Panels] CookieId, the Instagram server and key, Replay Buffer length and
 size, hotkeys, file paths and user-added sources.
 Profiles and the collection are found by the name inside them, not by folder or file name, which OBS chooses.
 A profile this run creates takes the sign-in ([Auth], [YouTube], [YouTube - *], service.json and a copy of the

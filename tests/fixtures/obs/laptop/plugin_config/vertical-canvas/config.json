@@ -5,7 +5,7 @@
             "width": 1080,
             "height": 1920,
             "backtrack": true,
-            "backtrack_seconds": 90,
+            "backtrack_seconds": 120,
             "stream_outputs": [
                 {
                     "name": "IG",
