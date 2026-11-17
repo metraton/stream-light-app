@@ -291,7 +291,7 @@ test('a BPM change keeps the beat position continuous', () => {
     assert.ok(Math.abs(clock.beatAt(4210) - before - 175 / 60) < 1e-9);
 });
 
-test('rate and BPM changes keep every movement and glow position continuous', () => {
+test('BPM changes keep every movement and glow position continuous', () => {
     const EPS = 1e-9;
     const cases = [
         ...Object.entries(EFFECTS).map(([name, def]) => [name, def, new EffectEngine(), (e, b) => e.compute(5, 1, b)]),
@@ -299,19 +299,25 @@ test('rate and BPM changes keep every movement and glow position continuous', ()
     ];
     for (const [name, def, engine, sample] of cases) {
         const clock = new BeatClock(120, 0);
-        engine.play(name, def, { rate: def.rate, easing: def.easing, intensity: 1 }, clock.beatAt(100));
-        const changes = [
-            [1337, () => engine.setRate(4, clock.beatAt(1337))],
-            [2711, () => clock.setBPM(60, 2711)],
-            [4099, () => engine.setRate(0.25, clock.beatAt(4099))],
-            [5003, () => clock.setBPM(175, 5003)],
-        ];
-        for (const [time, change] of changes) {
+        engine.play(name, def, { rate: def.rate, easing: def.easing, intensity: 1 });
+        for (const [time, bpm] of [[2711, 60], [5003, 175]]) {
             const before = Object.values(sample(engine, clock.beatAt(time))).flat();
-            change();
+            clock.setBPM(bpm, time);
             const after = Object.values(sample(engine, clock.beatAt(time))).flat();
             before.forEach((v, i) => assert.ok(Math.abs(v - after[i]) < EPS, `${name} jumped at ${time} ms`));
         }
+    }
+});
+
+test('a rate change keeps the current whole step and puts the next step on the beat grid', () => {
+    const engine = new EffectEngine();
+    engine.play('wave', EFFECTS.wave, { rate: 1, easing: 'linear', intensity: 1 });
+    for (const [beat, rate] of [[2.3, 4], [5.61, 0.25], [9.9, 2], [13.2, 0.5]]) {
+        const step = Math.floor(engine.active.phase.stepAt(beat));
+        engine.setRate(rate, beat);
+        const { phase } = engine.active;
+        assert.equal(Math.floor(phase.stepAt(beat)), step, `step kept at beat ${beat}`);
+        assert.ok(Number.isInteger(phase.offset), `rate ${rate}: steps start on grid lines`);
     }
 });
 

@@ -484,6 +484,22 @@
     color: #FFD700;
 }
 
+.layout-row .bpm-input {
+    width: 52px;
+    background: #1a1a1a;
+    color: #FFD700;
+    border: 1px solid #333;
+    border-radius: 3px;
+    padding: 2px 4px;
+    font-size: 12px;
+    text-align: right;
+}
+
+.layout-row .bpm-input:focus {
+    border-color: #FFD700;
+    outline: none;
+}
+
 /* Color panel chips: "Todos" plus one per color slot */
 .color-chips {
     display: flex;

@@ -305,6 +305,14 @@ export class ColorSequencer {
         this.clock.setBPM(bpm, performance.now());
     }
 
+    /** Make `now` beat 0 and restart the pattern from frame 0 on it. */
+    downbeat(now) {
+        this.clock.downbeat(now);
+        this.currentStep = 0;
+        this._restartPhase();
+        this._applyCurrentFrame();
+    }
+
     /** Master beat position at `now` (ms); the movement and glow layers run on it. */
     beatAt(now) {
         return this.clock.beatAt(now);
@@ -384,7 +392,7 @@ export class ColorSequencer {
         this._applyCurrentFrame();
     }
 
-    /** Count frame steps from the current beat, so the next step is one full step away. */
+    /** Count frame steps from the step running now, so the next frame lands on the next grid step. */
     _restartPhase() {
         this.phase.restartAt(this.beatAt(performance.now()));
         this._wholeStep = 0;

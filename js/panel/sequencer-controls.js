@@ -3,6 +3,7 @@ import { CONFIG } from '../config.js';
 import { ColorSequencer } from '../color-sequencer.js';
 import { GLOW_QUICK } from '../glow-map.js';
 import { MOODS, MOOD_QUICK } from '../mood-map.js';
+import { BPM_MIN, BPM_MAX } from '../tempo.js';
 import { colorHex } from './color-controls.js';
 
 // Every button group uses the same two-line "KEY over WORD" layout via keyLabel(),
@@ -109,9 +110,9 @@ export function createSequencerControls(sectionEl, app) {
         btn.addEventListener('click', () => {
             const idx = COLOR_INDICES[i];
             if (idx === 99) {
-                seq.selectAllShuffled();
+                app.shuffleColors();
             } else {
-                seq.toggleColor(idx);
+                app.toggleColor(idx);
             }
             refreshAll();
             app.refreshPanel();
@@ -259,24 +260,31 @@ export function createSequencerControls(sectionEl, app) {
     bpmLabel.textContent = 'BPM';
 
     const bpmSlider = document.createElement('input');
+    const bpmBox = document.createElement('input');
     bpmSlider.type = 'range';
-    bpmSlider.min = '40';
-    bpmSlider.max = '300';
-    bpmSlider.step = '5';
-    bpmSlider.value = seq.bpm;
-
-    const bpmVal = document.createElement('span');
-    bpmVal.className = 'range-value';
-    bpmVal.textContent = seq.bpm;
+    bpmBox.type = 'number';
+    bpmBox.className = 'bpm-input';
+    for (const input of [bpmSlider, bpmBox]) {
+        input.min = String(BPM_MIN);
+        input.max = String(BPM_MAX);
+        input.step = '1';
+        input.value = seq.bpm;
+    }
 
     bpmSlider.addEventListener('input', () => {
-        seq.setBPM(parseInt(bpmSlider.value));
-        bpmVal.textContent = bpmSlider.value;
+        seq.setBPM(Number(bpmSlider.value));
+        bpmBox.value = seq.bpm;
+    });
+    bpmBox.addEventListener('change', () => {
+        const typed = Number(bpmBox.value);
+        if (bpmBox.value !== '' && Number.isFinite(typed)) seq.setBPM(typed);
+        bpmBox.value = seq.bpm;
+        bpmSlider.value = seq.bpm;
     });
 
     bpmRow.appendChild(bpmLabel);
     bpmRow.appendChild(bpmSlider);
-    bpmRow.appendChild(bpmVal);
+    bpmRow.appendChild(bpmBox);
     sectionEl.appendChild(bpmRow);
 
     // === Play/Pause (= Space): commits a cue, else toggles; the label shows the current state ===
@@ -338,7 +346,7 @@ export function createSequencerControls(sectionEl, app) {
         updateMiniStage();
         updateStepDots();
         updatePatternPreview();
-        bpmVal.textContent = seq.bpm;
+        if (document.activeElement !== bpmBox) bpmBox.value = seq.bpm;
         bpmSlider.value = seq.bpm;
         updatePlayBtn();
     }

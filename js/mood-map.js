@@ -1,6 +1,6 @@
 // --- Scene states: the base state and the moods (single source of truth) ---
 // A scene state sets every performance layer at once: colors, pattern,
-// movement, glow and BPM. Startup, Escape, the cue baseline and Reset to
+// movement and glow (the base state also BPM). Startup, Escape, the cue baseline and Reset to
 // Defaults all return to BASE_STATE; the keyboard (shortcuts.js) and the panel
 // (sequencer-controls.js) both read the mood list from here.
 //
@@ -19,24 +19,24 @@ export const BASE_STATE = Object.freeze({
     playing: true,
 });
 
-// A mood's speed is its BPM plus one rate per layer, in steps per beat from
+// A mood's speed is one rate per layer (never a BPM: that is the song's), in steps per beat from
 // the rate buttons (tempo.js RATES). The optional `easings` sets a movement or
 // glow curve, which must be a panel easing (layer-controls.js EASING_MODES) or
 // its button never highlights; a layer it omits plays the effect's own curve.
 // Applying a mood does not change the rate or easing an effect is remembered with.
 export const MOODS = {
-    calm:    { colors: [1],             pattern: 'none',     movement: 'wave',      glow: 'breathe',   bpm: 80,
+    calm:    { colors: [1],             pattern: 'none',     movement: 'wave',      glow: 'breathe',
                rates: { color: 1, movement: 1, glow: 0.5 } },
-    groove:  { colors: [1, 3],          pattern: 'carousel', movement: 'wave',      glow: 'pulse',     bpm: 120,
+    groove:  { colors: [1, 3],          pattern: 'carousel', movement: 'wave',      glow: 'pulse',
                rates: { color: 1, movement: 1, glow: 1 } },
-    build:   { colors: [2, 0],         pattern: 'fill',     movement: 'broken',    glow: 'sweep',     bpm: 130,
+    build:   { colors: [2, 0],         pattern: 'fill',     movement: 'broken',    glow: 'sweep',
                rates: { color: 2, movement: 1, glow: 2 } },
-    tension: { colors: [2, 4],          pattern: 'mirror',   movement: 'shake',     glow: 'pulse',     bpm: 140,
+    tension: { colors: [2, 4],          pattern: 'mirror',   movement: 'shake',     glow: 'pulse',
                rates: { color: 1, movement: 2, glow: 4 },
                easings: { glow: 'easeInOutCubic' } },
-    peak:    { colors: [0, 1, 2, 3, 4], pattern: 'carousel', movement: 'shake',     glow: 'alternate', bpm: 175,
+    peak:    { colors: [0, 1, 2, 3, 4], pattern: 'carousel', movement: 'shake',     glow: 'alternate',
                rates: { color: 1, movement: 1, glow: 1 } },
-    mystic:  { colors: [4],             pattern: 'none',     movement: 'equalizer', glow: 'sweep',     bpm: 85,
+    mystic:  { colors: [4],             pattern: 'none',     movement: 'equalizer', glow: 'sweep',
                rates: { color: 1, movement: 1, glow: 2 },
                easings: { glow: 'linear' } },
 };

@@ -12,7 +12,7 @@
 // Backspace: cue a new combo while the live one keeps playing; colors, pattern,
 //   movement, glow and mood pressed meanwhile wait for Space (BPM stays live)
 // Space: commit the cue (unpressed movement/glow/mood go to the base state), else pause/resume
-// + / ´: BPM up / down
+// + / ´: BPM up / down by 1, by 5 with Shift
 // Escape: back to the base state; P: panel
 //
 // resolveShortcut is the only key map: the keydown listener and the live
@@ -24,6 +24,8 @@ import { MOODS, MOOD_KEY_TO_NAME } from './mood-map.js';
 
 const PATTERN_KEYS = { q: 'none', w: 'chase', e: 'carousel', r: 'mirror', t: 'fill', y: 'sparkle' };
 const MOVEMENT_KEYS = { a: 'none', s: 'wave', d: 'expand', f: 'broken', g: 'shake', h: 'equalizer', j: 'zoomPulse' };
+const BPM_STEP = 1;
+const BPM_SHIFT_STEP = 5;
 
 /**
  * Returns the action bound to a keystroke as `(app) => void`, or null when the
@@ -45,9 +47,9 @@ export function resolveShortcut(e) {
     if (key === '|' && !ctrl && !alt) {
         return (app) => {
             if (shift) {
-                app.sequencer.selectOnly(-1);
+                app.selectOnlyColor(-1);
             } else {
-                app.sequencer.toggleColor(-1);
+                app.toggleColor(-1);
             }
             app.refreshPanel();
         };
@@ -65,9 +67,9 @@ export function resolveShortcut(e) {
             const colorIdx = num - 1;
             return (app) => {
                 if (shift) {
-                    app.sequencer.selectOnly(colorIdx);
+                    app.selectOnlyColor(colorIdx);
                 } else {
-                    app.sequencer.toggleColor(colorIdx);
+                    app.toggleColor(colorIdx);
                 }
                 app.refreshPanel();
             };
@@ -75,7 +77,7 @@ export function resolveShortcut(e) {
 
         if (num === 6) {
             return (app) => {
-                app.sequencer.selectAllShuffled();
+                app.shuffleColors();
                 app.refreshPanel();
             };
         }
@@ -142,17 +144,18 @@ export function resolveShortcut(e) {
         return (app) => app.resetToBase();
     }
 
-    if (key === '+') {
+    // On Spanish and Latin American layouts Shift+'+' is '*' on code BracketRight,
+    // and '´' / Shift+'´' ('¨') are dead keys that keydown may report as 'Dead'.
+    const bpmStep = shift ? BPM_SHIFT_STEP : BPM_STEP;
+    if ((key === '+' || (key === '*' && e.code === 'BracketRight')) && !ctrl && !alt) {
         return (app) => {
-            app.sequencer.setBPM(app.sequencer.bpm + 10);
+            app.sequencer.setBPM(app.sequencer.bpm + bpmStep);
             app.refreshPanel();
         };
     }
-    // "´" is a dead key on the Spanish layout, so keydown may report 'Dead';
-    // e.code 'BracketRight' is the physical fallback.
-    if ((key === '´' || key === 'Dead' || e.code === 'BracketRight') && !ctrl && !alt) {
+    if ((key === '´' || key === '¨' || key === 'Dead') && !ctrl && !alt) {
         return (app) => {
-            app.sequencer.setBPM(app.sequencer.bpm - 10);
+            app.sequencer.setBPM(app.sequencer.bpm - bpmStep);
             app.refreshPanel();
         };
     }

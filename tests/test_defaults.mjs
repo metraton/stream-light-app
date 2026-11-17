@@ -44,11 +44,11 @@ test('the tuned base values', () => {
     assert.equal(BASE_STATE.bpm, 120);
     assert.deepEqual(MOOD_QUICK.map(({ mood }) => mood), Object.keys(MOODS));
     assert.deepEqual(MOODS.calm, {
-        colors: [1], pattern: 'none', movement: 'wave', glow: 'breathe', bpm: 80,
+        colors: [1], pattern: 'none', movement: 'wave', glow: 'breathe',
         rates: { color: 1, movement: 1, glow: 0.5 },
     });
     assert.deepEqual(MOODS.groove, {
-        colors: [1, 3], pattern: 'carousel', movement: 'wave', glow: 'pulse', bpm: 120,
+        colors: [1, 3], pattern: 'carousel', movement: 'wave', glow: 'pulse',
         rates: { color: 1, movement: 1, glow: 1 },
     });
 });
