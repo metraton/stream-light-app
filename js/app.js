@@ -465,8 +465,8 @@ export class StreamLightApp {
         this.refreshPanel();
     }
 
-    /** Return every performance layer to BASE_STATE, BPM and playing with no
-     *  colors included (Escape, Reset to Defaults). Layout, filters, rotation and the
+    /** Return every performance layer to BASE_STATE, playing with no colors
+     *  (Escape, Reset to Defaults); the BPM stays the song's. Layout, filters, rotation and the
      *  FPS cap are not performance layers and stay as they are. */
     resetToBase() {
         this.sequencer.resetToBase();

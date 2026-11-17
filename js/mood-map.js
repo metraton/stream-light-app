@@ -1,6 +1,6 @@
 // --- Scene states: the base state and the moods (single source of truth) ---
 // A scene state sets every performance layer at once: colors, pattern,
-// movement and glow (the base state also BPM). Startup, Escape, the cue baseline and Reset to
+// movement and glow; BASE_STATE.bpm is only the startup BPM. Startup, Escape, the cue baseline and Reset to
 // Defaults all return to BASE_STATE; the keyboard (shortcuts.js) and the panel
 // (sequencer-controls.js) both read the mood list from here.
 //

@@ -175,12 +175,11 @@ export class ColorSequencer {
         this.resetToBase();
     }
 
-    /** Return to BASE_STATE: no colors, base pattern (no variant) and BPM, playing, no cue in progress. */
+    /** Return to BASE_STATE: no colors, base pattern (no variant), playing, no cue in progress; the BPM stays the song's. */
     resetToBase() {
         this.selectedColors = [...BASE_STATE.colors];
         this.pattern = BASE_STATE.pattern;
         this.variant = false;
-        this.setBPM(BASE_STATE.bpm);
         this.isPlaying = BASE_STATE.playing;
 
         // --- DJ cue/staging model ---

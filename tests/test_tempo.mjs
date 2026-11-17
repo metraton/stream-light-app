@@ -2,7 +2,7 @@
 import { test, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { StreamLightApp } from '../js/app.js';
-import { MOODS } from '../js/mood-map.js';
+import { BASE_STATE, MOODS } from '../js/mood-map.js';
 import { resolveShortcut } from '../js/shortcuts.js';
 import { BPM_MIN, BPM_MAX, RATES, RATE_LABELS } from '../js/tempo.js';
 
@@ -107,6 +107,17 @@ test('a mood keeps the live BPM, pressed live or committed from a cue', () => {
         press(app, ' ', 'Space');
         assert.equal(app.sequencer.bpm, 97, `Shift+${letter} from a cue`);
     }
+});
+
+test('Escape returns every layer to the base state and keeps the live BPM', () => {
+    const app = stageApp();
+    assert.equal(app.sequencer.bpm, BASE_STATE.bpm, 'startup BPM');
+    app.sequencer.setBPM(97);
+    press(app, 'C', 'KeyC', true);
+    press(app, 'Escape', 'Escape');
+    assert.equal(app.sequencer.bpm, 97);
+    assert.deepEqual([app.sequencer.selectedColors, app.sequencer.pattern, app.currentMovement, app.currentGlowMode, app.currentMood],
+        [[], BASE_STATE.pattern, BASE_STATE.movement, BASE_STATE.glow, BASE_STATE.mood]);
 });
 
 test('BPM runs 60 to 200 in whole beats', () => {
