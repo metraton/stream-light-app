@@ -57,10 +57,9 @@ export function createFilterControls(sectionEl, app) {
         const dot = document.createElement('span');
         dot.className = 'chip-dot';
         const fx = document.createElement('span');
+        fx.className = 'chip-fx';
         fx.textContent = '✦';
         fx.title = 'Tiene efectos';
-        fx.style.fontSize = '9px';
-        fx.style.color = '#FFD700';
         chip.append(swatch, label, dot, fx);
         chip.addEventListener('click', e => {
             selection = nextSelection(selection, slot, e.shiftKey);
@@ -80,11 +79,10 @@ export function createFilterControls(sectionEl, app) {
     });
 
     const resetRow = document.createElement('div');
-    resetRow.className = 'preset-row';
+    resetRow.className = 'field-row';
     const resetBtn = document.createElement('button');
     resetBtn.textContent = 'Reset';
     resetBtn.title = 'Todos a neutro y ningún color con ajuste propio (los hex no cambian)';
-    resetBtn.style.flex = '1';
     resetBtn.addEventListener('click', () => {
         resetColorFilter(model);
         app.columnManager.applyFilters();
@@ -95,14 +93,12 @@ export function createFilterControls(sectionEl, app) {
     sectionEl.appendChild(resetRow);
 
     const effectsTitle = document.createElement('div');
-    effectsTitle.className = 'layout-row';
-    const effectsLabel = document.createElement('label');
-    effectsLabel.textContent = 'Efectos';
-    effectsTitle.appendChild(effectsLabel);
+    effectsTitle.className = 'subhead';
+    effectsTitle.textContent = 'Efectos';
     sectionEl.appendChild(effectsTitle);
 
     const effectButtons = document.createElement('div');
-    effectButtons.className = 'effect-buttons';
+    effectButtons.className = 'btn-flow';
     sectionEl.appendChild(effectButtons);
     const noneBtn = document.createElement('button');
     noneBtn.textContent = 'None';
@@ -133,11 +129,10 @@ export function createFilterControls(sectionEl, app) {
     sectionEl.appendChild(effectParamBox);
 
     const effectsResetRow = document.createElement('div');
-    effectsResetRow.className = 'preset-row';
+    effectsResetRow.className = 'field-row';
     const effectsResetBtn = document.createElement('button');
     effectsResetBtn.textContent = 'Reset efectos';
     effectsResetBtn.title = 'Quita los efectos de Todos y de cada color';
-    effectsResetBtn.style.flex = '1';
     effectsResetBtn.addEventListener('click', () => {
         resetEffectStack(stack);
         effectsChanged();
@@ -184,8 +179,8 @@ export function createFilterControls(sectionEl, app) {
     function buildEffects() {
         const targets = targetsOf(selection);
         const list = targets[0] === null ? stack.global : stack.slots[targets[0]];
-        noneBtn.classList.toggle('active', list.length === 0);
-        for (const { btn, id } of toggles) btn.classList.toggle('active', hasEffect(stack, targets[0], id));
+        noneBtn.classList.toggle('is-active', list.length === 0);
+        for (const { btn, id } of toggles) btn.classList.toggle('is-active', hasEffect(stack, targets[0], id));
 
         effectParamBox.innerHTML = '';
         for (const { id, params } of list) {
@@ -198,12 +193,12 @@ export function createFilterControls(sectionEl, app) {
     function refreshChips() {
         for (const { chip, swatch, dot, fx, slot } of chips) {
             const selected = slot === null ? selection.length === 0 : selection.includes(slot);
-            chip.classList.toggle('active', selected);
-            swatch.style.background = slot === null
+            chip.classList.toggle('is-active', selected);
+            swatch.style.setProperty('--swatch', slot === null
                 ? `linear-gradient(90deg,${CONFIG.colorOrder.map(colorHex).join(',')})`
-                : colorHex(CONFIG.colorOrder[slot]);
+                : colorHex(CONFIG.colorOrder[slot]));
             dot.classList.toggle('on', slot !== null && hasOffset(model, slot));
-            fx.style.visibility = hasAnyEffect(stack, slot) ? 'visible' : 'hidden';
+            fx.classList.toggle('on', hasAnyEffect(stack, slot));
         }
     }
 

@@ -208,8 +208,8 @@ const ascii = {
     label: 'ASCII',
     defaults: { size: 12, gain: 2.5, dim: 0, color: 'column' },
     params: [
-        { key: 'size', label: 'Celda', min: 4, max: 32, decimals: 0 },
-        { key: 'gain', label: 'Contraste', min: 1, max: 6, decimals: 1 },
+        { key: 'size', label: 'Celda', min: 6, max: 24, decimals: 0 },
+        { key: 'gain', label: 'Contraste', min: 1, max: 4, decimals: 1 },
         { key: 'dim', label: 'Fondo', min: 0, max: 1, decimals: 2 },
         {
             key: 'color',
@@ -331,9 +331,9 @@ const xray = {
     label: 'Rayos X',
     defaults: { exposure: 2.5, contrast: 1.2, edge: 0, tint: 'none' },
     params: [
-        { key: 'exposure', label: 'Exposición', min: 0.5, max: 6, decimals: 1 },
-        { key: 'contrast', label: 'Contraste', min: 0.5, max: 3, decimals: 2 },
-        { key: 'edge', label: 'Bordes', min: 0, max: 3, decimals: 2 },
+        { key: 'exposure', label: 'Exposición', min: 1, max: 4, decimals: 1 },
+        { key: 'contrast', label: 'Contraste', min: 0.8, max: 2, decimals: 2 },
+        { key: 'edge', label: 'Bordes', min: 0, max: 2, decimals: 2 },
         {
             key: 'tint',
             label: 'Tinte',
@@ -400,7 +400,7 @@ const rgbSplit = {
     label: 'RGB split',
     defaults: { amount: 8, sync: FIXED },
     params: [
-        { key: 'amount', label: 'Desfase px', min: 0, max: 40, decimals: 0 },
+        { key: 'amount', label: 'Desfase px', min: 0, max: 24, decimals: 0 },
         {
             key: 'sync',
             label: 'Ritmo',
@@ -427,7 +427,7 @@ const halftone = {
     label: 'Semitono',
     defaults: { scale: 1, angle: 5, tone: 'gray' },
     params: [
-        { key: 'scale', label: 'Escala', min: 0.3, max: 3, decimals: 2 },
+        { key: 'scale', label: 'Escala', min: 0.5, max: 2, decimals: 2 },
         { key: 'angle', label: 'Ángulo', min: 0, max: 6.28, decimals: 2 },
         {
             key: 'tone',
@@ -601,7 +601,7 @@ const neon = {
     label: 'Contorno neón',
     defaults: { glow: 1.5, color: 'column' },
     params: [
-        { key: 'glow', label: 'Brillo', min: 0.5, max: 4, decimals: 2 },
+        { key: 'glow', label: 'Brillo', min: 0.5, max: 3, decimals: 2 },
         {
             key: 'color',
             label: 'Color',

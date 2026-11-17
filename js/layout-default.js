@@ -6,10 +6,10 @@ import { DEFAULTS } from './config.js';
 /** The Layout sliders; their ranges also bound what a stored default may hold. */
 export const LAYOUT_DEFS = [
     { key: 'gap', label: 'Gap', min: 0, max: 40, decimals: 0 },
-    { key: 'margin', label: 'Margin', min: 0, max: 60, decimals: 0 },
+    { key: 'margin', label: 'Margin', min: 0, max: 40, decimals: 0 },
     { key: 'cornerRadius', label: 'Radius', min: 0, max: 30, decimals: 0 },
-    { key: 'zoom', label: 'Zoom', min: 0.8, max: 1.5, decimals: 2 },
-    { key: 'spread', label: 'Spread', min: 0.5, max: 1.5, decimals: 2 },
+    { key: 'zoom', label: 'Zoom', min: 0.9, max: 1.3, decimals: 2 },
+    { key: 'spread', label: 'Spread', min: 0.7, max: 1.3, decimals: 2 },
 ];
 
 export const LAYOUT_DEFAULT_KEY = 'streamlight-layout-default';
@@ -24,14 +24,16 @@ export function factoryLayout() {
     return pickLayout(DEFAULTS.columns);
 }
 
-/** `data` reduced to the layout fields; a missing, non-numeric or out-of-range field takes the factory value. */
+/** The numeric layout fields of `data`, each clamped to its slider range; other fields are left out. */
+export function clampLayoutFields(data) {
+    return Object.fromEntries(LAYOUT_DEFS
+        .filter(({ key }) => Number.isFinite(data?.[key]))
+        .map(({ key, min, max }) => [key, Math.min(max, Math.max(min, data[key]))]));
+}
+
+/** `data` reduced to the layout fields; an out-of-range field is clamped, a missing or non-numeric one takes the factory value. */
 export function validateLayout(data) {
-    const factory = factoryLayout();
-    return Object.fromEntries(LAYOUT_DEFS.map(({ key, min, max }) => {
-        const value = data?.[key];
-        const valid = Number.isFinite(value) && value >= min && value <= max;
-        return [key, valid ? value : factory[key]];
-    }));
+    return { ...factoryLayout(), ...clampLayoutFields(data) };
 }
 
 /** The saved user default, validated; null when none is saved or the stored text is not a JSON object. */

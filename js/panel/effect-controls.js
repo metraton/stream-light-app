@@ -1,41 +1,31 @@
-// --- Movimiento section, and the active-effect controls it shares with Glow ---
-// Intensity, easing and rate act on the effect a layer plays now
-// (app.nowPlaying) and are remembered for it by the app; nothing here writes
-// to the effect definitions.
-import { RATES, RATE_LABELS } from '../tempo.js';
+// --- Movimiento section, and the intensity and Stop controls it shares with Glow ---
 import { createSlider } from './slider.js';
-import { EASING_MODES, activeLine, buttonRow, sameCurve } from './layer-controls.js';
+import { activeLine } from './layer-controls.js';
 
-/** Bounds of the intensity slider; app.js importTweaks drops a stored intensity outside them. */
-export const INTENSITY_MIN = 0.25;
-export const INTENSITY_MAX = 2;
+/** Bounds of the intensity slider; app.js importTweaks clamps a stored intensity to them. */
+export const INTENSITY_MIN = 0.5;
+export const INTENSITY_MAX = 1.5;
 
-/** Highlight the button isOn picks; an idle row is disabled and nothing is picked. */
+/** Mark the button isOn picks as active; an idle row is disabled and nothing is picked. */
 export function markChoice(btns, isOn, idle = false) {
     btns.forEach((btn, i) => {
-        const on = !idle && isOn(i);
         btn.disabled = idle;
-        btn.style.background = on ? '#FFD700' : '#333';
-        btn.style.color = on ? '#000' : (idle ? '#555' : '#aaa');
+        btn.classList.toggle('is-active', !idle && isOn(i));
     });
 }
 
 /**
- * Intensity slider, easing and rate buttons and Stop for what `layer`
- * ('movement' or 'glow') plays now. Returns refresh(), which follows app.nowPlaying().
+ * Intensity slider and Stop for what `layer` ('movement' or 'glow') plays now.
+ * Returns refresh(), which follows app.nowPlaying().
  */
 export function createLayerTweaks(parent, app, layer, onStop) {
     const intensity = createSlider(parent, {
         label: 'Intensidad', min: INTENSITY_MIN, max: INTENSITY_MAX, defaultValue: 1, decimals: 2,
         onChange: v => app.setLayerIntensity(layer, v),
     });
-    const easingBtns = buttonRow(parent, EASING_MODES.map(m => m.label),
-        i => app.setLayerEasing(layer, EASING_MODES[i].curve));
-    const rateBtns = buttonRow(parent, RATES.map(r => RATE_LABELS.get(r)),
-        i => app.setLayerRate(layer, RATES[i]));
 
     const buttons = document.createElement('div');
-    buttons.className = 'effect-buttons';
+    buttons.className = 'btn-grid';
     const stopBtn = document.createElement('button');
     stopBtn.textContent = 'Stop';
     stopBtn.addEventListener('click', onStop);
@@ -47,8 +37,6 @@ export function createLayerTweaks(parent, app, layer, onStop) {
         const idle = playing.rate === null;
         intensity.setDisabled(idle);
         intensity.show(playing.intensity ?? 1);
-        markChoice(easingBtns, i => sameCurve(EASING_MODES[i].curve, playing.easing), idle);
-        markChoice(rateBtns, i => RATES[i] === playing.rate, idle);
     };
 }
 

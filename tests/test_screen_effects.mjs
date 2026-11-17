@@ -124,8 +124,9 @@ test('restoring drops unknown and repeated effects, checks params and treats non
         { id: 'flash', params: { mode: 'negative', rate: 3, duration: 9 } },
         { id: 'flash', params: { mode: 'black' } },
     ]);
-    const { defaults } = screenEffectById('flash');
-    assert.deepEqual(restored, [{ id: 'flash', params: { mode: 'negative', rate: defaults.rate, duration: 1 } }]);
+    const { defaults, params } = screenEffectById('flash');
+    const maxDuration = params.find(p => p.key === 'duration').max;
+    assert.deepEqual(restored, [{ id: 'flash', params: { mode: 'negative', rate: defaults.rate, duration: maxDuration } }]);
     assert.deepEqual(restoreScreenStack(undefined), []);
     assert.deepEqual(restoreScreenStack({ flash: true }), []);
 });

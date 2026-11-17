@@ -1,7 +1,5 @@
-// --- "Sonando ahora": what each layer plays now, with its rate and easing ---
-// Every button acts on the effect that is playing (app.nowPlaying), never on a
-// dropdown selection, so a key or button press is followed at once by a rate
-// or easing change for that same effect.
+// --- "Sonando ahora": what each layer plays now, with the panel's only rate and easing ---
+// Every button acts on the effect playing now (app.nowPlaying), never on a selection.
 import { RATES, RATE_LABELS } from '../tempo.js';
 
 const LAYERS = [
@@ -23,12 +21,10 @@ export const EASING_MODES = [
 
 export const sameCurve = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
-/** A wrapping row of buttons; clicking one calls onPick with its index. */
+/** One row of equal-width buttons; clicking one calls onPick with its index. */
 export function buttonRow(parent, labels, onPick) {
     const row = document.createElement('div');
-    row.className = 'effect-buttons';
-    row.style.flexWrap = 'wrap';
-    row.style.gap = '4px';
+    row.className = 'btn-grid';
     const btns = labels.map((label, i) => {
         const btn = document.createElement('button');
         btn.textContent = label;
@@ -54,29 +50,30 @@ export function activeLine(parent, title) {
     return text => { value.textContent = text; };
 }
 
-/** Highlight the button isOn picks; with nothing playing every button is disabled. */
+/** Mark the button isOn picks as active; with nothing playing every button is disabled. */
 function highlight(btns, isOn, disabled) {
     btns.forEach((btn, i) => {
-        const on = !disabled && isOn(i);
         btn.disabled = disabled;
-        btn.style.background = on ? '#FFD700' : '#333';
-        btn.style.color = on ? '#000' : (disabled ? '#555' : '#aaa');
+        btn.classList.toggle('is-active', !disabled && isOn(i));
     });
 }
 
 /** Builds the "Sonando ahora" block; returns its refresh callback. */
 export function createNowPlaying(parent, app) {
     const header = document.createElement('div');
-    header.className = 'effect-name';
+    header.className = 'subhead';
     header.textContent = 'Sonando ahora';
     parent.appendChild(header);
 
     const rows = LAYERS.map(({ layer, title, hasEasing }) => {
-        const setName = activeLine(parent, title);
-        const rateBtns = buttonRow(parent, RATES.map(r => RATE_LABELS.get(r)),
+        const group = document.createElement('div');
+        group.className = 'layer-group';
+        parent.appendChild(group);
+        const setName = activeLine(group, title);
+        const rateBtns = buttonRow(group, RATES.map(r => RATE_LABELS.get(r)),
             i => app.setLayerRate(layer, RATES[i]));
         const easingBtns = hasEasing
-            ? buttonRow(parent, EASING_MODES.map(m => m.label),
+            ? buttonRow(group, EASING_MODES.map(m => m.label),
                 i => app.setLayerEasing(layer, EASING_MODES[i].curve))
             : [];
         return { layer, setName, rateBtns, easingBtns };

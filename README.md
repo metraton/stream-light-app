@@ -95,7 +95,9 @@ Tempo follows the song: set the BPM to the track's (60 to 200 in whole beats, wi
 
 - A mood (Shift+Z X C V B N) never changes the BPM; live, it sets colors, so it is a downbeat too. On a cue it waits for the commit like everything else.
 - Space (pause / resume), Escape and `<` never move the downbeat. Escape and the panel's Reset to Defaults keep the BPM; 120 is only the BPM the page starts at.
-- The rate buttons ("Sonando ahora", Movimiento, Glow) name how long one step lasts: `4 golpes`, `2 golpes`, `1 golpe`, `½` (two steps per beat), `¼` (four per beat). Chase and Fill play `½` by default.
+- The rate buttons name how long one step lasts: `4 golpes`, `2 golpes`, `1 golpe`, `1/2 golpe` (two steps per beat), `1/4 golpe` (four per beat). Chase and Fill play `1/2 golpe` by default. Rate and easing live only in the Sequencer section's "Sonando ahora", one row per layer (Color, Movimiento, Glow); the Movimiento and Glow sections keep the intensity and Stop.
+
+The panel (`P`) opens on the left at 440 px. Drag its right edge to resize it between 400 and 720 px (never more than 60% of the window); the width is saved in localStorage (`streamlight-panel-width`) and a double click on the edge returns to 440. Every key row is one row of equal buttons. Every slider shares one control (`js/panel/slider.js`): the track is fine near the default and coarse at the ends, the mouse wheel over the track or the number and the arrow keys move one step (about 1/50 of the range), Shift makes a drag, a notch or an arrow ten times finer, a double click returns to the default and the number can be typed. The ranges are kept to the values that read well on stage; a preset or saved layout with a value outside a range loads clamped to it. The panel's sizes and colors are CSS custom properties at the top of `panel.css`.
 
 The clock and the grid rules are in `js/tempo.js`, tested by `tests/test_tempo.mjs`.
 
@@ -181,7 +183,7 @@ No secret lives in the repo: `obs/profile/stream-light/service.example.json` has
 
 ```
 index.html          page shell and the no-camera notice
-panel.css           control panel styles
+panel.css           control panel styles: spacing, type, color and size tokens, then the button, slider and field components
 serve.py            file server + keyboard hook (Caps Lock live mode) + /events and /bound bridge, one process
 js/main.js          entry point: one page at a time (Web Lock), then starts the app with no click
 js/camera-rotation.js camera rotation rules for key 0 and the Cámaras section: order, on/off, unplugged cameras, saved order
@@ -193,7 +195,7 @@ js/mood-map.js      the base state and the moods, shared by the app, shortcuts a
 js/color-filter.js  Color panel model: global filter + per-color offsets, effective values, old-preset migration
 js/overlay-text.js  text overlay model: settings and their preset restore, saved phrases, fade, beat pulse, seeded flicker
 js/overlay.js       text overlay rendering: double-outline phrase, glow and band above the screen layer
-js/panel/           control panel sections
+js/panel/           control panel sections, the shared slider (slider.js) and the saved panel width (panel-width.js)
 monitor/            OBS custom dock: stream health of the main and Aitum outputs, with its own README
 obs/                OBS profiles (common + per-GPU encoder variants), scene collection, Aitum Vertical template, install.ps1 and its merge rules ObsMerge.psm1, with keys and tokens removed
 js/*.js             rendering engines: columns, effects, glow, color sequencer, camera
@@ -201,6 +203,7 @@ tests/test_serve.py    tests for the file server, the bridge and the Caps Lock l
 tests/test_patterns.mjs tests for the color patterns, the key grid and JS syntax
 tests/test_tempo.mjs tests for the downbeat on a color press, the shared beat grid, mood BPM and the BPM keys and bounds
 tests/test_color_filter.mjs tests for the Color panel math and the old-preset migration
+tests/test_panel_controls.mjs tests for the panel width (clamp, saved width, reset), slider steps and the narrowed ranges
 tests/test_text_overlay.mjs tests for the text overlay's phrases, preset restore, fade, flicker and key 9
 tests/test_defaults.mjs tests that startup, Reset to Defaults, Original and old presets share the tuned base
 tests/test_camera_rotation.mjs tests for the camera rotation: order, disabled cameras, unplug and plug, saved order, key 0

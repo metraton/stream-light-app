@@ -66,7 +66,7 @@ const flash = {
             label: 'Ritmo',
             options: [{ value: 1, label: '1/1' }, { value: 2, label: '1/2' }, { value: 4, label: '1/4' }],
         },
-        { key: 'duration', label: 'Duración', min: 0.05, max: 1, decimals: 2 },
+        { key: 'duration', label: 'Duración', min: 0.05, max: 0.6, decimals: 2 },
     ],
     create(params) {
         const filter = glFilter('screen-flash-filter', FLASH_FRAGMENT, {
@@ -168,7 +168,7 @@ const mirror = {
             ],
         },
         { key: 'segments', label: 'Segmentos', min: 3, max: 12, decimals: 0 },
-        { key: 'spin', label: 'Vueltas/compás', min: 0, max: 1, decimals: 2 },
+        { key: 'spin', label: 'Vueltas/compás', min: 0, max: 0.5, decimals: 2 },
         {
             key: 'sync',
             label: 'Giro',
@@ -217,9 +217,9 @@ const crt = {
     label: 'VHS / CRT',
     defaults: { scanlines: 0.25, curvature: 1, noise: 0.15, roll: 'off' },
     params: [
-        { key: 'scanlines', label: 'Líneas', min: 0, max: 1, decimals: 2 },
-        { key: 'curvature', label: 'Curvatura', min: 0, max: 10, decimals: 1 },
-        { key: 'noise', label: 'Ruido', min: 0, max: 1, decimals: 2 },
+        { key: 'scanlines', label: 'Líneas', min: 0, max: 0.6, decimals: 2 },
+        { key: 'curvature', label: 'Curvatura', min: 0, max: 4, decimals: 1 },
+        { key: 'noise', label: 'Ruido', min: 0, max: 0.5, decimals: 2 },
         {
             key: 'roll',
             label: 'Rollo',

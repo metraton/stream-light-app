@@ -4,6 +4,7 @@ import {
     LAYOUT_DEFS, activeLayoutDefault, factoryLayout, loadUserLayout, saveUserLayout, clearUserLayout,
 } from '../layout-default.js';
 import { createSlider } from './slider.js';
+import { clampPanelWidth, loadPanelWidth, savePanelWidth, clearPanelWidth } from './panel-width.js';
 import { createSequencerControls } from './sequencer-controls.js';
 import { createColorControls } from './color-controls.js';
 import { createFilterControls } from './filter-controls.js';
@@ -63,8 +64,42 @@ export class ControlPanel {
         this._buildSections();
 
         document.body.appendChild(this.element);
+        this._createResizeHandle();
         // No side toggle tab: the closed state shows only the visuals. The
         // panel opens/closes with the "P" key.
+    }
+
+    /** The right-edge strip that drags the panel width; double click returns to the default. */
+    _createResizeHandle() {
+        const handle = document.createElement('div');
+        handle.className = 'panel-resize';
+        handle.hidden = !this.visible;
+        handle.title = 'Arrastra para cambiar el ancho · doble clic: ancho por defecto';
+        const setWidth = width => document.documentElement.style.setProperty('--panel-width', `${width}px`);
+        setWidth(loadPanelWidth(window.innerWidth));
+
+        handle.addEventListener('pointerdown', e => {
+            handle.setPointerCapture(e.pointerId);
+            handle.classList.add('is-dragging');
+            this.element.classList.add('is-resizing');
+        });
+        handle.addEventListener('pointermove', e => {
+            if (handle.hasPointerCapture(e.pointerId)) setWidth(clampPanelWidth(e.clientX, window.innerWidth));
+        });
+        handle.addEventListener('pointerup', e => {
+            if (!handle.hasPointerCapture(e.pointerId)) return;
+            handle.releasePointerCapture(e.pointerId);
+            handle.classList.remove('is-dragging');
+            this.element.classList.remove('is-resizing');
+            savePanelWidth(clampPanelWidth(e.clientX, window.innerWidth));
+        });
+        handle.addEventListener('dblclick', () => {
+            clearPanelWidth();
+            setWidth(loadPanelWidth(window.innerWidth));
+        });
+        window.addEventListener('resize', () => setWidth(loadPanelWidth(window.innerWidth)));
+        document.body.appendChild(handle);
+        this.resizeHandle = handle;
     }
 
     _buildSections() {
@@ -168,20 +203,18 @@ export class ControlPanel {
         // Reset goes to the active default (yours if saved, else factory);
         // Fábrica forgets yours, so it also holds across reloads.
         const defaultRow = document.createElement('div');
-        defaultRow.className = 'preset-row';
+        defaultRow.className = 'btn-grid';
         const addButton = (text, title, onClick) => {
             const btn = document.createElement('button');
             btn.textContent = text;
             btn.title = title;
-            btn.style.flex = '1';
             btn.addEventListener('click', onClick);
             defaultRow.appendChild(btn);
         };
 
         const statusRow = document.createElement('div');
-        statusRow.className = 'layout-row';
-        const status = document.createElement('label');
-        statusRow.appendChild(status);
+        statusRow.className = 'status-line';
+        const status = statusRow;
         const showStatus = () => {
             status.textContent = loadUserLayout() ? 'Default: tuyo' : 'Default: fábrica';
         };
@@ -208,7 +241,7 @@ export class ControlPanel {
 
         // Rotate: single button cycling 0°/90°/180°/270°, displaying current angle.
         const rotRow = document.createElement('div');
-        rotRow.className = 'layout-row';
+        rotRow.className = 'control-row';
 
         const rotLabel = document.createElement('label');
         rotLabel.textContent = 'Rotate';
@@ -229,7 +262,7 @@ export class ControlPanel {
 
         // FPS cap: single button cycling 30 / 60 / Monitor (uncapped), displaying the current cap.
         const fpsRow = document.createElement('div');
-        fpsRow.className = 'layout-row';
+        fpsRow.className = 'control-row';
 
         const fpsLabel = document.createElement('label');
         fpsLabel.textContent = 'FPS cap';
@@ -251,6 +284,7 @@ export class ControlPanel {
     toggle() {
         this.visible = !this.visible;
         this.element.classList.toggle('hidden', !this.visible);
+        this.resizeHandle.hidden = !this.visible;
     }
 
     /** Called from app.refreshPanel() to refresh sequencer visual state */
@@ -266,10 +300,8 @@ export class ControlPanel {
     }
 
     refresh() {
-        // Remove all sections (keep header)
-        while (this.element.children.length > 1) {
-            this.element.removeChild(this.element.lastChild);
-        }
+        // Remove all sections (keep the header and the resize handle)
+        for (const section of this.element.querySelectorAll(':scope > .panel-section')) section.remove();
         this.sections = {};
         this._buildSections();
     }

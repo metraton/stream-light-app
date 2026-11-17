@@ -3,7 +3,7 @@
 // localStorage key, overlay-text.js PHRASES_KEY); visibility stays on the overlay.
 import { CONFIG, DEFAULTS } from '../config.js';
 import {
-    MAX_PHRASE_LENGTH, TEXT_SIZE, normalizePhrase, addPhrase, removePhrase, loadPhrases, savePhrases,
+    MAX_PHRASE_LENGTH, TEXT_SIZE, TEXT_BAND_OPACITY, normalizePhrase, addPhrase, removePhrase, loadPhrases, savePhrases,
 } from '../overlay-text.js';
 import { createSlider } from './slider.js';
 import { buttonRow } from './layer-controls.js';
@@ -35,7 +35,7 @@ export function createTextControls(sectionEl, app) {
     const [showBtn] = buttonRow(sectionEl, [''], () => app.toggleOverlay());
 
     const phraseRow = document.createElement('div');
-    phraseRow.className = 'preset-row';
+    phraseRow.className = 'field-row';
     const input = document.createElement('input');
     input.type = 'text';
     input.maxLength = MAX_PHRASE_LENGTH;
@@ -59,14 +59,14 @@ export function createTextControls(sectionEl, app) {
     sectionEl.appendChild(phraseRow);
 
     const phraseList = document.createElement('div');
-    phraseList.className = 'effect-buttons';
-    phraseList.style.flexWrap = 'wrap';
-    phraseList.style.gap = '4px';
+    phraseList.className = 'chip-flow';
     sectionEl.appendChild(phraseList);
 
     function renderPhrases() {
         phraseList.replaceChildren();
         for (const phrase of phrases) {
+            const chip = document.createElement('span');
+            chip.className = 'phrase-chip';
             const pick = document.createElement('button');
             pick.textContent = phrase;
             pick.addEventListener('click', () => {
@@ -84,7 +84,8 @@ export function createTextControls(sectionEl, app) {
                 savePhrases(phrases);
                 renderPhrases();
             });
-            phraseList.append(pick, remove);
+            chip.append(pick, remove);
+            phraseList.append(chip);
         }
     }
 
@@ -94,9 +95,9 @@ export function createTextControls(sectionEl, app) {
     });
     const customColor = document.createElement('input');
     customColor.type = 'color';
+    customColor.className = 'color-input';
     customColor.title = 'Custom';
     customColor.value = '#' + text.customColor.toString(16).padStart(6, '0');
-    customColor.style.width = '30px';
     customColor.addEventListener('input', () => {
         text.customColor = parseInt(customColor.value.slice(1), 16);
     });
@@ -117,7 +118,7 @@ export function createTextControls(sectionEl, app) {
         refresh();
     });
     createSlider(sectionEl, {
-        label: 'Opacidad', min: 0, max: 1, decimals: 2,
+        label: 'Opacidad', min: TEXT_BAND_OPACITY.min, max: TEXT_BAND_OPACITY.max, decimals: 2,
         defaultValue: DEFAULTS.text.bandOpacity, value: text.bandOpacity,
         onChange: v => {
             text.bandOpacity = v;
@@ -139,7 +140,7 @@ export function createTextControls(sectionEl, app) {
         showBtn.textContent = app.overlay.visible ? '9 Ocultar' : '9 Mostrar';
         markChoice([showBtn], () => app.overlay.visible);
         markChoice(colorBtns, i => COLOR_MODES[i].value === text.colorMode);
-        customColor.style.display = text.colorMode === 'custom' ? '' : 'none';
+        customColor.hidden = text.colorMode !== 'custom';
         markChoice([bandBtn], () => text.band);
         markChoice(positionBtns, i => POSITIONS[i].value === text.position);
         markChoice(beatBtns, i => BEAT_MODES[i].value === text.beat);

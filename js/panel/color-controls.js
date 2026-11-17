@@ -81,9 +81,8 @@ export function createColorControls(sectionEl, app, onColorsChange) {
  */
 function createSetControls(sectionEl, applyColors) {
     const header = document.createElement('div');
-    header.className = 'effect-name';
+    header.className = 'subhead';
     header.textContent = 'Sets de colores';
-    header.style.marginTop = '10px';
 
     const list = document.createElement('div');
     list.className = 'color-sets';
@@ -95,7 +94,7 @@ function createSetControls(sectionEl, applyColors) {
     const saveBtn = document.createElement('button');
     saveBtn.textContent = 'Guardar';
     const saveRow = document.createElement('div');
-    saveRow.className = 'preset-row';
+    saveRow.className = 'field-row';
     saveRow.append(nameInput, saveBtn);
 
     const codeInput = document.createElement('input');
@@ -106,7 +105,7 @@ function createSetControls(sectionEl, applyColors) {
     const loadBtn = document.createElement('button');
     loadBtn.textContent = 'Cargar';
     const shareRow = document.createElement('div');
-    shareRow.className = 'preset-row';
+    shareRow.className = 'field-row';
     shareRow.append(codeInput, copyBtn, loadBtn);
 
     const message = document.createElement('div');
@@ -134,7 +133,7 @@ function createSetControls(sectionEl, applyColors) {
         strip.className = 'color-set-strip';
         for (const hex of set.colors) {
             const swatch = document.createElement('span');
-            swatch.style.background = hex;
+            swatch.style.setProperty('--swatch', hex);
             strip.appendChild(swatch);
         }
         const label = document.createElement('span');
@@ -171,7 +170,7 @@ function createSetControls(sectionEl, applyColors) {
 
     function refresh() {
         const active = matchingSet();
-        for (const { set, btn } of entries) btn.classList.toggle('active', set === active);
+        for (const { set, btn } of entries) btn.classList.toggle('is-active', set === active);
     }
 
     saveBtn.addEventListener('click', () => {

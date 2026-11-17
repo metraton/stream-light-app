@@ -13,7 +13,8 @@ import { restoreColorFilter, migrateLegacyFilters } from '../color-filter.js';
 import { restoreEffectStack } from '../effect-stack.js';
 import { restoreScreenStack, loadScreenStack, resetScreenStack } from '../screen-stack.js';
 import { restoreTextSettings } from '../overlay-text.js';
-import { activeLayoutDefault } from '../layout-default.js';
+import { activeLayoutDefault, clampLayoutFields } from '../layout-default.js';
+import { clampGlowLook } from './glow-controls.js';
 
 const STORAGE_PREFIX = 'streamlight-preset-';
 
@@ -50,7 +51,7 @@ export function loadPreset(name, app) {
             Object.assign(CONFIG.colors, data.colors);
         }
         if (data.columns) {
-            Object.assign(CONFIG.columns, data.columns);
+            Object.assign(CONFIG.columns, clampLayoutFields(data.columns));
         }
         if (data.colorFilter) {
             Object.assign(CONFIG.colorFilter, restoreColorFilter(data.colorFilter));
@@ -60,7 +61,7 @@ export function loadPreset(name, app) {
         Object.assign(CONFIG.effectStack, restoreEffectStack(data.effectStack));
         loadScreenStack(CONFIG.screenEffects, data.screenEffects);
         if (data.glow) {
-            Object.assign(CONFIG.glow, data.glow);
+            Object.assign(CONFIG.glow, clampGlowLook(data.glow));
         }
         Object.assign(CONFIG.text, restoreTextSettings(data.text));
         app.importTweaks(data.tweaks);
@@ -117,10 +118,9 @@ function applyLoadedState(app) {
 export function createPresetControls(sectionEl, app) {
     // Reset row
     const resetRow = document.createElement('div');
-    resetRow.className = 'preset-row';
+    resetRow.className = 'field-row';
     const resetBtn = document.createElement('button');
     resetBtn.textContent = 'Reset to Defaults';
-    resetBtn.style.flex = '1';
     resetBtn.addEventListener('click', () => {
         resetToDefaults(app);
         app.resetToBase();
@@ -131,7 +131,7 @@ export function createPresetControls(sectionEl, app) {
 
     // Save row
     const saveRow = document.createElement('div');
-    saveRow.className = 'preset-row';
+    saveRow.className = 'field-row';
 
     const nameInput = document.createElement('input');
     nameInput.type = 'text';
@@ -153,7 +153,7 @@ export function createPresetControls(sectionEl, app) {
 
     // Load row
     const loadRow = document.createElement('div');
-    loadRow.className = 'preset-row';
+    loadRow.className = 'field-row';
 
     const presetSelect = document.createElement('select');
     presetSelect.id = 'preset-select';

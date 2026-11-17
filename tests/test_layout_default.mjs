@@ -5,10 +5,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { CONFIG } from '../js/config.js';
 import {
-    LAYOUT_DEFAULT_KEY, factoryLayout, validateLayout, loadUserLayout,
+    LAYOUT_DEFAULT_KEY, factoryLayout, validateLayout, clampLayoutFields, loadUserLayout,
     saveUserLayout, clearUserLayout, activeLayoutDefault,
 } from '../js/layout-default.js';
-import { resetToDefaults } from '../js/panel/preset-manager.js';
+import { resetToDefaults, loadPreset } from '../js/panel/preset-manager.js';
 
 function memoryStorage(initial = {}) {
     const items = new Map(Object.entries(initial));
@@ -40,14 +40,31 @@ test('a saved default round-trips and leaves rotation, count and other fields ou
     assert.deepEqual(activeLayoutDefault(storage), MINE);
 });
 
-test('invalid or unknown stored fields fall back to factory values field by field', () => {
+test('non-numeric stored fields fall back to factory values and out-of-range ones are clamped', () => {
     const stored = {
         gap: 'x', margin: -5, cornerRadius: 12, zoom: null, spread: 9,
         rotationSteps: 2, fps: 30, extra: 'y',
     };
     const storage = memoryStorage({ [LAYOUT_DEFAULT_KEY]: JSON.stringify(stored) });
-    assert.deepEqual(loadUserLayout(storage), { ...FACTORY, cornerRadius: 12 });
+    assert.deepEqual(loadUserLayout(storage), { ...FACTORY, margin: 0, cornerRadius: 12, spread: 1.3 });
     assert.deepEqual(validateLayout({}), FACTORY);
+});
+
+test('a preset saved under the wider ranges loads its layout clamped to the narrowed sliders', () => {
+    const before = { ...CONFIG.columns };
+    const storage = new Map([['streamlight-preset-wide', JSON.stringify({ columns: { margin: 60, zoom: 1.5, spread: 0.5, gap: 12 } })]]);
+    globalThis.localStorage = { getItem: key => storage.get(key) ?? null };
+    try {
+        assert.ok(loadPreset('wide', { importTweaks() {} }));
+        assert.deepEqual(
+            { gap: CONFIG.columns.gap, margin: CONFIG.columns.margin, zoom: CONFIG.columns.zoom, spread: CONFIG.columns.spread },
+            { gap: 12, margin: 40, zoom: 1.3, spread: 0.7 },
+        );
+        assert.deepEqual(clampLayoutFields({ margin: 'x', zoom: 0.8 }), { zoom: 0.9 });
+    } finally {
+        delete globalThis.localStorage;
+        Object.assign(CONFIG.columns, before);
+    }
 });
 
 test('stored text that is not a JSON object counts as no saved default', () => {

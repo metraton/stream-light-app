@@ -153,5 +153,5 @@ test('+ and ´ change BPM by 1, by 5 with Shift, and stop at the bounds', () => 
 });
 
 test('rate buttons read as step length in beats, slowest first', () => {
-    assert.deepEqual(RATES.map(r => RATE_LABELS.get(r)), ['4 golpes', '2 golpes', '1 golpe', '½', '¼']);
+    assert.deepEqual(RATES.map(r => RATE_LABELS.get(r)), ['4 golpes', '2 golpes', '1 golpe', '1/2 golpe', '1/4 golpe']);
 });

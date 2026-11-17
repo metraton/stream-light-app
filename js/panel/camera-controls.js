@@ -21,14 +21,15 @@ export function createCameraControls(sectionEl, app) {
     const refresh = () => {
         const cameras = orderedCameras(app.cameraOrder, app.cameras);
         if (cameras.length === 0) {
-            const empty = document.createElement('label');
+            const empty = document.createElement('div');
+            empty.className = 'status-line';
             empty.textContent = 'No cameras';
             list.replaceChildren(empty);
             return;
         }
         list.replaceChildren(...cameras.map((cam, i) => {
             const row = document.createElement('div');
-            row.className = 'preset-row camera-row';
+            row.className = 'field-row camera-row';
 
             const enabled = document.createElement('input');
             enabled.type = 'checkbox';

@@ -263,7 +263,8 @@ export class StreamLightApp {
     }
 
     /** Replace the tweaks with stored ones, keeping only values the panel could have set
-     *  on an effect that still exists (a removed one such as freeze is dropped). */
+     *  on an effect that still exists (a removed one such as freeze is dropped); an
+     *  intensity outside the slider's range is clamped to it. */
     importTweaks(saved) {
         this.resetTweaks();
         const defined = { movement: EFFECTS, glow: GLOW_SEQUENCES };
@@ -273,8 +274,8 @@ export class StreamLightApp {
                 if (!tweak || typeof tweak !== 'object') continue;
                 if (RATES.includes(tweak.rate)) this._setTweak(layer, name, 'rate', tweak.rate);
                 if (isEasing(tweak.easing)) this._setTweak(layer, name, 'easing', tweak.easing);
-                if (Number.isFinite(tweak.intensity) && tweak.intensity >= INTENSITY_MIN && tweak.intensity <= INTENSITY_MAX) {
-                    this._setTweak(layer, name, 'intensity', tweak.intensity);
+                if (Number.isFinite(tweak.intensity)) {
+                    this._setTweak(layer, name, 'intensity', Math.min(INTENSITY_MAX, Math.max(INTENSITY_MIN, tweak.intensity)));
                 }
             }
         }

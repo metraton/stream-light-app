@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-    MAX_PHRASE_LENGTH, PHRASES_KEY, SEED_PHRASES, FADE_MS, TEXT_SIZE,
+    MAX_PHRASE_LENGTH, PHRASES_KEY, SEED_PHRASES, FADE_MS, TEXT_SIZE, TEXT_BAND_OPACITY,
     normalizePhrase, addPhrase, removePhrase, loadPhrases, savePhrases,
     defaultTextSettings, restoreTextSettings, fadeDuration, fadeAlpha,
     flickerEvents, flickerLevel, pulseGlow,
@@ -60,12 +60,19 @@ test('a preset without text settings loads the defaults; invalid fields fall bac
     assert.deepEqual(restoreTextSettings(undefined), defaultTextSettings());
     const restored = restoreTextSettings({
         phrase: '  CANDLE LIGHT ', colorMode: 'rainbow', customColor: 0x123456,
-        size: TEXT_SIZE.max + 1, band: 'yes', bandOpacity: 0.3, position: 'top', beat: 'flicker',
+        size: 'big', band: 'yes', bandOpacity: 0.3, position: 'top', beat: 'flicker',
     });
     assert.deepEqual(restored, {
         ...defaultTextSettings(),
         phrase: 'CANDLE LIGHT', customColor: 0x123456, bandOpacity: 0.3, position: 'top', beat: 'flicker',
     });
+});
+
+test('a stored size or band opacity outside the narrowed slider ranges loads clamped, not reset', () => {
+    const restored = restoreTextSettings({ size: 320, bandOpacity: 1 });
+    assert.equal(restored.size, TEXT_SIZE.max);
+    assert.equal(restored.bandOpacity, TEXT_BAND_OPACITY.max);
+    assert.equal(restoreTextSettings({ size: 60 }).size, TEXT_SIZE.min);
 });
 
 test('a full fade lasts FADE_MS and a reversed one only the distance already covered', () => {

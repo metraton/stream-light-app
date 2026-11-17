@@ -10,9 +10,9 @@
 export const FILTER_DEFS = [
     { key: 'brightness',  label: 'Bright',   min: -30, max: 30,  decimals: 0 },
     { key: 'contrast',    label: 'Contrast', min: 0.5, max: 1.5, decimals: 2 },
-    { key: 'saturation',  label: 'Saturate', min: 0,   max: 2,   decimals: 2 },
-    { key: 'hue',         label: 'Hue',      min: -90, max: 90,  decimals: 0 },
-    { key: 'temperature', label: 'Temp',     min: -60, max: 60,  decimals: 0 },
+    { key: 'saturation',  label: 'Saturate', min: 0,   max: 1.6, decimals: 2 },
+    { key: 'hue',         label: 'Hue',      min: -45, max: 45,  decimals: 0 },
+    { key: 'temperature', label: 'Temp',     min: -40, max: 40,  decimals: 0 },
 ];
 
 /** The settings under which the filter leaves the image unchanged. */
@@ -108,11 +108,13 @@ export function migrateLegacyFilters(filters, neutralFilter = NEUTRAL_FILTER) {
     return model;
 }
 
-/** A model rebuilt from persisted data, keeping only finite numbers; anything else starts neutral. */
+/** A model rebuilt from persisted data, keeping only finite numbers with the global value
+ *  clamped to its slider range; anything else starts neutral. */
 export function restoreColorFilter(data) {
     const model = createColorFilter();
-    for (const { key } of FILTER_DEFS) {
-        if (Number.isFinite(data?.global?.[key])) model.global[key] = data.global[key];
+    for (const def of FILTER_DEFS) {
+        const { key } = def;
+        if (Number.isFinite(data?.global?.[key])) model.global[key] = clamp(data.global[key], def);
         for (let slot = 0; slot < SLOT_COUNT; slot++) {
             const value = data?.offsets?.[slot]?.[key];
             if (Number.isFinite(value)) model.offsets[slot][key] = value;

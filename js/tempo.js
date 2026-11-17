@@ -6,7 +6,7 @@ import { EASING_MAP } from './easing.js';
 
 /** The rate buttons, in sequence steps per beat. */
 export const RATES = [0.25, 0.5, 1, 2, 4];
-export const RATE_LABELS = new Map([[0.25, '4 golpes'], [0.5, '2 golpes'], [1, '1 golpe'], [2, '½'], [4, '¼']]);
+export const RATE_LABELS = new Map([[0.25, '4 golpes'], [0.5, '2 golpes'], [1, '1 golpe'], [2, '1/2 golpe'], [4, '1/4 golpe']]);
 
 export const BPM_MIN = 60;
 export const BPM_MAX = 200;

@@ -16,7 +16,10 @@ export const WHITE = 0xFFFFFF;
 export const TEXT_COLOR_MODES = ['neon', 'column', 'white', 'custom'];
 export const TEXT_POSITIONS = ['center', 'top', 'bottom'];
 export const TEXT_BEAT_MODES = ['fixed', 'pulse', 'flicker'];
-export const TEXT_SIZE = { min: 60, max: 320, default: 160 };
+export const TEXT_SIZE = { min: 80, max: 260, default: 160 };
+export const TEXT_BAND_OPACITY = { min: 0, max: 0.9 };
+
+const clampTo = (value, { min, max }) => Math.min(max, Math.max(min, value));
 
 export const FADE_MS = 250;
 // Extra glow strength on the beat, as a multiple of the base: 1 + PULSE_BOOST at the hit.
@@ -37,7 +40,8 @@ export function defaultTextSettings() {
 }
 
 /** Stored settings (a preset, possibly from before the text existed) as valid
- *  settings: each missing or invalid field takes its default. */
+ *  settings: each missing or invalid field takes its default, and a size or band
+ *  opacity outside its slider range is clamped to it. */
 export function restoreTextSettings(saved) {
     const settings = defaultTextSettings();
     if (!saved || typeof saved !== 'object') return settings;
@@ -47,13 +51,9 @@ export function restoreTextSettings(saved) {
     if (Number.isInteger(saved.customColor) && saved.customColor >= 0 && saved.customColor <= WHITE) {
         settings.customColor = saved.customColor;
     }
-    if (Number.isFinite(saved.size) && saved.size >= TEXT_SIZE.min && saved.size <= TEXT_SIZE.max) {
-        settings.size = saved.size;
-    }
+    if (Number.isFinite(saved.size)) settings.size = clampTo(saved.size, TEXT_SIZE);
     if (typeof saved.band === 'boolean') settings.band = saved.band;
-    if (Number.isFinite(saved.bandOpacity) && saved.bandOpacity >= 0 && saved.bandOpacity <= 1) {
-        settings.bandOpacity = saved.bandOpacity;
-    }
+    if (Number.isFinite(saved.bandOpacity)) settings.bandOpacity = clampTo(saved.bandOpacity, TEXT_BAND_OPACITY);
     if (TEXT_POSITIONS.includes(saved.position)) settings.position = saved.position;
     if (TEXT_BEAT_MODES.includes(saved.beat)) settings.beat = saved.beat;
     return settings;

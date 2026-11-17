@@ -12,7 +12,7 @@ export function createScreenControls(sectionEl, app) {
     const applyScreen = () => app.columnManager.screenLayer.apply();
 
     const toggleRow = document.createElement('div');
-    toggleRow.className = 'effect-buttons';
+    toggleRow.className = 'btn-flow';
     sectionEl.appendChild(toggleRow);
     const toggles = SCREEN_EFFECTS.map(({ id, label }) => {
         const btn = document.createElement('button');
@@ -30,11 +30,10 @@ export function createScreenControls(sectionEl, app) {
     sectionEl.appendChild(paramBox);
 
     const resetRow = document.createElement('div');
-    resetRow.className = 'preset-row';
+    resetRow.className = 'field-row';
     const resetBtn = document.createElement('button');
     resetBtn.textContent = 'Reset pantalla';
     resetBtn.title = 'Quita todos los efectos de pantalla';
-    resetBtn.style.flex = '1';
     resetBtn.addEventListener('click', () => {
         resetScreenStack(list);
         changed();
@@ -48,7 +47,7 @@ export function createScreenControls(sectionEl, app) {
     }
 
     function refresh() {
-        for (const { btn, id } of toggles) btn.classList.toggle('active', hasScreenEffect(list, id));
+        for (const { btn, id } of toggles) btn.classList.toggle('is-active', hasScreenEffect(list, id));
         paramBox.innerHTML = '';
         for (const { id, params } of list) {
             createParamControls(paramBox, screenEffectById(id), params, (key, value) => {
