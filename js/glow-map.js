@@ -13,8 +13,8 @@ export const GLOW_QUICK = [
     { key: 'z', mode: 'none',      label: 'None' },
     { key: 'x', mode: 'sweep',     label: 'Sweep' },
     { key: 'c', mode: 'breathe',   label: 'Breathe' },
-    { key: 'v', mode: 'pulse',     label: 'Pulse' },
-    { key: 'b', mode: 'alternate', label: 'Alternate' },
+    { key: 'v', mode: 'alternate', label: 'Alternate' },
+    { key: 'b', mode: 'pulse',     label: 'Pulse' },
     { key: 'n', mode: 'strobe',    label: 'Strobe' },
 ];
 
