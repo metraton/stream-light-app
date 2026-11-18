@@ -83,7 +83,7 @@ Every row of the key grid has six keys and starts with None:
 |------|-----|------------|
 | `\|` `1`-`5` `6` | Colors (Shift selects only that one; `6` and `Shift+6` are the same) | Empty, Yellow, Blue, Red, Green, Purple, Todos al azar (all 5 in a new random order each press; pattern and other layers untouched) |
 | `Q W E R T Y` | Pattern (Shift plays its variant, shown as ⇄) | None, Chase, Carousel, Mirror, Fill, Sparkle |
-| `A S D F G H J` | Movement | None, Wave, Expand, Broken, Shake, Equalizer, Zoom (Golpe de zoom: every panel swells 4% on the beat and settles) |
+| `A S D F G H J` | Movement | None, Expand, Equalizer, Wave, Broken, Shake, Zoom (Golpe de zoom: every panel swells 4% on the beat and settles) |
 | `Z X C V B N` | Glow | None, Sweep, Breathe, Alternate, Pulse, Strobe |
 | `Shift+Z X C V B N` | Mood | Calm, Groove, Build, Tension, Peak, Mystic (`<` is Mood None) |
 | `Backspace` / `Space` | Cue | stage a new combo (colors, pattern, movement, glow, mood; BPM stays live) while the live one plays / commit it in press order (otherwise pause / resume) |

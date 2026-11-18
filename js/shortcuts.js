@@ -5,7 +5,7 @@
 // 0 / Shift+0: next enabled camera, in the panel's Cámaras order
 // Q W E R T Y: pattern (none/chase/carousel/mirror/fill/sparkle)
 // Shift+W E R T Y: that pattern's variant (color-sequencer.js PATTERN_VARIANTS); Shift+Q is Q
-// A S D F G H J: movement (none/wave/expand/broken/shake/equalizer/zoom pulse)
+// A S D F G H J: movement (none/expand/equalizer/wave/broken/shake/zoom pulse)
 // Z X C V B N: glow (none/sweep/breathe/alternate/pulse/strobe), from js/glow-map.js
 // Shift+Z X C V B N: mood (calm/groove/build/tension/peak/mystic), from js/mood-map.js
 // <: mood None (the only key for it)
@@ -23,7 +23,7 @@ import { GLOW_KEY_TO_MODE } from './glow-map.js';
 import { MOODS, MOOD_KEY_TO_NAME } from './mood-map.js';
 
 const PATTERN_KEYS = { q: 'none', w: 'chase', e: 'carousel', r: 'mirror', t: 'fill', y: 'sparkle' };
-const MOVEMENT_KEYS = { a: 'none', s: 'wave', d: 'expand', f: 'broken', g: 'shake', h: 'equalizer', j: 'zoomPulse' };
+const MOVEMENT_KEYS = { a: 'none', s: 'expand', d: 'equalizer', f: 'wave', g: 'broken', h: 'shake', j: 'zoomPulse' };
 const BPM_STEP = 1;
 const BPM_SHIFT_STEP = 5;
 

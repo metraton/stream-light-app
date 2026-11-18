@@ -19,9 +19,9 @@ const PATTERNS = ['none', 'chase', 'carousel', 'mirror', 'fill', 'sparkle'];
 const PATTERN_KEYS = ['Q', 'W', 'E', 'R', 'T', 'Y'];
 const PATTERN_WORDS = ['None', 'Chase', 'Carousel', 'Mirror', 'Fill', 'Sparkle'];
 
-const MOVEMENTS = ['none', 'wave', 'expand', 'broken', 'shake', 'equalizer', 'zoomPulse'];
+const MOVEMENTS = ['none', 'expand', 'equalizer', 'wave', 'broken', 'shake', 'zoomPulse'];
 const MOVEMENT_KEYS = ['A', 'S', 'D', 'F', 'G', 'H', 'J'];
-const MOVEMENT_WORDS = ['None', 'Wave', 'Expand', 'Broken', 'Shake', 'Equalizer', 'Zoom'];
+const MOVEMENT_WORDS = ['None', 'Expand', 'Equalizer', 'Wave', 'Broken', 'Shake', 'Zoom'];
 
 /** The hex of a color slot (0-4) as CONFIG.colors holds it now. */
 function slotHex(slot) {

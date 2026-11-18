@@ -69,7 +69,7 @@ test('a mood is committed together with the other staged changes, in press order
     const app = stageApp();
     press(app, ...BACKSPACE);
     press(app, ...SHIFT_C);
-    press(app, 'd', 'KeyD');
+    press(app, 's', 'KeyS');
     press(app, '4', 'Digit4');
     assert.deepEqual(live(app), BASE_LIVE);
 
@@ -134,7 +134,7 @@ test('groove goes through the cue: staged on Backspace, live on Space', () => {
 test('a movement key with a cue armed plays only on Space', () => {
     const app = stageApp();
     press(app, ...BACKSPACE);
-    press(app, 's', 'KeyS');
+    press(app, 'f', 'KeyF');
     assert.equal(app.currentMovement, 'none');
     assert.equal(app.effectEngine.active, null);
     press(app, ...SPACE);
@@ -143,7 +143,7 @@ test('a movement key with a cue armed plays only on Space', () => {
 });
 
 test('J plays Golpe de zoom through the same path as A S D F G H, cue staging included', () => {
-    const keys = [['s', 'wave'], ['d', 'expand'], ['f', 'broken'], ['g', 'shake'], ['h', 'equalizer'], ['j', 'zoomPulse']];
+    const keys = [['s', 'expand'], ['d', 'equalizer'], ['f', 'wave'], ['g', 'broken'], ['h', 'shake'], ['j', 'zoomPulse']];
     for (const [key, movement] of keys) {
         const played = [];
         const spy = { playMovement: (name) => played.push(name), refreshPanel() {} };
