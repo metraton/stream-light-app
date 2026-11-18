@@ -36,9 +36,20 @@ export function createGlowControls(sectionEl, app) {
     const cm = app.columnManager;
 
     const setName = activeLine(sectionEl, 'Glow');
-    const triggerBtns = buttonRow(sectionEl, GLOW_QUICK.map(({ key, label }) => `${key.toUpperCase()} ${label}`), i => {
+    const triggerBtns = buttonRow(sectionEl, GLOW_QUICK.map(() => ''), i => {
         app.setGlowMode(GLOW_QUICK[i].mode);
         app.refreshPanel();
+    });
+    triggerBtns.forEach((btn, i) => {
+        const key = document.createElement('span');
+        key.className = 'btn-key';
+        key.textContent = GLOW_QUICK[i].key.toUpperCase();
+        const word = document.createElement('span');
+        word.className = 'btn-word';
+        word.textContent = GLOW_QUICK[i].label;
+        btn.classList.add('key-btn');
+        btn.title = GLOW_QUICK[i].label;
+        btn.append(key, word);
     });
     const refreshTweaks = createLayerTweaks(sectionEl, app, 'glow', () => {
         app.setGlowMode('none');

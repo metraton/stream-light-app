@@ -7,6 +7,7 @@
     --sp-2: 8px;
     --sp-3: 12px;
     --sp-4: 16px;
+    --fs-2xs: 10px;
     --fs-xs: 11px;
     --fs-sm: 12px;
     --fs-md: 13px;
@@ -180,17 +181,17 @@
 }
 
 /* Key buttons: the key on top, its word below */
-.key-btn {
+.control-panel .key-btn {
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     gap: 2px;
     min-height: var(--key-h);
-    padding-inline: 2px;
+    padding-inline: 0;
 }
 .btn-key { font-size: var(--fs-md); font-weight: bold; }
-.btn-word { font-size: var(--fs-xs); opacity: 0.85; overflow-wrap: anywhere; text-align: center; }
+.btn-word { font-size: var(--fs-2xs); opacity: 0.85; text-align: center; }
 .control-panel .swatch-btn { border: 2px solid var(--swatch, var(--c-border)); }
 .control-panel .swatch-btn.is-active { background: var(--swatch); border-color: var(--swatch); color: var(--c-on-accent); }
 
