@@ -21,14 +21,13 @@ export function hexFromInt(val) {
 
 export const BUILTIN_SETS = Object.freeze([
     { name: 'Original', colors: CONFIG.colorOrder.map(name => hexFromInt(DEFAULTS.colors[name])) },
-    { name: 'Neón', colors: ['#ffee00', '#00e5ff', '#ff1744', '#39ff14', '#d500f9'] },
     { name: 'Atardecer', colors: ['#ffc93c', '#ff8c42', '#ff3c38', '#c9184a', '#7b2cbf'] },
-    { name: 'Océano', colors: ['#48cae4', '#0096c7', '#3a86ff', '#00f5d4', '#4361ee'] },
-    { name: 'Púrpura místico', colors: ['#ff77e9', '#c77dff', '#ff4fa3', '#e0aaff', '#9d4edd'] },
-    { name: 'Cálido', colors: ['#ffd60a', '#ff9e00', '#ff5400', '#ff006e', '#ffb4a2'] },
-    { name: 'Frío', colors: ['#caf0f8', '#4cc9f0', '#4361ee', '#2ec4b6', '#7209b7'] },
-    { name: 'Pastel', colors: ['#fdffb6', '#a0c4ff', '#ffadad', '#caffbf', '#bdb2ff'] },
-    { name: 'Rayos X', colors: ['#e0ffff', '#00ffff', '#4d9fff', '#ffffff', '#7df9ff'] },
+    { name: 'Océano', colors: ['#00f5d4', '#48cae4', '#0096c7', '#3a86ff', '#4361ee'] },
+    { name: 'Púrpura místico', colors: ['#e0aaff', '#ff77e9', '#ff4fa3', '#c77dff', '#9d4edd'] },
+    { name: 'Cálido', colors: ['#ffb4a2', '#ffd60a', '#ff9e00', '#ff5400', '#ff006e'] },
+    { name: 'Frío', colors: ['#caf0f8', '#4cc9f0', '#2ec4b6', '#4361ee', '#7209b7'] },
+    { name: 'Pastel', colors: ['#fdffb6', '#caffbf', '#a0c4ff', '#ffadad', '#f49ac1'] },
+    { name: 'Rayos X', colors: ['#ffffff', '#e0ffff', '#7df9ff', '#00ffff', '#4d9fff'] },
 ].map(set => Object.freeze({ name: set.name, colors: Object.freeze(set.colors) })));
 
 /**

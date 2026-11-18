@@ -15,7 +15,6 @@ const FIVE = ['#ff0000', '#00ff00', '#0000ff', '#ffffff', '#123abc'];
 const codeOf = payload => SHARE_PREFIX + Buffer.from(JSON.stringify(payload)).toString('base64url');
 
 test('built-in sets have unique names and five valid hex colors each', () => {
-    assert.ok(BUILTIN_SETS.length >= 9);
     const names = BUILTIN_SETS.map(s => s.name);
     assert.equal(new Set(names).size, names.length, `duplicate names: ${names}`);
     for (const { name, colors } of BUILTIN_SETS) {
@@ -23,6 +22,19 @@ test('built-in sets have unique names and five valid hex colors each', () => {
         assert.equal(colors.length, 5, name);
         for (const hex of colors) assert.match(hex, HEX, `${name}: ${hex}`);
     }
+});
+
+test('the curated sets keep the user\'s key 1 to 5 order, and Neón (a copy of Original) is gone', () => {
+    assert.deepEqual(Object.fromEntries(BUILTIN_SETS.filter(s => s.name !== 'Original').map(s => [s.name, [...s.colors]])), {
+        'Atardecer': ['#ffc93c', '#ff8c42', '#ff3c38', '#c9184a', '#7b2cbf'],
+        'Océano': ['#00f5d4', '#48cae4', '#0096c7', '#3a86ff', '#4361ee'],
+        'Púrpura místico': ['#e0aaff', '#ff77e9', '#ff4fa3', '#c77dff', '#9d4edd'],
+        'Cálido': ['#ffb4a2', '#ffd60a', '#ff9e00', '#ff5400', '#ff006e'],
+        'Frío': ['#caf0f8', '#4cc9f0', '#2ec4b6', '#4361ee', '#7209b7'],
+        'Pastel': ['#fdffb6', '#caffbf', '#a0c4ff', '#ffadad', '#f49ac1'],
+        'Rayos X': ['#ffffff', '#e0ffff', '#7df9ff', '#00ffff', '#4d9fff'],
+    });
+    assert.equal(BUILTIN_SETS[0].name, 'Original');
 });
 
 test('"Original" is the default colors in slot order', () => {
