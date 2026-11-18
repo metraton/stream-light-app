@@ -26,7 +26,7 @@ Object.defineProperty(globalThis, 'localStorage', {
         removeItem: key => storage.delete(key),
     },
 });
-const app = { exportTweaks: () => ({}), importTweaks() {} };
+const app = { exportTweaks: () => ({}), importTweaks() {}, importBase() {} };
 
 test('every screen effect default lies within its slider range or among its options', () => {
     for (const effect of SCREEN_EFFECTS) {

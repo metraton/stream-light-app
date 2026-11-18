@@ -194,6 +194,17 @@
 .btn-word { font-size: var(--fs-2xs); opacity: 0.85; text-align: center; }
 .control-panel .swatch-btn { border: 2px solid var(--swatch, var(--c-border)); }
 .control-panel .swatch-btn.is-active { background: var(--swatch); border-color: var(--swatch); color: var(--c-on-accent); }
+/* The | button's swatch: what unlit columns show, the camera placeholder while that is the camera */
+.base-swatch {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    margin-left: var(--sp-1);
+    vertical-align: middle;
+    border-radius: 2px;
+    background: var(--swatch, var(--c-faint));
+    border: 1px solid var(--c-border);
+}
 
 /* --- Slider row: label, curved track, number --- */
 .slider-row,
@@ -293,7 +304,8 @@
     transition: background-color 0.12s ease, box-shadow 0.12s ease;
 }
 .mini-col.is-lit { background: var(--swatch); border-color: var(--c-faint); }
-.mini-col.is-empty { background: var(--c-faint); border-color: var(--c-faint); }
+/* Unlit: the base's tint, or the camera placeholder while the base is Cámara */
+.mini-col.is-empty { background: var(--swatch, var(--c-faint)); border-color: var(--c-faint); }
 .mini-col.glow-on { box-shadow: 0 0 8px var(--swatch); }
 
 .step-dots { display: flex; justify-content: center; gap: 3px; min-height: 6px; }
@@ -313,8 +325,16 @@
     border: 1px solid var(--c-bg-3);
     border-radius: var(--radius);
 }
-.pattern-preview .step-line { display: flex; justify-content: center; gap: var(--sp-1); font-size: 18px; line-height: 1.35; white-space: nowrap; color: var(--c-border); }
-.pattern-preview .step-line.current { color: #fff; font-weight: bold; }
+.pattern-preview .step-line { display: flex; justify-content: center; gap: var(--sp-1); padding: 2px 0; opacity: 0.45; }
+.pattern-preview .step-line.current { opacity: 1; }
+.pattern-preview .sq {
+    width: 16px;
+    height: 16px;
+    border-radius: 2px;
+    background: var(--swatch, var(--c-faint));
+    border: 1px solid var(--c-border);
+}
+.pattern-preview .step-line.current .sq { border-color: var(--c-text); }
 
 /* --- Color Hex section --- */
 .color-row { display: grid; grid-template-columns: var(--label-w) 40px 1fr; align-items: center; gap: var(--sp-2); }

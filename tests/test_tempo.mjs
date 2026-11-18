@@ -34,7 +34,6 @@ const beatNow = (app) => app.sequencer.beatAt(clockMs);
 const near = (actual, expected, message) => assert.ok(Math.abs(actual - expected) < EPS, `${message}: ${actual} != ${expected}`);
 
 const COLOR_KEYS = [
-    ['|', 'Backquote', false], ['|', 'Backquote', true],
     ...[1, 2, 3, 4, 5].flatMap(n => [[String(n), `Digit${n}`, false], ['!"·$%'[n - 1], `Digit${n}`, true]]),
     ['6', 'Digit6', false], ['&', 'Digit6', true],
 ];

@@ -81,13 +81,14 @@ Every row of the key grid has six keys and starts with None:
 
 | Keys | Row | Key 1 to 6 |
 |------|-----|------------|
-| `\|` `1`-`5` `6` | Colors (Shift selects only that one; `6` and `Shift+6` are the same) | Empty, Yellow, Blue, Red, Green, Purple, Todos al azar (all 5 in a new random order each press; pattern and other layers untouched) |
+| `\|` | Base | what unlit columns show; each press steps Cámara (untinted camera) → Tenue (the lit color at 25%) → Negro → each palette color not selected now → Cámara; `Shift+\|` returns to Cámara |
+| `1`-`5` `6` | Colors (Shift selects only that one; `6` and `Shift+6` are the same) | Yellow, Blue, Red, Green, Purple, Todos al azar (all 5 in a new random order each press; pattern and other layers untouched) |
 | `Q W E R T Y` | Pattern (Shift plays its variant, shown as ⇄) | None, Chase, Carousel, Mirror, Fill, Sparkle |
 | `A S D F G H J` | Movement | None, Expand, Equalizer, Wave, Broken, Shake, Zoom (Golpe de zoom: every panel swells 4% on the beat and settles) |
 | `Z X C V B N` | Glow | None, Sweep, Breathe, Alternate, Pulse, Strobe |
 | `Shift+Z X C V B N` | Mood | Calm, Groove, Build, Tension, Peak, Mystic (`<` is Mood None) |
 | `Backspace` / `Space` | Cue | stage a new combo (colors, pattern, movement, glow, mood; BPM stays live) while the live one plays / commit it in press order (otherwise pause / resume) |
-| `Escape` | Base state | no colors, every layer None, playing (the first color pressed moves at once); the BPM, layout, filters, rotation and FPS cap stay |
+| `Escape` | Base state | no colors, every layer None, playing (the first color pressed moves at once); the BPM, base, layout, filters, rotation and FPS cap stay |
 | `+` / `´`, `0`, `P` | Other | BPM up/down by 1 (Shift: by 5; 60 to 200), next enabled camera (Shift+0 too), panel |
 | `9` | Text | fade the text overlay in or out (250 ms); Shift+9 stays unbound |
 
@@ -105,7 +106,9 @@ One camera is on the stage at a time. `0` steps through the enabled cameras in t
 
 The text overlay (`9`, or the panel's Texto section) draws the current phrase as hollow Fredoka letters outlined by a thin double line, with a glow and an optional dark band across the frame. It sits above the Pantalla layer, so screen effects never distort it. The panel sets the phrase, saved phrases (seeded with FLASH LIGHT and CANDLE LIGHT, kept in localStorage apart from presets), color (Neón, Columna = first selected color, Blanco, Custom), size, band and its opacity, position (Centro / Arriba / Abajo) and beat behavior (Fijo, Pulso al golpe, Parpadeo neón). Presets save that look as `text` but never whether it shows; a preset from before carries none and loads the defaults.
 
-Pattern variants (`js/color-sequencer.js` `PATTERN_VARIANTS`): Carousel reversed runs the same frames backwards. Chase, Mirror, Fill and Sparkle negative swap lit and Empty columns: each selected color in turn fills the row and the columns the normal pattern lights for that color alone become gaps, so Chase is a full row with a travelling gap and Fill empties the row column by column. None has no variant, so Shift+Q is Q. A plain key always picks the normal pattern; pressing Shift again keeps the variant; moods play the normal pattern.
+The base (`|`, `js/base-color.js`) is what a column the pattern leaves unlit shows. Cámara is the untinted camera; Tenue is the frame's lit color at 25% brightness (the first selected one when several are lit); Negro is near-black; a palette color tints the column like that color, with its filters and effects. The cycle skips the colors selected now, since a base in a lit color would erase the pattern, and a base color that gets selected later shows as Cámara until it is free again. With no color selected the stage stays on the camera whatever the base. In the glow's Columna color mode the glow takes the column's tint, so there is no visible glow behind Negro and a dim one behind Tenue; the Blanco and Custom modes keep their color. The `|` button in the panel reads `Base: <name>` with a swatch of what unlit columns show, and the mini stage and preview draw unlit cells in it. The base is not a performance layer: Escape, moods and cues leave it alone. Presets save it as `base` and a preset without it loads Cámara; Reset to Defaults returns it to Cámara.
+
+Pattern variants (`js/color-sequencer.js` `PATTERN_VARIANTS`): Carousel reversed runs the same frames backwards. Chase, Mirror, Fill and Sparkle negative swap lit and unlit columns: each selected color in turn fills the row and the columns the normal pattern lights for that color alone become gaps, so Chase is a full row with a travelling gap and Fill empties the row column by column. None has no variant, so Shift+Q is Q. A plain key always picks the normal pattern; pressing Shift again keeps the variant; moods play the normal pattern.
 
 The tuned values in code are the app's base, and presets sit on top of it. The base state and the six moods (Calm, Groove, Build, Tension, Peak, Mystic: colors, pattern, movement, glow and per-layer rates, plus easings where set; the base state also holds the 120 BPM the page starts at) are defined once, in `js/mood-map.js`; layout, colors, glow look, filters, effects and text look in `CONFIG` in `js/config.js`; each effect's own rate and easing in `js/effects.js`, `js/glow-sequences.js` and `PATTERN_RATES` in `js/color-sequencer.js`. `DEFAULTS` is a copy of `CONFIG` taken at load, so startup, Reset to Defaults and the Original color set all give the same values; the only exception is the layout, where a default saved from the Layout section wins until it is cleared. A preset's speed tweaks for an effect that no longer exists (the removed congelado and desfase) are dropped on load. `tests/test_defaults.mjs` pins these values.
 
@@ -192,6 +195,7 @@ js/shortcuts.js     resolveShortcut, the single key map, and the keydown listene
 js/live-bridge.js   page side of live mode: reports bound keys, runs relayed keys, sets the window title
 js/glow-map.js      glow quick keys shared by shortcuts and the panel
 js/mood-map.js      the base state and the moods, shared by the app, shortcuts and the panel
+js/base-color.js    the | base of unlit columns: cycle, preset restore and the look of every column of a frame
 js/color-filter.js  Color panel model: global filter + per-color offsets, effective values, old-preset migration
 js/overlay-text.js  text overlay model: settings and their preset restore, saved phrases, fade, beat pulse, seeded flicker
 js/overlay.js       text overlay rendering: double-outline phrase, glow and band above the screen layer
@@ -206,6 +210,7 @@ tests/test_color_filter.mjs tests for the Color panel math and the old-preset mi
 tests/test_panel_controls.mjs tests for the panel width (clamp, saved width, reset), slider steps and the narrowed ranges
 tests/test_text_overlay.mjs tests for the text overlay's phrases, preset restore, fade, flicker and key 9
 tests/test_defaults.mjs tests that startup, Reset to Defaults, Original and old presets share the tuned base
+tests/test_base_color.mjs tests for the | base: cycle order and skipped colors, Shift+|, Escape, moods, presets, the -1 look
 tests/test_camera_rotation.mjs tests for the camera rotation: order, disabled cameras, unplug and plug, saved order, key 0
 tests/test_obs_secrets.mjs fails if a file under obs/ carries a stream key, server or YouTube token, or turns the Replay Buffer off
 tests/test_obs_merge.mjs runs the merge rules and the real installer on tests/fixtures/obs/ (fake secrets) and checks what it keeps and updates

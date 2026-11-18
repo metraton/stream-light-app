@@ -69,6 +69,7 @@ export class ColumnManager {
         // separate "color mode" — that legacy concept caused rebuild() to snap
         // back to RAINBOW and is removed.
         this.columnColors = [...CONFIG.colorOrder];
+        this.columnTints = CONFIG.colorOrder.map(name => CONFIG.colors[name]);
     }
 
     setVideo(videoElement, videoTexture) {
@@ -290,6 +291,7 @@ export class ColumnManager {
         }
     }
 
+    /** 'column' glow is the column's tint, so a Negro base glows invisibly on the black stage and Tenue dimly. */
     updateGlowColors() {
         const g = CONFIG.glow;
         for (let i = 0; i < this.columns.length; i++) {
@@ -300,12 +302,22 @@ export class ColumnManager {
             } else if (g.colorMode === 'custom') {
                 col.glowFilter.color = g.customColor;
             } else {
-                const colorName = this.columnColors[i];
-                col.glowFilter.color = colorName === 'NEUTRAL'
-                    ? 0xffffff
-                    : (CONFIG.colors[colorName] || 0xffffff);
+                col.glowFilter.color = this.columnTints[i];
             }
         }
+    }
+
+    /** Show `looks` ({ colorName, tint } per column, base-color.js frameLooks) and refit glow colors and filters to them. */
+    paint(looks) {
+        for (let i = 0; i < looks.length && i < this.columns.length; i++) {
+            const col = this.columns[i];
+            col.sprite.tint = looks[i].tint;
+            col.container.alpha = 1;
+            this.columnColors[i] = looks[i].colorName;
+            this.columnTints[i] = looks[i].tint;
+        }
+        this.updateGlowColors();
+        this.applyFilters();
     }
 
     updateGlowParams() {

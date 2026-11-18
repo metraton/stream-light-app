@@ -1,6 +1,6 @@
 // --- Keyboard Shortcuts ---
-// |: toggle Empty; 1-5: toggle a color; 6 / Shift+6: all 5 colors in a random order
-// Shift+| / Shift+1-5: select only that color
+// |: next base for unlit columns (js/base-color.js); Shift+|: base back to Cámara
+// 1-5: toggle a color; Shift+1-5: select only that color; 6 / Shift+6: all 5 colors in a random order
 // 9: show / hide the text overlay (fades in and out)
 // 0 / Shift+0: next enabled camera, in the panel's Cámaras order
 // Q W E R T Y: pattern (none/chase/carousel/mirror/fill/sparkle)
@@ -47,9 +47,9 @@ export function resolveShortcut(e) {
     if (key === '|' && !ctrl && !alt) {
         return (app) => {
             if (shift) {
-                app.selectOnlyColor(-1);
+                app.resetBase();
             } else {
-                app.toggleColor(-1);
+                app.cycleBase();
             }
             app.refreshPanel();
         };

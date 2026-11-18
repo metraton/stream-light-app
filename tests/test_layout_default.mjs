@@ -55,7 +55,7 @@ test('a preset saved under the wider ranges loads its layout clamped to the narr
     const storage = new Map([['streamlight-preset-wide', JSON.stringify({ columns: { margin: 60, zoom: 1.5, spread: 0.5, gap: 12 } })]]);
     globalThis.localStorage = { getItem: key => storage.get(key) ?? null };
     try {
-        assert.ok(loadPreset('wide', { importTweaks() {} }));
+        assert.ok(loadPreset('wide', { importTweaks() {}, importBase() {} }));
         assert.deepEqual(
             { gap: CONFIG.columns.gap, margin: CONFIG.columns.margin, zoom: CONFIG.columns.zoom, spread: CONFIG.columns.spread },
             { gap: 12, margin: 40, zoom: 1.3, spread: 0.7 },
@@ -87,7 +87,7 @@ test('Reset to Defaults restores the user layout default and keeps the rotation'
     const storage = memoryStorage();
     saveUserLayout(MINE, storage);
     Object.assign(CONFIG.columns, { gap: 0, zoom: 1.5, rotationSteps: 1 });
-    const app = { resetTweaks() {} };
+    const app = { resetTweaks() {}, importBase() {} };
 
     resetToDefaults(app, storage);
     assert.deepEqual(

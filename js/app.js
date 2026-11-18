@@ -9,6 +9,7 @@ import { BASE_STATE } from './mood-map.js';
 import { EASING_MAP } from './easing.js';
 import { RATES } from './tempo.js';
 import { ColorSequencer, PATTERN_RATES } from './color-sequencer.js';
+import { BASE_CAMERA, frameLooks, nextBase, restoreBase } from './base-color.js';
 import { ColumnManager } from './columns.js';
 import { Overlay, loadOverlayFont } from './overlay.js';
 import { setupShortcuts } from './shortcuts.js';
@@ -54,6 +55,7 @@ export class StreamLightApp {
         this.currentGlowMode = BASE_STATE.glow;
         this.currentMovement = BASE_STATE.movement;
         this.currentMood = BASE_STATE.mood;
+        this.baseColor = BASE_CAMERA;
         // Panel tweaks per effect ({ rate, easing, intensity }) over the frozen
         // definitions; the color layer keeps its own in sequencer.patternRates.
         this.tweaks = { movement: {}, glow: {} };
@@ -143,44 +145,25 @@ export class StreamLightApp {
     // --- Color Frame Application ---
     _applyColorFrame(frame) {
         if (!this.columnManager) return;
-
-        // If all columns are empty (-1) and no colors selected, go neutral
-        const allEmpty = frame.every(c => c === -1);
-        if (allEmpty && this.sequencer.selectedColors.length === 0) {
-            for (const col of this.columnManager.columns) {
-                col.sprite.tint = 0xFFFFFF;
-                col.container.alpha = 1;
-            }
-            for (let i = 0; i < this.columnManager.columnColors.length; i++) {
-                this.columnManager.columnColors[i] = 'NEUTRAL';
-            }
-            this.columnManager.updateGlowColors();
-            this.columnManager.applyFilters();
-            this.refreshPanel();
-            return;
-        }
-
-        for (let i = 0; i < frame.length && i < this.columnManager.columns.length; i++) {
-            const colorIdx = frame[i];
-            const col = this.columnManager.columns[i];
-            if (colorIdx === -1) {
-                // Neutral: no tint, full visibility, participates in effects
-                col.sprite.tint = 0xFFFFFF;
-                col.container.alpha = 1;
-                this.columnManager.columnColors[i] = 'NEUTRAL';
-            } else {
-                const colorName = ColorSequencer.colorName(colorIdx);
-                const hex = CONFIG.colors[colorName];
-                if (hex !== undefined) {
-                    col.sprite.tint = hex;
-                    col.container.alpha = 1;
-                    this.columnManager.columnColors[i] = colorName;
-                }
-            }
-        }
-        this.columnManager.updateGlowColors();
-        this.columnManager.applyFilters(); // re-apply: neutral uses different filter set
+        this.columnManager.paint(frameLooks(frame, this.sequencer.selectedColors, this.baseColor));
         this.refreshPanel();
+    }
+
+    /** `|`: the next base for unlit columns, skipping the colors selected now. */
+    cycleBase() {
+        this.baseColor = nextBase(this.baseColor, this.sequencer.selectedColors);
+        this.reapplyColors();
+    }
+
+    /** Shift+`|`: unlit columns back to the untinted camera. */
+    resetBase() {
+        this.baseColor = BASE_CAMERA;
+        this.reapplyColors();
+    }
+
+    /** Take a preset's base; a missing or unknown one is Cámara. */
+    importBase(saved) {
+        this.baseColor = restoreBase(saved);
     }
 
     // --- Tempo and per-effect tweaks ---
@@ -467,8 +450,8 @@ export class StreamLightApp {
     }
 
     /** Return every performance layer to BASE_STATE, playing with no colors
-     *  (Escape, Reset to Defaults); the BPM stays the song's. Layout, filters, rotation and the
-     *  FPS cap are not performance layers and stay as they are. */
+     *  (Escape, Reset to Defaults); the BPM stays the song's. Layout, filters, the base, rotation and
+     *  the FPS cap are not performance layers and stay as they are. */
     resetToBase() {
         this.sequencer.resetToBase();
         this.stagedChanges = [];

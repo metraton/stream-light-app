@@ -8,7 +8,7 @@ import { CONFIG } from './config.js';
 import { BASE_STATE } from './mood-map.js';
 import { BeatClock, LayerPhase } from './tempo.js';
 
-// Color indices: -1=empty (neutral column), 0=YELLOW, 1=BLUE, 2=RED, 3=GREEN, 4=PURPLE
+// Color indices: -1=unlit (shows the base, js/base-color.js), 0=YELLOW, 1=BLUE, 2=RED, 3=GREEN, 4=PURPLE
 const COLOR_NAMES = ['YELLOW', 'BLUE', 'RED', 'GREEN', 'PURPLE'];
 const EMPTY = -1;
 const COLUMN_COUNT = 5;

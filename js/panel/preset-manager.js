@@ -7,7 +7,7 @@
 // Effects are saved as `effectStack` and Pantalla effects as `screenEffects`;
 // a preset without either loads with none of those effects on.
 // The text overlay's look is saved as `text`, never whether it shows; a preset
-// without it loads the default look.
+// without it loads the default look; one without `base` loads Cámara.
 import { CONFIG, DEFAULTS } from '../config.js';
 import { restoreColorFilter, migrateLegacyFilters } from '../color-filter.js';
 import { restoreEffectStack } from '../effect-stack.js';
@@ -15,6 +15,7 @@ import { restoreScreenStack, loadScreenStack, resetScreenStack } from '../screen
 import { restoreTextSettings } from '../overlay-text.js';
 import { activeLayoutDefault, clampLayoutFields } from '../layout-default.js';
 import { clampGlowLook } from './glow-controls.js';
+import { BASE_CAMERA } from '../base-color.js';
 
 const STORAGE_PREFIX = 'streamlight-preset-';
 
@@ -34,6 +35,7 @@ export function savePreset(name, app) {
         glow: { ...CONFIG.glow },
         text: restoreTextSettings(CONFIG.text),
         tweaks: app.exportTweaks(),
+        base: app.baseColor,
     };
 
     localStorage.setItem(STORAGE_PREFIX + name, JSON.stringify(data));
@@ -65,6 +67,7 @@ export function loadPreset(name, app) {
         }
         Object.assign(CONFIG.text, restoreTextSettings(data.text));
         app.importTweaks(data.tweaks);
+        app.importBase(data.base);
         return true;
     } catch {
         return false;
@@ -86,8 +89,8 @@ export function deletePreset(name) {
     localStorage.removeItem(STORAGE_PREFIX + name);
 }
 
-/** Restore colors, filters, effects, Pantalla effects, glow look, text look and every
- *  speed tweak to their factory values, and the layout to the active layout default:
+/** Restore colors, filters, effects, Pantalla effects, glow look, text look, every
+ *  speed tweak and the base (Cámara) to their factory values, and the layout to the active layout default:
  *  the user's saved one ("Guardar como default" in Layout) when it exists, otherwise
  *  factory. The rotation is kept: the camera sets it, not the defaults. Whether the
  *  text shows is kept too, like any other live toggle. */
@@ -101,6 +104,7 @@ export function resetToDefaults(app, storage = localStorage) {
     Object.assign(CONFIG.glow, DEFAULTS.glow);
     Object.assign(CONFIG.text, restoreTextSettings(DEFAULTS.text));
     app.resetTweaks();
+    app.importBase(BASE_CAMERA);
 }
 
 /** Redraw everything a preset or reset changed, keeping the text overlay above the screen layer. */

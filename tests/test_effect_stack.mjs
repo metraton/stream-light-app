@@ -128,7 +128,7 @@ test('a preset saved before effects existed loads with no effects', () => {
     CONFIG.effectStack.slots[0].push({ id: 'dots', params: { size: 10, mode: 'color' } });
     const storage = new Map([['streamlight-preset-old', JSON.stringify({ colors: {}, glow: {} })]]);
     globalThis.localStorage = { getItem: key => storage.get(key) ?? null };
-    const app = { importTweaks() {} };
+    const app = { importTweaks() {}, importBase() {} };
     try {
         assert.ok(loadPreset('old', app));
     } finally {

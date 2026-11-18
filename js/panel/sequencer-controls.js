@@ -4,16 +4,16 @@ import { ColorSequencer } from '../color-sequencer.js';
 import { GLOW_QUICK } from '../glow-map.js';
 import { MOODS, MOOD_QUICK } from '../mood-map.js';
 import { BPM_MIN, BPM_MAX } from '../tempo.js';
+import { PALETTE_WORDS, baseName, effectiveBase, unlitTint } from '../base-color.js';
+import { hexFromInt } from '../color-sets.js';
 import { colorHex } from './color-controls.js';
 
 // Every button group uses the same two-line "KEY over WORD" layout via keyLabel(),
-// and every row of the 6-key grid starts with None.
-const COLOR_INDICES = [-1, 0, 1, 2, 3, 4, 99];
-const COLOR_KEYS = ['|', '1', '2', '3', '4', '5', '6'];
-const COLOR_WORDS = ['Empty', 'Yellow', 'Blue', 'Red', 'Green', 'Purple', 'Todos al azar'];
-const EMPTY_HEX = '#444';
+// and every row of the 6-key grid starts with None; the color row starts with the base.
+const COLOR_INDICES = [0, 1, 2, 3, 4, 99];
+const COLOR_KEYS = ['1', '2', '3', '4', '5', '6'];
+const COLOR_WORDS = [...PALETTE_WORDS, 'Todos al azar'];
 const ALL_COLORS_HEX = '#888';
-const COLOR_EMOJIS = ['⬛', '🟨', '🟦', '🟥', '🟩', '🟪'];
 
 const PATTERNS = ['none', 'chase', 'carousel', 'mirror', 'fill', 'sparkle'];
 const PATTERN_KEYS = ['Q', 'W', 'E', 'R', 'T', 'Y'];
@@ -31,9 +31,13 @@ function slotHex(slot) {
 /** The swatch of color button `i`, read from CONFIG.colors so it follows hex edits. */
 function colorButtonHex(i) {
     const idx = COLOR_INDICES[i];
-    if (idx === -1) return EMPTY_HEX;
     if (idx === 99) return ALL_COLORS_HEX;
     return slotHex(idx);
+}
+
+function setSwatch(el, tint) {
+    if (tint === null) el.style.removeProperty('--swatch');
+    else el.style.setProperty('--swatch', hexFromInt(tint));
 }
 
 /** Build the uniform two-line button content: key glyph on top, word below. */
@@ -105,7 +109,16 @@ export function createSequencerControls(sectionEl, app) {
     sectionEl.appendChild(patternPreview);
 
     // === Colors ===
-    const colorRow = keyRow(sectionEl, 'Colors (| 1-6)');
+    const colorRow = keyRow(sectionEl, 'Base and colors (| 1-6)');
+
+    const baseBtn = document.createElement('button');
+    baseBtn.className = 'base-btn';
+    baseBtn.addEventListener('click', (e) => {
+        if (e.shiftKey) app.resetBase();
+        else app.cycleBase();
+        refreshAll();
+    });
+    colorRow.appendChild(baseBtn);
 
     const colorBtns = [];
     for (let i = 0; i < COLOR_KEYS.length; i++) {
@@ -299,6 +312,7 @@ export function createSequencerControls(sectionEl, app) {
     }
 
     function refreshAll() {
+        updateBaseBtn();
         updateColorBtns();
         refreshActiveStates();
         updatePatternLabels();
@@ -321,6 +335,20 @@ export function createSequencerControls(sectionEl, app) {
     // otherwise the LIVE selection. (The screen behind keeps rotating LIVE.)
     function shownColors() { return seq.staging ? seq.pendingColors : seq.selectedColors; }
     function shownPattern() { return seq.staging ? seq.pendingPattern : seq.pattern; }
+
+    function baseTint(frame) {
+        return unlitTint(app.baseColor, frame, seq.selectedColors);
+    }
+
+    function updateBaseBtn() {
+        const word = `Base: ${baseName(effectiveBase(app.baseColor, seq.selectedColors))}`;
+        keyLabel(baseBtn, '|', word);
+        baseBtn.title = `${word} — | cambia la base de las columnas apagadas, Shift+| vuelve a Cámara`;
+        const swatch = document.createElement('span');
+        swatch.className = 'base-swatch';
+        setSwatch(swatch, baseTint(seq.currentFrame));
+        baseBtn.querySelector('.btn-key').appendChild(swatch);
+    }
 
     function updateColorBtns() {
         const colors = shownColors();
@@ -354,12 +382,13 @@ export function createSequencerControls(sectionEl, app) {
 
     function updateMiniStage() {
         const frame = seq.currentFrame;
+        const unlit = baseTint(frame);
         for (let i = 0; i < 5; i++) {
             const mc = miniCols[i];
             const colorIdx = frame[i];
             const lit = colorIdx >= 0 && colorIdx <= 4;
             if (lit) mc.style.setProperty('--swatch', slotHex(colorIdx));
-            else mc.style.removeProperty('--swatch');
+            else setSwatch(mc, unlit);
             mc.classList.toggle('is-lit', lit);
             mc.classList.toggle('is-empty', colorIdx === -1);
             mc.classList.toggle('glow-on', lit && app.currentGlowMode !== 'none');
@@ -377,8 +406,18 @@ export function createSequencerControls(sectionEl, app) {
         stepDots.innerHTML = html;
     }
 
-    const sqEmoji = (c) => c === -1 ? COLOR_EMOJIS[0]
-        : (c >= 0 && c <= 4) ? COLOR_EMOJIS[c + 1] : '⬜';
+    function previewLine(colors, unlit, current) {
+        const line = document.createElement('div');
+        line.className = current ? 'step-line current' : 'step-line';
+        for (const c of colors) {
+            const sq = document.createElement('span');
+            sq.className = 'sq';
+            if (c >= 0 && c <= 4) sq.style.setProperty('--swatch', slotHex(c));
+            else setSwatch(sq, unlit);
+            line.appendChild(sq);
+        }
+        return line;
+    }
 
     function updatePatternPreview() {
         // While staging, the preview shows the PENDING combo being cued (one row
@@ -389,9 +428,7 @@ export function createSequencerControls(sectionEl, app) {
                 patternPreview.textContent = 'Cue: elige colores… (Play para activar)';
                 return;
             }
-            patternPreview.innerHTML = pend.map(c =>
-                `<div class="step-line current"><span class="sq">${sqEmoji(c)}</span></div>`
-            ).join('');
+            patternPreview.replaceChildren(...pend.map(c => previewLine([c], null, true)));
             return;
         }
         if (seq.frames.length === 0) {
@@ -399,10 +436,7 @@ export function createSequencerControls(sectionEl, app) {
             return;
         }
         const current = seq.currentStep % seq.frames.length;
-        patternPreview.innerHTML = seq.frames.map((frame, i) => {
-            const squares = frame.map(c => `<span class="sq">${sqEmoji(c)}</span>`).join('');
-            return `<div class="step-line${i === current ? ' current' : ''}">${squares}</div>`;
-        }).join('');
+        patternPreview.replaceChildren(...seq.frames.map((frame, i) => previewLine(frame, baseTint(frame), i === current)));
     }
 
     refreshAll();
